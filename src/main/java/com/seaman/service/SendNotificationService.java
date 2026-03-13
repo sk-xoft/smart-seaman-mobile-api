@@ -1,17 +1,16 @@
 package com.seaman.service;
 
-import com.google.gson.Gson;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.MSendNotificationEntity;
 import com.seaman.entity.SendNotificationEntity;
 import com.seaman.entity.UserSendNotificationEntity;
 import com.seaman.entity.UsersEntity;
+import com.seaman.event.SendNotificationFcmEvent;
 import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
 import com.seaman.model.external.request.FcmMessageData;
 import com.seaman.model.external.request.FcmMessageRequest;
-import com.seaman.model.external.response.FcmMessageResponse;
 import com.seaman.model.request.MSendNotificationsRequest;
 import com.seaman.model.request.NotificationModel;
 import com.seaman.model.request.SendNotificationRequest;
@@ -20,19 +19,15 @@ import com.seaman.model.response.NotificationsModel;
 import com.seaman.model.response.UpdateNotificationsResponse;
 import com.seaman.repository.SendNotificationRepository;
 import com.seaman.utils.DateUtil;
-import com.seaman.utils.ExternalApiUtils;
 import com.seaman.utils.FrameworkUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-
 import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -40,35 +35,26 @@ import java.util.List;
 public class SendNotificationService {
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
-
     private final SendNotificationRepository sendNotificationRepository;
-
     private final TransactionLogsService transactionLogsService;
-
-    private final ExternalApiUtils externalApiUtils;
-
     private final FrameworkUtils frameworkUtils;
-
     private final DateUtil dateUtil;
-
-    @Value("${fcm.url}")
-    private String fcmNotificationUrl;
-
-    @Value("${fcm.auth}")
-    private String fcmAuth;
-
+    private final ApplicationEventPublisher eventPublisher;
     private String titleMessage = "Smart Seaman";
-
     private String bodyMessage = "ประกาศนียบัตรใกล้จะหมดอายุ";
 
     public void sendNotification() {
 
         try {
 
-            List<UserSendNotificationEntity> userSendNotificationEntities = sendNotificationRepository.listUserSendNotifications();
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", String.format("key=%s", fcmAuth));
+            // Load form database on production.
+             List<UserSendNotificationEntity> userSendNotificationEntities = sendNotificationRepository.listUserSendNotifications();
+
+            // For test local account boi.
+            // UserSendNotificationEntity userSendNotificationEntity = new UserSendNotificationEntity();
+            // userSendNotificationEntity.setUserMobileUuid("5ec89f24-393a-4fd7-a27e-c1d7b6b43866");
+            // userSendNotificationEntity.setTokenFcm("cOFh7ImYFEN3q9f_BciVh3:APA91bHrZpiWY_Ds58J4z_ySVArCgQEDsMHQjw8vXOR_CN0uEAy9PBmMhbclvc4Gf3K0JYqcQehP8lZtR45DvuGgenHzCrGFnctKdX6Re3wUE2CUKmOKhHk");
+            // List<UserSendNotificationEntity> userSendNotificationEntities = Arrays.asList(userSendNotificationEntity);
 
             for (UserSendNotificationEntity item : userSendNotificationEntities) {
 
@@ -103,25 +89,14 @@ public class SendNotificationService {
                 // Prepare message
                 FcmMessageRequest fcmMessageRequest = new FcmMessageRequest();
                 fcmMessageRequest.setData(fcmMessageData);
-
-                // Prepare token fcm
                 fcmMessageRequest.setTo(item.getTokenFcm());
                 fcmMessageRequest.setPriority("high");
                 fcmMessageRequest.setMutable_content(true);
                 fcmMessageRequest.setNotification(notificationModel);
 
-                FcmMessageResponse fcmMessageResponse = (FcmMessageResponse) externalApiUtils.commonCaller(fcmNotificationUrl,
-                        HttpMethod.POST, headers, fcmMessageRequest, FcmMessageRequest.class, FcmMessageResponse.class,
-                        Object.class);
-
-                Gson gson = new Gson();
-                String bodyResponse = gson.toJson(fcmMessageResponse, FcmMessageResponse.class);
-                entity.setResponseBodyFcm(bodyResponse);
-
-                entity.setSuccess(fcmMessageResponse.getSuccess());
-                entity.setFailure(fcmMessageResponse.getFailure());
-
-                sendNotificationRepository.updateNotificationById(String.valueOf(tableId), entity);
+                // Publish event to send FCM notification asynchronously
+                List<String> deviceTokens = List.of(item.getTokenFcm());
+                eventPublisher.publishEvent(new SendNotificationFcmEvent(this, deviceTokens, fcmMessageRequest));
             }
 
             log.info("Send notification is success. User list -> {} ", userSendNotificationEntities.size());
@@ -228,10 +203,10 @@ public class SendNotificationService {
             log.info("Update notifications is success.");
 
         } catch (CommonException ce) {
-            log.error("{}", ce.getMessage());
+            log.error("Update common exception : {}", ce.getMessage());
             throw ce;
         } catch (Exception ex) {
-            log.error("{} error -> {}", serviceName, ex);
+            log.error("Update exception : {} error -> {}", serviceName, ex);
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);

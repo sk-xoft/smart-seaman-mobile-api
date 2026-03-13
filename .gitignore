@@ -85,3 +85,8 @@ nb-configuration.xml
 src/.scannerwork
 
 target
+
+##############################
+## Environment
+##############################
+.env
