@@ -90,3 +90,10 @@ target
 ## Environment
 ##############################
 .env
+
+##############################
+## Sensitive credentials
+##############################
+*-firebase-adminsdk-*.json
+application-local.properties
+application-*.local.properties
