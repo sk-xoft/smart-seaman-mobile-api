@@ -93,6 +93,17 @@ docker run --name smart-seaman-mobile-api -d \
   xoftspace/smart-seaman-mobile-api:latest
 ```
 
+### Run Docker with configuration
+```bash
+docker run --name smart-seaman-mobile-api -d \
+  --env-file /Users/sarunyook/workspaces/xoftspace/smart-seaman/source_code/config/prod/.env \
+  -v /Users/sarunyook/workspaces/xoftspace/smart-seaman/source_code/config/prod/smart-seaman-firebase-adminsdk-5q8as-80c908a305.json:/app/firebase.json \
+  -e FCM_CREDENTIAL_FILE=firebase.json \
+  -it -p 30000:8080/tcp \
+  xoftspace/smart-seaman-mobile-api:0.3
+
+```
+
 > **Note:** Container ใช้ config จาก `application.properties` (prod profile) โดย default
 > Port mapping: host `30000` → container `8080`
 
