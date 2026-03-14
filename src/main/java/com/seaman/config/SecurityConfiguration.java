@@ -68,7 +68,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                     config.configurationSource(source);
                 }).csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                .and().authorizeRequests().antMatchers(PUBLIC).anonymous()
+                .and().authorizeRequests().antMatchers(PUBLIC).permitAll()
                 .anyRequest().authenticated()
                 .and().apply(new TokenFilterConfiguerer(jwtTokenService, messageCodeService));
 
