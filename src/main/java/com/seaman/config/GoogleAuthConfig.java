@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import java.io.IOException;
 import java.util.List;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -27,7 +29,9 @@ public class GoogleAuthConfig {
 
     @Bean
     GoogleCredentials credentialFromFile() throws IOException {
-        ClassPathResource serviceAccount = new ClassPathResource(authFirebaseFileName);
+        Resource serviceAccount = authFirebaseFileName.startsWith("/")
+                ? new FileSystemResource(authFirebaseFileName)
+                : new ClassPathResource(authFirebaseFileName);
         return GoogleCredentials.fromStream(serviceAccount.getInputStream())
                 .createScoped(SCOPES);
     }
