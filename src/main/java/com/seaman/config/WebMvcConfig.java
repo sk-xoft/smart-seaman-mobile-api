@@ -11,41 +11,43 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    private final APIInterceptor apiInterceptor;
+        private final APIInterceptor apiInterceptor;
 
-    private final AuthInterceptor authInterceptor;
+        private final AuthInterceptor authInterceptor;
 
-    private final String[] NOT_VALIDATE_AUTH = {
-            "/actuator/**",
-            "/swagger-ui.html/**",
-            "/swagger-ui/**",
-            "/smart-seaman-swagger/**",
-            "/v1/login",
-            "/v1/register",
-            "/v1/refresh-token",
-            "/v1/activate-user",
-            "/v1/reset-password",
-            "/v1/activate-forgot-password",
-            "/v1/profile/active",
-
-            // Master data
-            "/v1/master"
-    };
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(apiInterceptor)
-                .excludePathPatterns(
+        private final String[] NOT_VALIDATE_AUTH = {
+                        "/actuator/**",
                         "/swagger-ui.html/**",
                         "/swagger-ui/**",
-                        "/smart-seaman-swagger/**"
-                ).addPathPatterns("/v1/**")
-                .order(1);
+                        "/smart-seaman-swagger/**",
+                        "/v1/login",
+                        "/v1/register",
+                        "/v1/refresh-token",
+                        "/v1/activate-user",
+                        "/v1/reset-password",
+                        "/v1/activate-forgot-password",
+                        "/v1/profile/active",
+                        "/forgot-password/**",
+                        "/confirm-register/**",
 
-        registry.addInterceptor(authInterceptor)
-                .excludePathPatterns(NOT_VALIDATE_AUTH).addPathPatterns("/v1/**")
-                .order(2);
+                        // Master data
+                        "/v1/master"
+        };
 
-    }
+        @Override
+        public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(apiInterceptor)
+                                .excludePathPatterns(
+                                                "/swagger-ui.html/**",
+                                                "/swagger-ui/**",
+                                                "/smart-seaman-swagger/**")
+                                .addPathPatterns("/v1/**")
+                                .order(1);
+
+                registry.addInterceptor(authInterceptor)
+                                .excludePathPatterns(NOT_VALIDATE_AUTH).addPathPatterns("/v1/**")
+                                .order(2);
+
+        }
 
 }
