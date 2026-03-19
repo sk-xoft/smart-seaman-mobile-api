@@ -1,38 +1,14 @@
-[
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
+[{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target" : { "namespace": "android_app", "package_name": "com.smartseamandigitalidea.smartseaman",
+        "sha256_cert_fingerprints": ["35:EE:B4:AE:F6:0B:45:E2:4A:B7:F2:04:3D:21:5C:D2:3C:90:03:A4:40:FC:FC:85:52:91:B2:1D:DD:9D:D6:41"] }
+},{
+    "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
       "package_name": "com.smartseamandigitalidea.smartseaman",
-      "sha256_cert_fingerprints": [
-        "35:EE:B4:AE:F6:0B:45:E2:4A:B7:F2:04:3D:21:5C:D2:3C:90:03:A4:40:FC:FC:85:52:91:B2:1D:DD:9D:D6:41"
-      ]
-    }
-  },
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.smartseamandigitalidea.smartseaman",
-      "sha256_cert_fingerprints": [
-        "EB:FC:48:F9:2F:22:5E:D7:2A:E7:43:92:4F:8D:19:96:69:92:DA:E5:97:BA:0F:8A:E7:85:54:2D:E5:0E:7A:90"
-      ]
-    }
-  },
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.smartseaman.digitalidea",
-      "sha256_cert_fingerprints": [
-        "8D:93:83:9D:2D:0D:17:D5:26:20:B4:49:60:67:7A:67:7B:11:D4:D1:FC:A2:E6:63:5C:2A:CA:68:4E:65:6B:7A"
-      ]
+      "sha256_cert_fingerprints":
+        ["EB:FC:48:F9:2F:22:5E:D7:2A:E7:43:92:4F:8D:19:96:69:92:DA:E5:97:BA:0F:8A:E7:85:54:2D:E5:0E:7A:90"]
     }
   }
 ]
