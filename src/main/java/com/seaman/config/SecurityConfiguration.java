@@ -41,6 +41,8 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
             "/v1/reset-password",
             "/v1/activate-forgot-password",
             "/v1/profile/active",
+            "/forgot-password/**",
+            "/confirm-register/**",
 
             // Master data
             "/v1/master",
