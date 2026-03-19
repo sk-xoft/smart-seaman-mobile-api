@@ -41,8 +41,6 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
             "/v1/reset-password",
             "/v1/activate-forgot-password",
             "/v1/profile/active",
-            "/forgot-password/**",
-            "/confirm-register/**",
 
             // Master data
             "/v1/master",
@@ -54,21 +52,21 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
 
         http.cors(config -> {
-                    CorsConfiguration cors = new CorsConfiguration();
-                    cors.setAllowCredentials(true);
-                    cors.setAllowedOriginPatterns(Collections.singletonList("http://*"));
-                    cors.addAllowedHeader("*");
-                    cors.addAllowedMethod("GET");
-                    cors.addAllowedMethod("POST");
-                    cors.addAllowedMethod("PUT");
-                    cors.addAllowedMethod("DELETE");
-                    cors.addAllowedMethod("OPTIONS");
+            CorsConfiguration cors = new CorsConfiguration();
+            cors.setAllowCredentials(true);
+            cors.setAllowedOriginPatterns(Collections.singletonList("http://*"));
+            cors.addAllowedHeader("*");
+            cors.addAllowedMethod("GET");
+            cors.addAllowedMethod("POST");
+            cors.addAllowedMethod("PUT");
+            cors.addAllowedMethod("DELETE");
+            cors.addAllowedMethod("OPTIONS");
 
-                    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                    source.registerCorsConfiguration("/**", cors);
+            UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+            source.registerCorsConfiguration("/**", cors);
 
-                    config.configurationSource(source);
-                }).csrf().disable()
+            config.configurationSource(source);
+        }).csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and().authorizeRequests().antMatchers(PUBLIC).permitAll()
                 .anyRequest().authenticated()
@@ -81,16 +79,17 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .headers()
                 .addHeaderWriter(new StaticHeadersWriter("X-Frame-Options", "SAMEORIGIN"))
                 .addHeaderWriter(new StaticHeadersWriter("X-Content-Security-Policy", "script-src 'self'"))
-                .addHeaderWriter(new StaticHeadersWriter("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"));
+                .addHeaderWriter(
+                        new StaticHeadersWriter("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"));
     }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         /**
-        auth.inMemoryAuthentication()
-                .withUser("smartseaman")
-                .password(passwordEncoder().encode("P@55w0rd"))
-                .authorities("ADMIN");
+         * auth.inMemoryAuthentication()
+         * .withUser("smartseaman")
+         * .password(passwordEncoder().encode("P@55w0rd"))
+         * .authorities("ADMIN");
          */
     }
 
@@ -100,8 +99,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public AuthenticationEntryPoint authenticationEntryPoint(){
+    public AuthenticationEntryPoint authenticationEntryPoint() {
         return new CustomAuthenticationEntryPoint();
     }
 }
-
