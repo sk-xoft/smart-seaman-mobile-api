@@ -95,7 +95,8 @@ docker run --name smart-seaman-mobile-api -d \
 
 ```bash
 
-mvn clean package -DskipTests && docker build -t xoftspace/smart-seaman-mobile-api:0.3 .
+mvn clean package -DskipTests && docker build -t xoftspace/smart-seaman-mobile-api:0.5 .
+
 
 ```
 
@@ -107,19 +108,20 @@ docker run --name smart-seaman-mobile-api -d \
   -v /Users/sarunyook/workspaces/xoftspace/smart-seaman/source_code/config/mobile/prod/smart-seaman-firebase.json:/app/firebase.json \
   -e FCM_CREDENTIAL_FILE=/app/firebase.json \
   -it -p 30000:8080/tcp \
-  xoftspace/smart-seaman-mobile-api:0.3
+  xoftspace/smart-seaman-mobile-api:0.4
   
 
 ```
 
 ```bash
 
-docker run --name smart-seaman-mobile-api -d \
+docker run --name smart-seaman-mobile-api-0.5 -d \
   --env-file /home/ssmuser/apps/config/mobile/prod/.env \
   -v /home/ssmuser/apps/config/mobile/prod/smart-seaman-firebase.json:/app/firebase.json \
+  -v /home/ssmuser/apps-logs-service/smart-seaman-mobile-api/logs:/apps-logs-service/smart-seaman-mobile-api/logs \
   -e FCM_CREDENTIAL_FILE=/app/firebase.json \
   -it -p 30000:8080/tcp \
-  xoftspace/smart-seaman-mobile-api:0.3
+  xoftspace/smart-seaman-mobile-api:0.5
 
 ```
 
