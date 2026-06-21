@@ -3,7 +3,7 @@
 
 <!--    <property name="LOGS" value="/apps/smart-seaman-mobile-api/logs" />-->
 <!--    <property name="LOGS" value="/Users/sarunyook/apps-logs-service/smart-seaman-mobile-api/logs"/>-->
-    <property name="LOGS" value="/Users/sarunyook/workspaces/xoftspace/apps-logs-service/smart-seaman-mobile-api/logs"/>
+     <property name="LOGS" value="/Users/sarunyook/workspaces/xoftspace/apps-logs-service/smart-seaman-mobile-api/logs"/>
 <!--    <property name="LOGS" value="/apps-logs-service/smart-seaman-mobile-api/logs"/>-->
     <property name="APPS" value="smart-seaman-mobile-api" />
 

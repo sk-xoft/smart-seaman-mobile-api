@@ -11,14 +11,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequiredArgsConstructor
 public class AppActivateController {
-
 
     @Value("${spring.profiles.active}")
     private String activeProfile;
@@ -27,22 +25,21 @@ public class AppActivateController {
     public ResponseEntity<String> getRadarData() throws IOException {
         ClassPathResource staticDataResource = null;
 
-        if(AppSys.PROFILE_PROD.equals(activeProfile)){
-            staticDataResource =  new ClassPathResource("assetlinks.json");
+        if (AppSys.PROFILE_PROD.equals(activeProfile)) {
+            staticDataResource = new ClassPathResource("assetlinks.json");
         } else {
-            staticDataResource =  new ClassPathResource("assetlinks-dev.json");
+            staticDataResource = new ClassPathResource("assetlinks-dev.json");
         }
 
         String staticDataString = IOUtils.toString(staticDataResource.getInputStream(), StandardCharsets.UTF_8);
 
-        final HttpHeaders httpHeaders= new HttpHeaders();
+        final HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
         return new ResponseEntity<String>(
                 staticDataString,
                 httpHeaders,
-                HttpStatus.OK
-        );
+                HttpStatus.OK);
     }
 
     @GetMapping("/.well-known/apple-app-site-association")
@@ -50,21 +47,20 @@ public class AppActivateController {
 
         ClassPathResource staticDataResource = null;
 
-        if(AppSys.PROFILE_PROD.equals(activeProfile)) {
-            staticDataResource =  new ClassPathResource("apple-app-site-association.json");
+        if (AppSys.PROFILE_PROD.equals(activeProfile)) {
+            staticDataResource = new ClassPathResource("apple-app-site-association.json");
         } else {
-            staticDataResource =  new ClassPathResource("apple-app-site-association-dev.json");
+            staticDataResource = new ClassPathResource("apple-app-site-association-dev.json");
         }
         String staticDataString = IOUtils.toString(staticDataResource.getInputStream(), StandardCharsets.UTF_8);
 
-        final HttpHeaders httpHeaders= new HttpHeaders();
+        final HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
 
         return new ResponseEntity<String>(
                 staticDataString,
                 httpHeaders,
-                HttpStatus.OK
-        );
+                HttpStatus.OK);
     }
 
 }

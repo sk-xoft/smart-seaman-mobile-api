@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Seaman Mobile API — Reference</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222639;
+    --border: #2e3248;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6c8eff;
+    --get: #22c55e;
+    --post: #f59e0b;
+    --delete: #ef4444;
+    --put: #a78bfa;
+    --tag-auth: #374151;
+    --tag-public: #14532d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  nav { width: 240px; min-width: 240px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  nav .logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  nav .logo h1 { font-size: 15px; font-weight: 700; color: var(--text); }
+  nav .logo p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  nav a { display: block; padding: 7px 20px; color: var(--muted); text-decoration: none; font-size: 13px; transition: color .15s; }
+  nav a:hover, nav a.active { color: var(--accent); }
+  nav .section-label { padding: 12px 20px 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
+  /* Main */
+  main { flex: 1; padding: 40px; max-width: 960px; }
+  .page-title { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+  .page-sub { color: var(--muted); margin-bottom: 32px; line-height: 1.6; }
+
+  /* Info card */
+  .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 32px; }
+  .info-card h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+  .info-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+  .info-row .label { color: var(--muted); min-width: 120px; }
+  .info-row code { background: var(--surface2); padding: 2px 8px; border-radius: 4px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--accent); }
+  .info-row p { color: var(--text); }
+
+  /* Section */
+  .section { margin-bottom: 48px; }
+  .section-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .section-desc { color: var(--muted); font-size: 13px; margin-bottom: 20px; margin-top: 4px; }
+
+  /* Endpoint card */
+  .endpoint { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .endpoint-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; user-select: none; }
+  .endpoint-header:hover { background: var(--surface2); }
+  .method { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px; letter-spacing: .06em; min-width: 56px; text-align: center; }
+  .method.GET    { background: #14532d; color: #4ade80; }
+  .method.POST   { background: #78350f; color: #fcd34d; }
+  .method.DELETE { background: #7f1d1d; color: #fca5a5; }
+  .method.PUT    { background: #4c1d95; color: #c4b5fd; }
+  .endpoint-path { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: var(--text); flex: 1; }
+  .endpoint-name { font-size: 12px; color: var(--muted); }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; letter-spacing: .04em; }
+  .badge.public  { background: #14532d; color: #4ade80; }
+  .badge.auth    { background: #1e3a5f; color: #93c5fd; }
+  .arrow { color: var(--muted); font-size: 12px; transition: transform .2s; }
+  .endpoint.open .arrow { transform: rotate(90deg); }
+
+  /* Endpoint body */
+  .endpoint-body { display: none; padding: 0 18px 18px; border-top: 1px solid var(--border); }
+  .endpoint.open .endpoint-body { display: block; }
+  .endpoint-desc { color: var(--muted); font-size: 13px; margin: 14px 0 12px; line-height: 1.55; }
+  .sub-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; margin-top: 14px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  th { text-align: left; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code { background: var(--surface2); padding: 1px 6px; border-radius: 3px; font-family: 'SF Mono', 'Fira Code', monospace; color: var(--accent); }
+  td .required { color: #fca5a5; font-size: 10px; font-weight: 600; }
+  td .optional { color: var(--muted); font-size: 10px; }
+
+  /* Code block */
+  pre { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 14px; overflow-x: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; color: #a5f3fc; }
+  .key   { color: #93c5fd; }
+  .str   { color: #86efac; }
+  .num   { color: #fcd34d; }
+  .bool  { color: #f9a8d4; }
+  .null  { color: var(--muted); }
+
+  @media (max-width: 768px) {
+    nav { display: none; }
+    main { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <h1>Smart Seaman API</h1>
+    <p>v1 — Mobile API Reference</p>
+  </div>
+  <div class="section-label">Overview</div>
+  <a href="#overview">Introduction</a>
+  <a href="#auth-guide">Authentication</a>
+  <div class="section-label">Endpoints</div>
+  <a href="#auth">Auth</a>
+  <a href="#profile">Profile</a>
+  <a href="#documents">Documents</a>
+  <a href="#master">Master Data</a>
+  <a href="#news">News</a>
+  <a href="#vouchers">Vouchers</a>
+  <a href="#banners">Banners</a>
+  <a href="#school">School Trainings</a>
+  <a href="#notifications">Notifications</a>
+  <a href="#forms">Forms</a>
+  <a href="#fcm">FCM</a>
+  <a href="#applinks">App Links</a>
+  <a href="#health">Health</a>
+</nav>
+
+<main>
+  <div id="overview">
+    <div class="page-title">Smart Seaman Mobile API</div>
+    <p class="page-sub">REST API for maritime training and certification management.<br>Spring Boot 2.6 · Java 11 · JWT Auth · Stateless</p>
+
+    <div class="info-card">
+      <h3>Base Information</h3>
+      <div class="info-row"><span class="label">Base URL</span><code>http://localhost:8080</code></div>
+      <div class="info-row"><span class="label">API Version</span><code>/v1</code> prefix on all versioned endpoints</div>
+      <div class="info-row"><span class="label">Content-Type</span><code>application/json</code></div>
+      <div class="info-row"><span class="label">Swagger UI</span><code>/smart-seaman-swagger</code></div>
+      <div class="info-row"><span class="label">Timezone</span><p>Asia/Bangkok (UTC+7)</p></div>
+    </div>
+
+    <div class="info-card" id="auth-guide">
+      <h3>Authentication</h3>
+      <div class="info-row"><span class="label">Type</span><p>Bearer JWT Token</p></div>
+      <div class="info-row"><span class="label">Header</span><code>Authorization: Bearer &lt;token&gt;</code></div>
+      <p style="color:var(--muted);font-size:13px;margin-top:12px;line-height:1.6;">
+        1. Call <strong style="color:var(--text)">POST /v1/login</strong> with your credentials.<br>
+        2. Copy the <code>token</code> value from the response <code>data</code> object.<br>
+        3. Include it as <code>Authorization: Bearer &lt;token&gt;</code> on every protected request.<br>
+        4. When the access token expires, use <strong style="color:var(--text)">GET /v1/refresh-token?refToken=&lt;refToken&gt;</strong> to get a new one.
+      </p>
+    </div>
+
+    <div class="info-card">
+      <h3>Response Envelope</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">All successful responses are wrapped in:</p>
+      <pre><span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+<span class="key">"description"</span>: <span class="str">"..."</span>,
+<span class="key">"data"</span>: { ... }</pre>
+    </div>
+  </div>
+
+  <!-- AUTH -->
+  <div class="section" id="auth">
+    <div class="section-title">Auth</div>
+    <p class="section-desc">Registration, login, token refresh, and password management.</p>
+
+    <!-- Login -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/login</span>
+        <span class="endpoint-name">Login</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Authenticate with username and password. Returns a JWT access token and refresh token.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>username</code></td><td>string</td><td><span class="required">required</span></td><td>User email or username</td></tr>
+          <tr><td><code>password</code></td><td>string</td><td><span class="required">required</span></td><td>Account password</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"username"</span>: <span class="str">"user@example.com"</span>,
+  <span class="key">"password"</span>: <span class="str">"yourpassword"</span>
+}</pre>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"description"</span>: <span class="str">"Login successful"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"token"</span>: <span class="str">"eyJhbGci..."</span>,
+    <span class="key">"refToken"</span>: <span class="str">"eyJhbGci..."</span>,
+    <span class="key">"username"</span>: <span class="str">"user@example.com"</span>,
+    <span class="key">"lastLoginDateTime"</span>: <span class="str">"2026-06-05 10:30:00"</span>
+  }
+}</pre>
+      </div>
+    </div>
+
+    <!-- Register -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/register</span>
+        <span class="endpoint-name">Register</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Create a new user account. An activation email will be sent to the provided address.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>firstName</code></td><td>string</td><td><span class="required">required</span></td><td>First name</td></tr>
+          <tr><td><code>lastName</code></td><td>string</td><td><span class="required">required</span></td><td>Last name</td></tr>
+          <tr><td><code>email</code></td><td>string</td><td><span class="required">required</span></td><td>Email address (used as login)</td></tr>
+          <tr><td><code>password</code></td><td>string</td><td><span class="required">required</span></td><td>Account password</td></tr>
+          <tr><td><code>positionCode</code></td><td>string</td><td><span class="required">required</span></td><td>Position code from master data</td></tr>
+          <tr><td><code>companyCode</code></td><td>string</td><td><span class="optional">optional</span></td><td>Company code from master data</td></tr>
+          <tr><td><code>dateOfBirth</code></td><td>string</td><td><span class="optional">optional</span></td><td>Date of birth (YYYY-MM-DD)</td></tr>
+          <tr><td><code>mobileNumber</code></td><td>string</td><td><span class="optional">optional</span></td><td>Mobile phone number</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"firstName"</span>: <span class="str">"John"</span>,
+  <span class="key">"lastName"</span>: <span class="str">"Doe"</span>,
+  <span class="key">"companyCode"</span>: <span class="str">"COMP001"</span>,
+  <span class="key">"dateOfBirth"</span>: <span class="str">"1990-01-15"</span>,
+  <span class="key">"positionCode"</span>: <span class="str">"CAPTAIN"</span>,
+  <span class="key">"email"</span>: <span class="str">"john.doe@example.com"</span>,
+  <span class="key">"password"</span>: <span class="str">"securepassword"</span>,
+  <span class="key">"mobileNumber"</span>: <span class="str">"0812345678"</span>
+}</pre>
+      </div>
+    </div>
+
+    <!-- Change Password -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/change-password</span>
+        <span class="endpoint-name">Change Password</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Change password for the currently authenticated user.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>oldPassword</code></td><td>string</td><td><span class="required">required</span></td><td>Current password</td></tr>
+          <tr><td><code>newPassword</code></td><td>string</td><td><span class="required">required</span></td><td>New password</td></tr>
+          <tr><td><code>confirmPassword</code></td><td>string</td><td><span class="required">required</span></td><td>Must match newPassword</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"oldPassword"</span>: <span class="str">"currentpassword"</span>,
+  <span class="key">"newPassword"</span>: <span class="str">"newpassword"</span>,
+  <span class="key">"confirmPassword"</span>: <span class="str">"newpassword"</span>
+}</pre>
+      </div>
+    </div>
+
+    <!-- Refresh Token -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/refresh-token</span>
+        <span class="endpoint-name">Refresh Token</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Exchange a refresh token for a new JWT access token.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>refToken</code></td><td>string</td><td><span class="required">required</span></td><td>The refresh token from login response</td></tr>
+        </table>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"token"</span>: <span class="str">"eyJhbGci..."</span>
+  }
+}</pre>
+      </div>
+    </div>
+
+    <!-- Activate User -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/activate-user</span>
+        <span class="endpoint-name">Activate User</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Activate a newly registered account using the UID sent in the activation email.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>uid</code></td><td>string</td><td><span class="required">required</span></td><td>Activation UID from email</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Reset Password -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/reset-password</span>
+        <span class="endpoint-name">Reset Password (Request)</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Trigger a password reset email to the given address.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>email</code></td><td>string</td><td><span class="required">required</span></td><td>Registered email address</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{ <span class="key">"email"</span>: <span class="str">"user@example.com"</span> }</pre>
+      </div>
+    </div>
+
+    <!-- Activate Forgot Password -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/activate-forgot-password</span>
+        <span class="endpoint-name">Activate Forgot Password</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Set a new password using the UID received in the password reset email.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>uid</code></td><td>string</td><td><span class="required">required</span></td><td>Reset UID from email</td></tr>
+          <tr><td><code>password</code></td><td>string</td><td><span class="required">required</span></td><td>New password</td></tr>
+          <tr><td><code>confirmPassword</code></td><td>string</td><td><span class="required">required</span></td><td>Must match password</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"uid"</span>: <span class="str">"RESET_UID_FROM_EMAIL"</span>,
+  <span class="key">"password"</span>: <span class="str">"newpassword"</span>,
+  <span class="key">"confirmPassword"</span>: <span class="str">"newpassword"</span>
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="section" id="profile">
+    <div class="section-title">Profile</div>
+    <p class="section-desc">View and manage the authenticated user's profile.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/profile</span>
+        <span class="endpoint-name">Get Profile</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get the authenticated user's full profile.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"firstName"</span>: <span class="str">"John"</span>,
+    <span class="key">"lastName"</span>: <span class="str">"Doe"</span>,
+    <span class="key">"dateOfBirth"</span>: <span class="str">"1990-01-15"</span>,
+    <span class="key">"age"</span>: <span class="str">"36"</span>,
+    <span class="key">"mobile"</span>: <span class="str">"0812345678"</span>,
+    <span class="key">"email"</span>: <span class="str">"john.doe@example.com"</span>,
+    <span class="key">"companyCode"</span>: <span class="str">"COMP001"</span>,
+    <span class="key">"companyDescription"</span>: <span class="str">"Smart Seaman Co."</span>,
+    <span class="key">"positionCode"</span>: <span class="str">"CAPTAIN"</span>,
+    <span class="key">"positionDescription"</span>: <span class="str">"Captain"</span>,
+    <span class="key">"smartSeamanId"</span>: <span class="str">"SS00001"</span>,
+    <span class="key">"shortName"</span>: <span class="str">"J.Doe"</span>
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/profile-update</span>
+        <span class="endpoint-name">Update Profile</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Update profile information. To replace the profile photo, set <code>isChangeFile</code> to <code>"Y"</code> and provide a base64-encoded image in <code>imageProfile</code>.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>firstName</code></td><td>string</td><td><span class="required">required</span></td><td>First name</td></tr>
+          <tr><td><code>lastName</code></td><td>string</td><td><span class="required">required</span></td><td>Last name</td></tr>
+          <tr><td><code>email</code></td><td>string</td><td><span class="required">required</span></td><td>Email address</td></tr>
+          <tr><td><code>positionCode</code></td><td>string</td><td><span class="required">required</span></td><td>Position code</td></tr>
+          <tr><td><code>isChangeFile</code></td><td>string</td><td><span class="optional">optional</span></td><td><code>"Y"</code> to update photo, <code>"N"</code> to keep current</td></tr>
+          <tr><td><code>imageProfile</code></td><td>string</td><td><span class="optional">optional</span></td><td>Base64-encoded image (when isChangeFile = "Y")</td></tr>
+          <tr><td><code>companyCode</code></td><td>string</td><td><span class="optional">optional</span></td><td>Company code</td></tr>
+          <tr><td><code>dateOfBirth</code></td><td>string</td><td><span class="optional">optional</span></td><td>Date of birth (YYYY-MM-DD)</td></tr>
+          <tr><td><code>mobileNumber</code></td><td>string</td><td><span class="optional">optional</span></td><td>Mobile number</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/profile-image</span>
+        <span class="endpoint-name">Get Profile Image</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download the user's profile photo. Returns raw binary image data.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method DELETE">DELETE</span>
+        <span class="endpoint-path">/v1/profile/inactive</span>
+        <span class="endpoint-name">Deactivate Account</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Mark the authenticated user's account as inactive.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/profile/active</span>
+        <span class="endpoint-name">Activate Account</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Re-activate an inactive account by email address.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>email</code></td><td>string</td><td><span class="required">required</span></td><td>Account email to activate</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOCUMENTS -->
+  <div class="section" id="documents">
+    <div class="section-title">Documents</div>
+    <p class="section-desc">Manage maritime certification documents (COT, DOC types).</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/documents/certification/COT</span>
+        <span class="endpoint-name">List COT Certifications</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get a paginated list of COT-type certification documents for the user.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>offSet</code></td><td>integer</td><td><span class="optional">optional</span></td><td>Page offset (default 0)</td></tr>
+        </table>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"itemTotal"</span>: <span class="num">5</span>,
+    <span class="key">"isLast"</span>: <span class="bool">true</span>,
+    <span class="key">"items"</span>: [ { ... } ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/documents/certification/DOC</span>
+        <span class="endpoint-name">List DOC Certifications</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get a paginated list of DOC-type certification documents for the user.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>offSet</code></td><td>integer</td><td><span class="optional">optional</span></td><td>Page offset (default 0)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/documents/certification/to-expiration</span>
+        <span class="endpoint-name">List Expiring Certifications</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get certifications that are expiring soon (within 18/12/6/3 months window).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>offSet</code></td><td>integer</td><td><span class="optional">optional</span></td><td>Page offset (default 0)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/documents/certification/create</span>
+        <span class="endpoint-name">Create Certification</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Add a new certification document. Optionally attach a file as base64 in <code>fileCert</code>.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>documentCode</code></td><td>string</td><td><span class="required">required</span></td><td>Document type code from master data</td></tr>
+          <tr><td><code>certStartDate</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate issue date (YYYY-MM-DD)</td></tr>
+          <tr><td><code>certEndDateType</code></td><td>string</td><td><span class="required">required</span></td><td><code>DATE</code> or <code>LIFETIME</code></td></tr>
+          <tr><td><code>certEndDate</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate expiry date (YYYY-MM-DD)</td></tr>
+          <tr><td><code>fileCert</code></td><td>string</td><td><span class="optional">optional</span></td><td>Base64-encoded certificate file</td></tr>
+          <tr><td><code>fileCertName</code></td><td>string</td><td><span class="optional">optional</span></td><td>Filename with extension (e.g. cert.pdf)</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"documentCode"</span>: <span class="str">"DOC001"</span>,
+  <span class="key">"certStartDate"</span>: <span class="str">"2024-01-01"</span>,
+  <span class="key">"certEndDateType"</span>: <span class="str">"DATE"</span>,
+  <span class="key">"certEndDate"</span>: <span class="str">"2026-12-31"</span>,
+  <span class="key">"fileCert"</span>: <span class="str">""</span>,
+  <span class="key">"fileCertName"</span>: <span class="str">""</span>
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/documents/certification/update</span>
+        <span class="endpoint-name">Update Certification</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Update an existing certification. Set <code>isChangeFile</code> to <code>"Y"</code> to replace the attached file.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>isChangeFile</code></td><td>string</td><td><span class="required">required</span></td><td><code>"Y"</code> to replace file, <code>"N"</code> to keep</td></tr>
+          <tr><td><code>documentCode</code></td><td>string</td><td><span class="required">required</span></td><td>Document type code</td></tr>
+          <tr><td><code>certStartDate</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate issue date (YYYY-MM-DD)</td></tr>
+          <tr><td><code>certEndDateType</code></td><td>string</td><td><span class="required">required</span></td><td><code>DATE</code> or <code>LIFETIME</code></td></tr>
+          <tr><td><code>certEndDate</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate expiry date (YYYY-MM-DD)</td></tr>
+          <tr><td><code>fileCert</code></td><td>string</td><td><span class="optional">optional</span></td><td>Base64-encoded replacement file</td></tr>
+          <tr><td><code>fileCertName</code></td><td>string</td><td><span class="optional">optional</span></td><td>Filename with extension</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method DELETE">DELETE</span>
+        <span class="endpoint-path">/v1/documents/certification/delete</span>
+        <span class="endpoint-name">Delete Certification</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Delete a certification document by its cert code.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>certCode</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate code to delete</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/documents/certification/edit</span>
+        <span class="endpoint-name">Get Certification for Edit</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Fetch certification details to pre-populate an edit form.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>certCode</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate code</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/documents/certification/view</span>
+        <span class="endpoint-name">View Certification File</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download the attached certification file (binary response).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>certCode</code></td><td>string</td><td><span class="required">required</span></td><td>Certificate code</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MASTER DATA -->
+  <div class="section" id="master">
+    <div class="section-title">Master Data</div>
+    <p class="section-desc">Reference data: companies, positions, document types, and courses.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/master</span>
+        <span class="endpoint-name">Get Master Data</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get companies and positions reference data. No authentication required — typically called before registration.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"company"</span>: [
+      { <span class="key">"companyCode"</span>: <span class="str">"COMP001"</span>, <span class="key">"companyName"</span>: <span class="str">"Smart Seaman Co."</span> }
+    ],
+    <span class="key">"position"</span>: [
+      { <span class="key">"positionCode"</span>: <span class="str">"CAPTAIN"</span>, <span class="key">"positionName"</span>: <span class="str">"Captain"</span> }
+    ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/master/documents</span>
+        <span class="endpoint-name">Get Master Documents</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get the list of available document types split into DOC and COT categories.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"documents"</span>: [
+      { <span class="key">"documentCode"</span>: <span class="str">"DOC001"</span>, <span class="key">"documentName"</span>: <span class="str">"STCW Basic Safety"</span>, <span class="key">"documentNameTh"</span>: <span class="str">"ความปลอดภัยพื้นฐาน STCW"</span> }
+    ],
+    <span class="key">"cot"</span>: [ { ... } ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/master/courses</span>
+        <span class="endpoint-name">Get Courses</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get all available training courses.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"code"</span>: <span class="str">"SUCCESS"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"courses"</span>: [
+      {
+        <span class="key">"courseCode"</span>: <span class="str">"BASIC_SAFETY"</span>,
+        <span class="key">"courseNameEn"</span>: <span class="str">"Basic Safety Training"</span>,
+        <span class="key">"courseNameTh"</span>: <span class="str">"การฝึกอบรมความปลอดภัยพื้นฐาน"</span>
+      }
+    ]
+  }
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEWS -->
+  <div class="section" id="news">
+    <div class="section-title">News</div>
+    <p class="section-desc">Maritime news articles in general and ship categories.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/news</span>
+        <span class="endpoint-name">Get News List</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get all news articles split into general and ship news lists.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"data"</span>: {
+    <span class="key">"newsGeneral"</span>: [
+      { <span class="key">"id"</span>: <span class="str">"1"</span>, <span class="key">"title"</span>: <span class="str">"Maritime Update"</span>, <span class="key">"body"</span>: <span class="str">"..."</span>, <span class="key">"newsDate"</span>: <span class="str">"2026-06-01"</span> }
+    ],
+    <span class="key">"newsShip"</span>: [ { ... } ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/news/detail</span>
+        <span class="endpoint-name">Get News Detail</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get the full body of a specific news article.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>newsId</code></td><td>string</td><td><span class="required">required</span></td><td>News article ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/news/preview</span>
+        <span class="endpoint-name">Get News Image</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download the news thumbnail image (PNG binary).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>newsId</code></td><td>string</td><td><span class="required">required</span></td><td>News article ID</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- VOUCHERS -->
+  <div class="section" id="vouchers">
+    <div class="section-title">Vouchers</div>
+    <p class="section-desc">Discount vouchers with QR codes.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/vouchers</span>
+        <span class="endpoint-name">Get Vouchers</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get all vouchers available to the user.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"data"</span>: {
+    <span class="key">"voucherModel"</span>: [
+      {
+        <span class="key">"voucherId"</span>: <span class="str">"V001"</span>,
+        <span class="key">"voucherTitle"</span>: <span class="str">"10% Off Training"</span>,
+        <span class="key">"voucherDetails"</span>: <span class="str">"Valid for basic safety courses"</span>,
+        <span class="key">"voucherStartDate"</span>: <span class="str">"2026-01-01"</span>,
+        <span class="key">"voucherEndDate"</span>: <span class="str">"2026-12-31"</span>
+      }
+    ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/vouchers/detail</span>
+        <span class="endpoint-name">Get Voucher Detail</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get full details of a specific voucher.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>voucherId</code></td><td>string</td><td><span class="required">required</span></td><td>Voucher ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/vouchers/preview</span>
+        <span class="endpoint-name">Get Voucher Image</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download the voucher promotional image (PNG binary).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>voucherId</code></td><td>string</td><td><span class="required">required</span></td><td>Voucher ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/vouchers/qr</span>
+        <span class="endpoint-name">Get Voucher QR Code</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download the QR code image for voucher redemption (binary).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>voucherId</code></td><td>string</td><td><span class="required">required</span></td><td>Voucher ID</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BANNERS -->
+  <div class="section" id="banners">
+    <div class="section-title">Banners</div>
+    <p class="section-desc">Promotional banner images displayed in the mobile app.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/banners</span>
+        <span class="endpoint-name">Get Banners</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get the list of active banners.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"data"</span>: {
+    <span class="key">"banners"</span>: [
+      { <span class="key">"bannerId"</span>: <span class="str">"B001"</span>, <span class="key">"bannerFileName"</span>: <span class="str">"banner_june_2026.png"</span> }
+    ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/banners/preview</span>
+        <span class="endpoint-name">Get Banner Image</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download a specific banner image (binary).</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>bannerId</code></td><td>string</td><td><span class="required">required</span></td><td>Banner ID</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCHOOL TRAININGS -->
+  <div class="section" id="school">
+    <div class="section-title">School Trainings</div>
+    <p class="section-desc">Find training schools offering specific maritime courses.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/school-trainings</span>
+        <span class="endpoint-name">Get School Trainings</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get a list of training schools offering a specific course.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>courseCode</code></td><td>string</td><td><span class="required">required</span></td><td>Course code from master data</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/school-trainings/detail</span>
+        <span class="endpoint-name">Get School Training Detail</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get details of a specific school's offering for a given course.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>companyCode</code></td><td>string</td><td><span class="required">required</span></td><td>Training school company code</td></tr>
+          <tr><td><code>courseCode</code></td><td>string</td><td><span class="required">required</span></td><td>Course code</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="section" id="notifications">
+    <div class="section-title">Notifications</div>
+    <p class="section-desc">In-app notifications for certificate expiry and other events.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/notifications</span>
+        <span class="endpoint-name">Get Notifications</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get all notifications for the authenticated user.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"data"</span>: {
+    <span class="key">"notificationsModels"</span>: [
+      {
+        <span class="key">"id"</span>: <span class="str">"N001"</span>,
+        <span class="key">"readStatus"</span>: <span class="str">"N"</span>,
+        <span class="key">"notiType"</span>: <span class="str">"CERT"</span>,
+        <span class="key">"titleMessage"</span>: <span class="str">"Certificate Expiring Soon"</span>,
+        <span class="key">"bodyMessage"</span>: <span class="str">"Your STCW cert expires in 30 days"</span>,
+        <span class="key">"notiDate"</span>: <span class="str">"2026-06-05"</span>,
+        <span class="key">"valueId"</span>: <span class="str">"CERT_CODE_123"</span>
+      }
+    ]
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/notifications/update</span>
+        <span class="endpoint-name">Mark Notification Read</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Mark a specific notification as read.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>notiId</code></td><td>string</td><td><span class="optional">optional</span></td><td>Notification ID to mark as read</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{ <span class="key">"notiId"</span>: <span class="str">"N001"</span> }</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/notifications/update/valueId</span>
+        <span class="endpoint-name">Mark Read by ValueId</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Mark notifications as read by a value ID and notification type (e.g. mark all cert notifications for a specific certificate).</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>valueId</code></td><td>string</td><td><span class="required">required</span></td><td>The referenced entity ID (e.g. certCode)</td></tr>
+          <tr><td><code>notiType</code></td><td>string</td><td><span class="required">required</span></td><td>Notification type (e.g. <code>CERT</code>)</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  <span class="key">"valueId"</span>: <span class="str">"CERT_CODE_123"</span>,
+  <span class="key">"notiType"</span>: <span class="str">"CERT"</span>
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/notifications/update/all</span>
+        <span class="endpoint-name">Mark All Notifications Read</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Mark all notifications as read for the authenticated user.</p>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  <span class="key">"data"</span>: { <span class="key">"countNotification"</span>: <span class="str">"5"</span> }
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMS -->
+  <div class="section" id="forms">
+    <div class="section-title">Forms</div>
+    <p class="section-desc">Downloadable PDF forms for maritime applications.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/forms</span>
+        <span class="endpoint-name">Get Forms List</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Get the list of available downloadable forms.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/v1/form</span>
+        <span class="endpoint-name">Download Form (PDF)</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Download a specific form as a PDF file.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table><tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>formId</code></td><td>string</td><td><span class="required">required</span></td><td>Form ID to download</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FCM -->
+  <div class="section" id="fcm">
+    <div class="section-title">FCM</div>
+    <p class="section-desc">Firebase Cloud Messaging — push notification device token management.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="endpoint-path">/v1/fcm-update</span>
+        <span class="endpoint-name">Update FCM Token</span>
+        <span class="badge auth">AUTH</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Register or refresh the Firebase Cloud Messaging device token. Call this on each app launch or when the FCM token is rotated.</p>
+        <div class="sub-title">Request Body</div>
+        <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>tokenFcm</code></td><td>string</td><td><span class="required">required</span></td><td>Firebase device registration token</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{ <span class="key">"tokenFcm"</span>: <span class="str">"dYp3X...FCM_TOKEN"</span> }</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP LINKS -->
+  <div class="section" id="applinks">
+    <div class="section-title">App Links</div>
+    <p class="section-desc">Well-known files for Android App Links and Apple Universal Links verification.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/.well-known/assetlinks.json</span>
+        <span class="endpoint-name">Android Asset Links</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Digital Asset Links file for Android App Links verification. No authentication required.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/.well-known/apple-app-site-association</span>
+        <span class="endpoint-name">Apple App Site Association</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Apple Universal Links / App Clips verification file. No authentication required.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- HEALTH -->
+  <div class="section" id="health">
+    <div class="section-title">Health</div>
+    <p class="section-desc">Application health and liveness checks.</p>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/</span>
+        <span class="endpoint-name">Root</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Returns the application name as a plain string.</p>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="endpoint-path">/health</span>
+        <span class="endpoint-name">Health Check</span>
+        <span class="badge public">PUBLIC</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="endpoint-desc">Returns <code>"Success"</code> if the application is running. Use for load balancer health checks.</p>
+      </div>
+    </div>
+  </div>
+
+  <p style="color:var(--muted);font-size:12px;margin-top:40px;padding-top:20px;border-top:1px solid var(--border);">
+    Smart Seaman Mobile API · Generated 2026-06-05
+  </p>
+</main>
+
+<script>
+  function toggle(header) {
+    const card = header.parentElement;
+    card.classList.toggle('open');
+  }
+</script>
+</body>
+</html>
