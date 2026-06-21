@@ -1,0 +1,475 @@
+# Smart Seaman — Database Schema (MySQL)
+
+> ระบบจัดการคำขอต่อเอกสารสำหรับลูกเรือ (Document Renewal Request Management)
+> **Database Engine:** MySQL 8.0+ · Character Set: `utf8mb4` · Collation: `utf8mb4_unicode_ci`
+
+---
+
+
+## สารบัญ
+- [ภาพรวม Flow ของระบบ](#ภาพรวม-flow-ของระบบ)
+- [M_DOCUMENT_STATUS](#m_document_status)
+- [M_DOCUMENT_REQUEST](#m_document_request)
+- [M_DOCUMENT_PRICES_SETTING](#m_document_prices_setting)
+- [M_PAYMENT_TRANSACTION](#m_payment_transaction)
+- [M_DOCUMENT_REQUEST_ITEM](#m_document_request_item)
+- [M_DOCUMENT_TRANSACTION](#m_document_transaction)
+- [M_DEPT_SUBMISSION](#m_dept_submission--รอรับเอกสาร-จากกรมเจ้าท่า)
+- [M_DELIVERY](#m_delivery--กำลังจัดส่ง)
+- [Status Reference](#status-reference)
+- [Action Reference](#action-reference)
+---
+
+## ภาพรวม Flow ของระบบ
+
+```
+ลูกเรือยื่นคำขอ
+       │
+       ▼
+[รอตรวจเอกสาร] ──ส่งกลับ──► [รอผู้ยื่นแก้ไข] ──resubmit──► [รอตรวจเอกสาร]
+       │
+       │ ผ่านการตรวจ
+       ▼
+[รอผลกรมเจ้าท่า]
+       │
+       ▼
+[รอรับเอกสารจากกรม]
+       │
+       ▼
+[กำลังจัดส่ง]
+       │
+       ▼
+[จัดส่งสำเร็จ]
+
+(ยกเลิกได้จากทุก status ก่อนจัดส่ง)
+```
+
+ทุก state transition จะถูกบันทึกเป็น row ใน `m_document_transaction` เสมอ ทำให้สามารถ audit trail ย้อนหลังได้ทุก action
+
+---
+
+## M_DOCUMENT_STATUS
+**บทบาท:** ตารางเก็บข้อมูล document status 
+
+```sql
+CREATE TABLE m_document_status (
+    id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    name            VARCHAR(255)    NOT NULL,
+    is_active       VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_document_status_name (name),
+    CONSTRAINT chk_document_status_active
+        CHECK (is_active IN ('YES', 'NO'))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+
+## M_DOCUMENT_REQUEST
+
+**บทบาท:** ตาราง core ของระบบ แต่ละ row คือหนึ่งคำขอต่อเอกสาร เก็บ `status` ปัจจุบัน, ข้อมูลการชำระเงิน และเวลาที่ยื่น
+
+```sql
+CREATE TABLE m_document_request (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_no          VARCHAR(20)     NOT NULL,
+    mobile_user_uuid    VARCHAR(50)     NOT NULL,
+    document_code       VARCHAR(50)     NOT NULL,
+    document_status_id  CHAR(36)        NOT NULL,
+    is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
+    amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
+    submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    submitted_by        CHAR(36)        NULL,                   -- NULL = ลูกเรือยื่นเอง
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_docreq_request_no (request_no),
+    KEY idx_docreq_mobile_user (mobile_user_uuid),
+    KEY idx_docreq_document_code (document_code),
+    KEY idx_docreq_status_submitted (document_status_id, submitted_at),
+    CONSTRAINT chk_docreq_amount
+        CHECK (amount >= 0),
+    CONSTRAINT chk_docreq_resubmit
+        CHECK (is_resubmit IN (0, 1)),
+    CONSTRAINT fk_docreq_status
+        FOREIGN KEY (document_status_id) REFERENCES m_document_status (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `mobile_user_uuid` คือ logical reference ไปยัง `m_mobile_users.MOBILE_UUID` ของระบบเดิม
+- `document_code` คือ logical reference ไปยัง `m_documents.DOCUMENT_CODE` ของระบบเดิม
+- ยังไม่ใส่ FK ตรงไปยัง `m_mobile_users` และ `m_documents` ใน script นี้ เพราะต้องยืนยัน DDL/type ของ table เดิมก่อน หาก type/index ตรงกันให้เพิ่ม FK ใน migration เฉพาะ environment ได้
+- `request_no` สร้างจาก sequence ที่ฝั่ง application (format: `YYMM` + running 5 digits เช่น `250500001`) เพื่อรองรับมากกว่า 999 requests ต่อเดือน
+- `is_resubmit = 1` จะเซ็ตเมื่อลูกเรือแก้ไขเอกสารแล้วส่งกลับมาใหม่ UI จะแสดง badge "ผู้ยื่น resubmit"
+
+---
+## M_DOCUMENT_PRICES_SETTING
+**บทบาท:** ตาราง setting ราคาเอกสารแต่ละ document
+
+```sql
+CREATE TABLE m_document_prices_setting (
+    id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_code           VARCHAR(50)     NOT NULL,
+    document_name_th        VARCHAR(255)    NOT NULL,
+    document_name_en        VARCHAR(255)    NOT NULL,
+    government_fee          DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    document_processing_fee DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    shipping_fee            DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    shipping_discount       DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    service_fee_discount    DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    is_active               VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_docprice_document_code (document_code),
+    CONSTRAINT chk_docprice_fee
+        CHECK (
+            government_fee >= 0
+            AND document_processing_fee >= 0
+            AND shipping_fee >= 0
+            AND shipping_discount >= 0
+            AND service_fee_discount >= 0
+        ),
+    CONSTRAINT chk_docprice_active
+        CHECK (is_active IN ('YES', 'NO'))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `document_code` คือ logical reference ไปยัง `m_documents.DOCUMENT_CODE`
+- ราคาสุทธิที่เรียกเก็บควรคำนวณที่ application layer จาก `government_fee + document_processing_fee + shipping_fee - shipping_discount - service_fee_discount` และต้องไม่ติดลบ
+
+  
+## M_PAYMENT_TRANSACTION
+
+**บทบาท:** เก็บ payment attempt และ refund ที่เกิดกับคำขอเอกสาร โดยออกแบบสำหรับ Omise
+หนึ่ง `m_document_request` สามารถมีหลาย transaction ได้ เช่น QR หมดอายุแล้วสร้างใหม่,
+บัตรชำระไม่ผ่านแล้วลองใหม่ หรือคืนเงินหลายครั้ง (partial refund)
+
+```sql
+CREATE TABLE m_payment_transaction (
+    id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id              CHAR(36)        NOT NULL,
+    parent_transaction_id   CHAR(36)        NULL,
+
+    transaction_no          VARCHAR(40)     NOT NULL,
+    transaction_type        VARCHAR(10)     NOT NULL DEFAULT 'CHARGE',
+                                            -- CHARGE | REFUND
+    channel                 VARCHAR(30)     NOT NULL,
+                                            -- PROMPTPAY | CREDIT_CARD | INTERNET_BANKING
+    payment_method          VARCHAR(50)     NOT NULL,
+                                            -- promptpay | card | internet_banking_scb | ...
+
+    amount                  DECIMAL(12, 2)  NOT NULL,
+    currency                CHAR(3)         NOT NULL DEFAULT 'THB',
+    refunded_amount         DECIMAL(12, 2)  NOT NULL DEFAULT 0.00,
+                                            -- ยอดคืนสะสม ใช้กับ CHARGE เท่านั้น
+    status                  VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
+                                            -- PENDING | PROCESSING | SUCCESS | FAILED |
+                                            -- EXPIRED | PARTIALLY_REFUNDED | REFUNDED | CANCELLED
+
+    provider                VARCHAR(20)     NOT NULL DEFAULT 'OMISE',
+    provider_charge_id      VARCHAR(100)    NULL, -- Omise chrg_... / chrg_test_...
+    provider_source_id      VARCHAR(100)    NULL, -- Omise src_... / src_test_...
+    provider_refund_id      VARCHAR(100)    NULL, -- Omise rfnd_... / rfnd_test_...
+    provider_transaction_id VARCHAR(100)    NULL, -- Omise trxn_... (ถ้ามี)
+    provider_status         VARCHAR(30)     NULL, -- status ดิบล่าสุดจาก Omise
+    provider_response       JSON            NULL, -- response ล่าสุด (ห้ามมี secret/token)
+
+    idempotency_key         VARCHAR(100)    NOT NULL,
+    description             VARCHAR(255)    NULL,
+    return_uri              VARCHAR(500)    NULL,
+    authorize_uri           VARCHAR(500)    NULL, -- URL สำหรับ 3DS / bank redirect
+
+    bank_code               VARCHAR(30)     NULL,
+    card_brand              VARCHAR(30)     NULL,
+    card_last_digits        CHAR(4)         NULL,
+    failure_code            VARCHAR(100)    NULL,
+    failure_message         VARCHAR(500)    NULL,
+
+    is_livemode             TINYINT(1)      NOT NULL DEFAULT 0,
+    expires_at              DATETIME        NULL,
+    paid_at                 DATETIME        NULL,
+    failed_at               DATETIME        NULL,
+    refunded_at             DATETIME        NULL,
+    created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_transaction_no (transaction_no),
+    UNIQUE KEY uq_payment_idempotency_key (idempotency_key),
+    UNIQUE KEY uq_payment_provider_charge (provider, provider_charge_id),
+    UNIQUE KEY uq_payment_provider_refund (provider, provider_refund_id),
+    KEY idx_payment_request_created (request_id, created_at),
+    KEY idx_payment_status_updated (status, updated_at),
+    KEY idx_payment_parent (parent_transaction_id),
+
+    CONSTRAINT chk_payment_amount
+        CHECK (amount > 0),
+    CONSTRAINT chk_payment_refunded_amount
+        CHECK (refunded_amount >= 0 AND refunded_amount <= amount),
+    CONSTRAINT chk_payment_type
+        CHECK (transaction_type IN ('CHARGE', 'REFUND')),
+    CONSTRAINT chk_payment_channel
+        CHECK (channel IN ('PROMPTPAY', 'CREDIT_CARD', 'INTERNET_BANKING')),
+    CONSTRAINT chk_payment_status
+        CHECK (status IN (
+            'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED',
+            'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'
+        )),
+    CONSTRAINT chk_payment_currency
+        CHECK (currency = 'THB'),
+    CONSTRAINT chk_payment_livemode
+        CHECK (is_livemode IN (0, 1)),
+    CONSTRAINT fk_payment_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_payment_parent
+        FOREIGN KEY (parent_transaction_id) REFERENCES m_payment_transaction (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**แนวทางการใช้งานกับ Omise:**
+
+- `amount` เก็บเป็นหน่วยบาทในฐานข้อมูล แต่ตอนเรียก Omise ต้องแปลงเป็นหน่วยย่อย (THB 1,500.00 = `150000`) ด้วย `BigDecimal` ห้ามใช้ `double`
+- แต่ละ payment attempt สร้าง row `transaction_type = 'CHARGE'` ใหม่เสมอ ห้าม reuse Omise token/source เพราะ token และ source ใช้ได้ครั้งเดียว
+- `provider_charge_id` คือ ID หลักสำหรับ query สถานะจาก `GET /charges/{id}`; `provider_source_id` ใช้กับ PromptPay และช่องทาง redirect
+- Refund แต่ละครั้งสร้าง row `transaction_type = 'REFUND'`, ระบุ `parent_transaction_id` ไปยัง CHARGE และเก็บ `provider_refund_id`; จากนั้นอัปเดต `refunded_amount` และ status ของ CHARGE เป็น `PARTIALLY_REFUNDED` หรือ `REFUNDED` ภายใน database transaction เดียวกัน
+- `idempotency_key` เป็น key ภายในระบบสำหรับกัน mobile retry/API retry สร้าง charge หรือ refund ซ้ำ ควรสร้างจาก operation เดียวกันและใช้ค่าเดิมทุกครั้งที่ retry
+- `provider_response` ใช้เก็บ payload ล่าสุดเพื่อช่วย audit/debug เท่านั้น ห้ามเก็บ secret key, Omise token หรือข้อมูลบัตรเต็ม; หน้า UI ให้ประกอบ masked card จาก `card_last_digits`
+- หลังรับ Omise webhook อย่าเชื่อ payload เพียงอย่างเดียว ให้ใช้ `provider_charge_id` เรียก Charge API เพื่อตรวจสอบสถานะก่อน update และทำ handler ให้ idempotent
+- เวลาใน Omise response เป็น UTC; แนะนำเก็บ `paid_at`, `expires_at` และ timestamp อื่นเป็น UTC แล้วแปลงเป็น `Asia/Bangkok` ตอนแสดงผล
+- ไม่ควรลบ transaction เมื่อ request ถูกลบ จึงไม่กำหนด `ON DELETE CASCADE`; ประวัติการเงินควรถูกเก็บไว้เพื่อ audit
+
+**Status mapping (Omise → ระบบ):**
+
+| Omise | `m_payment_transaction.status` |
+|---|---|
+| charge `pending` | `PENDING` หรือ `PROCESSING` เมื่อรอ 3DS/redirect/webhook |
+| charge `successful` | `SUCCESS` |
+| charge `failed` | `FAILED` |
+| charge `expired` | `EXPIRED` |
+| charge `reversed` | `CANCELLED` |
+| refund สำเร็จและยอดคืน < ยอด charge | parent CHARGE = `PARTIALLY_REFUNDED` |
+| refund สำเร็จและยอดคืน = ยอด charge | parent CHARGE = `REFUNDED` |
+
+> เอกสารอ้างอิง Omise: [Charge API](https://docs.omise.co/charges-api),
+> [Source API](https://docs.omise.co/sources-api),
+> [Refund API](https://docs.omise.co/refunds-api),
+> [Webhooks](https://docs.omise.co/api-webhooks)
+
+
+
+## M_DOCUMENT_REQUEST_ITEM
+
+**บทบาท:** รายการเอกสารประกอบภายในแต่ละคำขอ เช่น สำเนาบัตรประชาชน, รูปถ่าย, หนังสือรับรองบริษัท, ใบรับรองแพทย์ เก็บผลการตรวจและไฟล์ที่แนบ
+
+```sql
+CREATE TABLE m_document_request_item (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id          CHAR(36)        NOT NULL,
+    document_name       VARCHAR(255)    NOT NULL,         -- ชื่อเอกสาร เช่น 'สำเนาบัตรประชาชน'
+    sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
+    file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
+    file_path           VARCHAR(500)    NULL,             -- path หรือ URL ของไฟล์ที่อัปโหลด
+    file_uploaded_at    DATETIME        NULL,
+    check_result        VARCHAR(10)     NULL,             -- 'pass' | 'fix' | NULL (ยังไม่ตรวจ)
+    check_note          TEXT            NULL,             -- หมายเหตุเมื่อผล = 'fix' (required)
+    is_updated          TINYINT(1)      NOT NULL DEFAULT 0, -- 1 = ผู้ยื่น resubmit ไฟล์ใหม่
+    checked_at          DATETIME        NULL,
+    checked_by          CHAR(36)        NULL,
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_reqitem_request_sort (request_id, sort_order),
+    KEY idx_reqitem_check_result (check_result),
+    CONSTRAINT chk_reqitem_file_uploaded
+        CHECK (file_uploaded IN (0, 1)),
+    CONSTRAINT chk_reqitem_is_updated
+        CHECK (is_updated IN (0, 1)),
+    CONSTRAINT chk_reqitem_check_result
+        CHECK (check_result IS NULL OR check_result IN ('pass', 'fix')),
+    CONSTRAINT chk_reqitem_fix_note
+        CHECK (check_result <> 'fix' OR check_note IS NOT NULL),
+    CONSTRAINT fk_reqitem_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `check_result` มีได้ 3 ค่า: `'pass'` (ผ่าน), `'fix'` (ต้องแก้ไข), `NULL` (ยังไม่ตรวจ)
+- `check_note` บังคับกรอกเมื่อ `check_result = 'fix'` และ enforce ด้วย `chk_reqitem_fix_note`
+- `ON DELETE CASCADE` บน `fk_reqitem_request` — ลบ request แล้ว item ถูกลบตามอัตโนมัติ
+- `is_updated = 1` ใช้แสดง badge "อัปเดตใหม่" ใน UI เมื่อผู้ยื่น resubmit ไฟล์ใหม่
+
+---
+
+## M_DOCUMENT_TRANSACTION
+
+**บทบาท:** Transaction log ทุก action ที่เกิดขึ้นกับคำขอ บันทึกแบบ append-only (ไม่แก้ไข ไม่ลบ) ใช้สร้าง audit trail และ tracking timeline ที่เห็นใน UI
+
+```sql
+CREATE TABLE m_document_transaction (
+    id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id      CHAR(36)        NOT NULL,
+    action          VARCHAR(50)     NOT NULL,   -- รหัส action (ดู Action Reference)
+    from_status     VARCHAR(50)     NULL,       -- status ก่อนเปลี่ยน (NULL = สร้างใหม่)
+    to_status       VARCHAR(50)     NOT NULL,   -- status หลังเปลี่ยน
+    note            TEXT            NULL,       -- หมายเหตุเพิ่มเติม (optional)
+    actioned_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actioned_by     CHAR(36)        NULL,       -- NULL = ระบบ / ลูกเรือ
+
+    PRIMARY KEY (id),
+    KEY idx_doctx_request_actioned (request_id, actioned_at),
+    KEY idx_doctx_action (action),
+    CONSTRAINT chk_doctx_action
+        CHECK (action IN (
+            'CREATE', 'SEND_BACK', 'RESUBMIT', 'CHECK_DOCS',
+            'SUBMIT_TO_DEPT', 'RECORD_DEPT_RESULT', 'RECEIVE_FROM_DEPT',
+            'RECORD_DELIVERY', 'DELIVERY_COMPLETE', 'CANCEL'
+        )),
+    CONSTRAINT fk_doctx_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- เป็น **append-only table** ห้าม UPDATE/DELETE ในทุกกรณี — แนะนำ revoke สิทธิ์ UPDATE/DELETE บน table นี้ใน production
+- `from_status = NULL` หมายถึง action แรก (CREATE)
+- ใช้ query ตารางนี้เรียงตาม `actioned_at ASC` เพื่อแสดง timeline tracking ใน UI
+- `actioned_by = NULL` ใช้กรณีที่ action เกิดจากลูกเรือ (เช่น RESUBMIT) หรือ scheduled job
+- ไม่มี `ON UPDATE CURRENT_TIMESTAMP` บน `actioned_at` เพราะตารางนี้ไม่ควรถูก update เลย
+
+**ตัวอย่าง rows สำหรับ 1 คำขอ:**
+
+| action | from_status | to_status | actioned_by |
+|---|---|---|---|
+| `CREATE` | NULL | รอตรวจเอกสาร | NULL |
+| `SEND_BACK` | รอตรวจเอกสาร | รอผู้ยื่นแก้ไข | superadmin02 |
+| `RESUBMIT` | รอผู้ยื่นแก้ไข | รอตรวจเอกสาร | NULL |
+| `CHECK_DOCS` | รอตรวจเอกสาร | รอผลกรมเจ้าท่า | superadmin02 |
+| `RECORD_DEPT_RESULT` | รอผลกรมเจ้าท่า | รอรับเอกสารจากกรม | superadmin02 |
+| `RECEIVE_FROM_DEPT` | รอรับเอกสารจากกรม | รอรับเอกสารจากกรม | superadmin02 |
+| `RECORD_DELIVERY` | รอรับเอกสารจากกรม | กำลังจัดส่ง | superadmin02 |
+| `DELIVERY_COMPLETE` | กำลังจัดส่ง | จัดส่งสำเร็จ | NULL |
+
+---
+
+## M_DEPT_SUBMISSION > รอรับเอกสาร จากกรมเจ้าท่า
+
+**บทบาท:** เก็บข้อมูลการยื่นเรื่องกับกรมเจ้าท่า (Marine Department) ต่อ 1 คำขอ มีได้ 1 row (one-to-one) เก็บทั้งวันที่ยื่น, วันที่รับเอกสารได้, และวันที่รับเอกสารจริง
+
+```sql
+CREATE TABLE m_dept_submission (
+    id                      CHAR(36)    NOT NULL DEFAULT (UUID()),
+    request_id              CHAR(36)    NOT NULL,
+    submitted_to_dept_date  DATE        NOT NULL,   -- วันที่ยื่น Google Form กรมเจ้าท่า
+    submitted_by            CHAR(36)    NOT NULL,
+    available_from_date     DATE        NULL,       -- วันที่รับเอกสารได้ตั้งแต่ (กรมแจ้งมา)
+    received_from_dept_date DATE        NULL,       -- วันที่รับเอกสารจริง
+    recorded_at             DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_deptsubmit_request (request_id),  -- บังคับ one-to-one
+    KEY idx_deptsubmit_submitted_date (submitted_to_dept_date),
+    CONSTRAINT fk_deptsubmit_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `UNIQUE KEY` บน `request_id` บังคับ one-to-one กับ `m_document_request`
+- `available_from_date` เซ็ตตอน action `RECORD_DEPT_RESULT` (กรมแจ้งวันนัด)
+- `received_from_dept_date` เซ็ตตอน action `RECEIVE_FROM_DEPT` (admin ไปรับเอกสารจริง)
+- แก้ไข `available_from_date` ได้ภายหลัง (UI มีปุ่ม "บันทึกการเปลี่ยนแปลง")
+
+---
+
+## M_DELIVERY > กำลังจัดส่ง
+
+**บทบาท:** เก็บข้อมูลการจัดส่งเอกสารกลับให้ลูกเรือ เก็บ Tracking Number, วันจัดส่ง, สถานะ tracking จากไปรษณีย์ไทย
+
+```sql
+CREATE TABLE m_delivery (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id          CHAR(36)        NOT NULL,
+    tracking_no         VARCHAR(50)     NOT NULL,               -- เช่น 'EF123456789TH'
+    carrier             VARCHAR(100)    NOT NULL DEFAULT 'Thailand Post',
+    shipped_date        DATE            NOT NULL,               -- วันที่นำส่งไปรษณีย์
+    delivery_status     VARCHAR(20)     NOT NULL DEFAULT 'in_transit',
+    shipped_recorded_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    shipped_by          CHAR(36)        NOT NULL,
+    delivered_at        DATETIME        NULL,                   -- NULL = ยังส่งไม่ถึง
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_delivery_request (request_id),    -- บังคับ one-to-one
+    KEY idx_delivery_tracking_no (tracking_no),
+    KEY idx_delivery_status_updated (delivery_status, updated_at),
+    CONSTRAINT chk_delivery_status
+        CHECK (delivery_status IN ('pending', 'in_transit', 'delivered', 'failed', 'returned')),
+    CONSTRAINT fk_delivery_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `UNIQUE KEY` บน `request_id` บังคับ one-to-one กับ `m_document_request`
+- `delivery_status` อัปเดตได้จาก webhook ของ API ไปรษณีย์ไทย หรือ manual โดย admin
+- เมื่อ `delivery_status = 'delivered'` ควร trigger update `m_document_request.document_status_id` ให้ชี้ไป status `จัดส่งสำเร็จ` และบันทึก `m_document_transaction` action `DELIVERY_COMPLETE`
+
+---
+
+---
+
+## Status Reference
+
+| Status | ความหมาย | Step |
+|---|---|---|
+| `รอตรวจเอกสาร` | ลูกเรือยื่นคำขอแล้ว รอ admin ตรวจ | 1 |
+| `รอผู้ยื่นแก้ไข` | Admin ส่งกลับให้ลูกเรือแก้ไขเอกสาร | 1 (hold) |
+| `รอผลกรมเจ้าท่า` | Admin ยื่นกรมเจ้าท่าแล้ว รอผล | 2 |
+| `รอรับเอกสารจากกรม` | กรมอนุมัติแล้ว รอ admin ไปรับ | 3 |
+| `กำลังจัดส่ง` | Admin รับเอกสารแล้ว กำลังส่งไปรษณีย์ | 4 |
+| `จัดส่งสำเร็จ` | ลูกเรือได้รับเอกสารแล้ว | 5 |
+| `ยกเลิก` | คำขอถูกยกเลิก | — |
+
+---
+
+## Action Reference
+
+| Action | จาก Status | ไป Status | ผู้ทำ |
+|---|---|---|---|
+| `CREATE` | — | `รอตรวจเอกสาร` | System / ลูกเรือ |
+| `SEND_BACK` | `รอตรวจเอกสาร` | `รอผู้ยื่นแก้ไข` | Admin |
+| `RESUBMIT` | `รอผู้ยื่นแก้ไข` | `รอตรวจเอกสาร` | ลูกเรือ |
+| `CHECK_DOCS` | `รอตรวจเอกสาร` | `รอผลกรมเจ้าท่า` | Admin |
+| `SUBMIT_TO_DEPT` | `รอผลกรมเจ้าท่า` | `รอผลกรมเจ้าท่า` | Admin |
+| `RECORD_DEPT_RESULT` | `รอผลกรมเจ้าท่า` | `รอรับเอกสารจากกรม` | Admin |
+| `RECEIVE_FROM_DEPT` | `รอรับเอกสารจากกรม` | `รอรับเอกสารจากกรม` | Admin |
+| `RECORD_DELIVERY` | `รอรับเอกสารจากกรม` | `กำลังจัดส่ง` | Admin |
+| `DELIVERY_COMPLETE` | `กำลังจัดส่ง` | `จัดส่งสำเร็จ` | System / Admin |
+| `CANCEL` | ทุก status | `ยกเลิก` | Admin |
+
+*Smart Seaman Schema — MySQL 8.0+ Edition · v2.0*
