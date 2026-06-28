@@ -15,6 +15,10 @@ public class LoggerService {
 
     private final Logger logger = LoggerFactory.getLogger(LoggerService.class);
 
+    private static final Set<String> IMPORTANT_HEADERS = Set.of(
+            "accept-language", "content-type", "correlationid", "deviceinfo", "devicemodel"
+    );
+
     public void displayReq(HttpServletRequest request, Object body) {
         StringBuilder reqMessage = new StringBuilder();
         Map<String,String> parameters = getParameters(request);
@@ -107,13 +111,14 @@ public class LoggerService {
 
     private Map<String,String> getHeaders(HttpServletRequest request) {
 
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
 
         Enumeration headerNames = request.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String key = (String) headerNames.nextElement();
-            String value = request.getHeader(key);
-            map.put(key, value);
+            if (IMPORTANT_HEADERS.contains(key.toLowerCase())) {
+                map.put(key, request.getHeader(key));
+            }
         }
 
         return map;

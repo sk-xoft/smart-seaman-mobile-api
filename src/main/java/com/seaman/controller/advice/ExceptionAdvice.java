@@ -8,7 +8,6 @@ import com.seaman.exception.CommonException;
 import com.seaman.model.response.ExceptionResponse;
 import com.seaman.service.TransactionLogsService;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
@@ -42,12 +41,7 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     protected ResponseEntity<Object> handleException(CommonException ex) {
 
-        // Print logs
-        ex.printStackTrace();
-
-        if(ex.getCauseException() != null){
-            log.error(ExceptionUtils.getStackTrace(ex.getCauseException()));
-        }
+        log.error("Unexpected exception", ex);
 
 //        String lang = (String) httpServletRequest.getAttribute(AppSys.LANGUAGE);
          String lang = "TH";
@@ -61,12 +55,7 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
     @ExceptionHandler(CommonException.class)
     protected ResponseEntity<Object> handleCommonException(CommonException ex) {
 
-        // Print logs
-        ex.printStackTrace();
-
-        if(ex.getCauseException() != null){
-            log.error(ExceptionUtils.getStackTrace(ex.getCauseException()));
-        }
+        log.warn("Exception: [{} | {}]", ex.getCode(), ex.getMessage());
 
 //        String lang = (String) httpServletRequest.getAttribute(AppSys.LANGUAGE);
         String lang  =  "TH";
@@ -111,8 +100,6 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpHeaders headers, HttpStatus status, WebRequest request) {
 
-        ex.printStackTrace();
-
         pageNotFoundLogger.warn(ex.getMessage());
         Set<HttpMethod> supportedMethods = ex.getSupportedHttpMethods();
         if (!CollectionUtils.isEmpty(supportedMethods)) {
@@ -132,8 +119,6 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
 //        String lang = (String) httpServletRequest.getAttribute(AppSys.LANGUAGE);
         String lang  =  "TH";
 
-        ex.printStackTrace();
-
         String code = AppStatus.ATTRIBUTE_IS_REQUIRE;
         String messageTemplate = messageCodeService.getMessageDescription(code, lang);
         String renewMsg = "";
@@ -147,8 +132,6 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
 
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatus status, WebRequest request) {
-
-        ex.printStackTrace();
 
 //        String lang = (String) httpServletRequest.getAttribute(AppSys.LANGUAGE);
         String lang  =  "TH";
@@ -170,9 +153,6 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
         String lang  =  "TH";
         String code = AppStatus.ATTRIBUTE_IS_REQUIRE;
         String messageTemplate = messageCodeService.getMessageDescription(code, lang);
-
-        // Print stack
-        ex.printStackTrace();
 
         /**
          * get attribute is missing parameter

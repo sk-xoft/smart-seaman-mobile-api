@@ -151,12 +151,10 @@ public class AuthService {
 
     public RegisterResponse register(RegisterRequest request){
 
-        String statusCode  =  AppStatus.SUCCESS_CODE;
         RegisterResponse response  = new RegisterResponse();
-
+        String statusCode  =  AppStatus.SUCCESS_CODE;
         String userUUID = frameworkUtils.generateUUID();
         String smartSeaManId = userRepository.countMax().toString();
-
         String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
         String serviceName = "REGISTER";
