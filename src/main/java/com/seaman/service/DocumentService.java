@@ -472,34 +472,41 @@ public class DocumentService {
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
         String serviceName = "VALIDATE_DOCUMENT_ITEMS";
         String username = "";
+        boolean inserted = false;
 
         try {
 
             UsersEntity usersEntity = (UsersEntity) httpServletRequest.getAttribute("userObject");
+            if (usersEntity == null) {
+                throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, "userObject not found in request");
+            }
             username = usersEntity.getUsername();
 
             transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            inserted = true;
 
             List<DocumentRequestItemEntity> items =
                     documentRepository.findMissingItemsByUserAndDocumentCode(
                             usersEntity.getMobileUuid(), documentCode);
 
-            for (DocumentRequestItemEntity item : items) {
-                DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
-                dto.setId(item.getId());
-                dto.setDocumentCode(item.getDocumentCode());
-                dto.setDocumentName(item.getDocumentName());
-                dto.setSortOrder(item.getSortOrder());
-                dto.setFileUploaded(item.getFileUploaded());
-                dto.setFilePath(item.getFilePath());
-                dto.setCheckResult(item.getCheckResult());
-                dto.setCheckNote(item.getCheckNote());
+            if (items != null) {
+                for (DocumentRequestItemEntity item : items) {
+                    DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
+                    dto.setId(item.getId());
+                    dto.setDocumentCode(item.getDocumentCode());
+                    dto.setDocumentName(item.getDocumentName());
+                    dto.setSortOrder(item.getSortOrder());
+                    dto.setFileUploaded(item.getFileUploaded());
+                    dto.setFilePath(item.getFilePath());
+                    dto.setCheckResult(item.getCheckResult());
+                    dto.setCheckNote(item.getCheckNote());
 
-                if (item.getFileUploadedAt() != null) {
-                    dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.YEAR_MONTH_DATE));
+                    if (item.getFileUploadedAt() != null) {
+                        dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.YEAR_MONTH_DATE));
+                    }
+
+                    responseList.add(dto);
                 }
-
-                responseList.add(dto);
             }
 
         } catch (CommonException ce) {
@@ -511,7 +518,9 @@ public class DocumentService {
             log.error("{} error -> {}", serviceName, ex);
             throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, ex.getMessage());
         } finally {
-            transactionLogsService.update(transId, "{}", statusCode, username);
+            if (inserted) {
+                transactionLogsService.update(transId, "{}", statusCode, username);
+            }
         }
 
         return responseList;
