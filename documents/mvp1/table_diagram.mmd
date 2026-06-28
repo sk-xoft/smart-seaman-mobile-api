@@ -1,0 +1,164 @@
+%% Smart Seaman Document Renewal ERD
+%% Sources:
+%% - documents/mvp1/non_prod_db_schema.md
+%% - documents/mvp1/script/RUN1_2026_create_table.sql
+
+%%{init: {'theme':'default', 'themeVariables': {
+  'primaryColor':'#BB2528',
+  'primaryTextColor':'#fff',
+  'primaryBorderColor':'#7C0000',
+  'lineColor':'#F8B229',
+  'secondaryColor':'#006100',
+  'tertiaryColor':'#fff'
+}}}%%
+
+
+erDiagram
+    m_mobile_users {
+        int MOBILE_USER_ID PK
+        varchar MOBILE_UUID UK
+        varchar USERNAME
+        varchar FIRST_NAME
+        varchar LAST_NAME
+        varchar COMPANY_CODE
+        varchar POSITION_CODE
+        varchar USER_STATUS
+    }
+
+    m_documents {
+        int DOCUMENT_ID PK
+        varchar DOCUMENT_CODE UK
+        varchar DOCUMENT_NAME_TH
+        varchar DOCUMENT_NAME_EN
+        varchar DOCUMENT_TYPE
+        varchar DOCUMENT_MOBILE_FLAG
+        varchar DOCUMENT_RENEWAL_FLAG
+        varchar DOCUMENT_STATUS
+    }
+
+    m_document_status {
+        char id PK
+        varchar name_th UK
+        varchar name_en UK
+        varchar css_color
+        varchar is_active
+        datetime created_at
+    }
+
+    m_document_request {
+        char id PK
+        varchar request_no UK
+        varchar mobile_user_uuid
+        varchar document_code
+        char document_status_id FK
+        tinyint is_resubmit
+        decimal amount
+        datetime submitted_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_document_prices_setting {
+        char id PK
+        varchar document_code FK
+        decimal government_fee
+        decimal document_processing_fee
+        decimal shipping_fee
+        decimal shipping_discount
+        decimal service_fee_discount
+        varchar is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_payment_transaction {
+        char id PK
+        char request_id FK
+        char parent_transaction_id FK
+        varchar transaction_no UK
+        varchar transaction_type
+        varchar channel
+        varchar payment_method
+        decimal amount
+        varchar status
+        varchar provider
+        varchar provider_charge_id UK
+        varchar provider_refund_id UK
+        varchar idempotency_key UK
+        datetime paid_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_document_request_item {
+        char id PK
+        varchar mobile_user_uuid FK
+        varchar document_name
+        tinyint sort_order
+        tinyint file_uploaded
+        varchar file_path
+        varchar check_result
+        text check_note
+        tinyint is_updated
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_document_setting_requires {
+        char id PK
+        varchar document_code FK
+        char document_items_id FK
+        tinyint sort_order
+        tinyint is_required
+        varchar is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_document_transaction {
+        char id PK
+        char request_id FK
+        varchar action
+        varchar from_status
+        varchar to_status
+        text note
+        datetime actioned_at
+        char actioned_by
+    }
+
+    m_dept_submission {
+        char id PK
+        char request_id FK
+        date submitted_to_dept_date
+        char submitted_by
+        date available_from_date
+        date received_from_dept_date
+        datetime recorded_at
+        datetime updated_at
+    }
+
+    m_delivery {
+        char id PK
+        char request_id FK
+        varchar tracking_no
+        varchar carrier
+        date shipped_date
+        varchar delivery_status
+        char shipped_by
+        datetime delivered_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    m_document_status ||--o{ m_document_request : "fk_docreq_status"
+    m_document_request ||--o{ m_payment_transaction : "fk_payment_request"
+    m_payment_transaction ||--o{ m_payment_transaction : "fk_payment_parent"
+    m_mobile_users ||--o{ m_document_request_item : "fk_reqitem_mobile_user"
+    m_documents ||--o{ m_document_prices_setting : "fk_docprice_document"
+    m_documents ||--o{ m_document_setting_requires : "fk_doc_setting_requires_document"
+    m_document_request_item ||--o{ m_document_setting_requires : "fk_doc_setting_requires_item"
+    m_document_request ||--o{ m_document_transaction : "fk_doctx_request"
+    m_document_request ||--o| m_dept_submission : "fk_deptsubmit_request"
+    m_document_request ||--o| m_delivery : "fk_delivery_request"
+    m_mobile_users ||--o{ m_document_request : "logical mobile_user_uuid"
+    m_documents ||--o{ m_document_request : "logical document_code"

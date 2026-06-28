@@ -27,9 +27,7 @@ public class EmailController extends BaseController {
      */
     @GetMapping(Routes.SEND_EMAIL)
     public ResponseEntity<SuccessResponse<String>> sendEmail(HttpServletRequest httpServletRequest) {
-
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-
         String fullName = "ทดสอบ";
         String email = "sarunyoo.xoftspace@gmail.com";
         String linkRegister = "www.google.com";

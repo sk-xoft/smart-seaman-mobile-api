@@ -1,0 +1,291 @@
+ALTER TABLE m_documents
+    ADD COLUMN DOCUMENT_RENEWAL_FLAG VARCHAR(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'NO'
+        COMMENT 'Flag for document renewal on mobile app. YES = can renew, NO = cannot renew'
+        AFTER DOCUMENT_MOBILE_FLAG,
+    ADD CONSTRAINT chk_documents_renewal_flag
+        CHECK (DOCUMENT_RENEWAL_FLAG IN ('YES', 'NO'));
+
+CREATE TABLE m_document_status (
+    id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    name_th         VARCHAR(255)    NOT NULL,
+    name_en         VARCHAR(255)    NOT NULL,
+    css_color       VARCHAR(100)    NOT NULL,
+    is_active       VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_document_status_name_th (name_th),
+    UNIQUE KEY uq_document_status_name_en (name_en),
+    CONSTRAINT chk_document_status_active
+        CHECK (is_active IN ('YES', 'NO'))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_request (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_no          VARCHAR(20)     NOT NULL,
+    mobile_user_uuid    VARCHAR(50)     NOT NULL,
+    document_code       VARCHAR(50)     NOT NULL,
+    document_status_id  CHAR(36)        NOT NULL,
+    is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
+    amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
+    submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    submitted_by        CHAR(36)        NULL,                   -- NULL = ลูกเรือยื่นเอง
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_docreq_request_no (request_no),
+    KEY idx_docreq_mobile_user (mobile_user_uuid),
+    KEY idx_docreq_document_code (document_code),
+    KEY idx_docreq_status_submitted (document_status_id, submitted_at),
+    CONSTRAINT chk_docreq_amount
+        CHECK (amount >= 0),
+    CONSTRAINT chk_docreq_resubmit
+        CHECK (is_resubmit IN (0, 1)),
+    CONSTRAINT fk_docreq_status
+        FOREIGN KEY (document_status_id) REFERENCES m_document_status (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_prices_setting (
+    id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_code           VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    government_fee          DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    document_processing_fee DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    shipping_fee            DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    shipping_discount       DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    service_fee_discount    DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    is_active               VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_docprice_document_code (document_code),
+    CONSTRAINT chk_docprice_fee
+        CHECK (
+            government_fee >= 0
+            AND document_processing_fee >= 0
+            AND shipping_fee >= 0
+            AND shipping_discount >= 0
+            AND service_fee_discount >= 0
+        ),
+    CONSTRAINT chk_docprice_active
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT fk_docprice_document
+        FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_payment_transaction (
+    id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id              CHAR(36)        NOT NULL,
+    parent_transaction_id   CHAR(36)        NULL,
+
+    transaction_no          VARCHAR(40)     NOT NULL,
+    transaction_type        VARCHAR(10)     NOT NULL DEFAULT 'CHARGE',
+                                            -- CHARGE | REFUND
+    channel                 VARCHAR(30)     NOT NULL,
+                                            -- PROMPTPAY | CREDIT_CARD | INTERNET_BANKING
+    payment_method          VARCHAR(50)     NOT NULL,
+                                            -- promptpay | card | internet_banking_scb | ...
+
+    amount                  DECIMAL(12, 2)  NOT NULL,
+    currency                CHAR(3)         NOT NULL DEFAULT 'THB',
+    refunded_amount         DECIMAL(12, 2)  NOT NULL DEFAULT 0.00,
+                                            -- ยอดคืนสะสม ใช้กับ CHARGE เท่านั้น
+    status                  VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
+                                            -- PENDING | PROCESSING | SUCCESS | FAILED |
+                                            -- EXPIRED | PARTIALLY_REFUNDED | REFUNDED | CANCELLED
+
+    provider                VARCHAR(20)     NOT NULL DEFAULT 'OMISE',
+    provider_charge_id      VARCHAR(100)    NULL, -- Omise chrg_... / chrg_test_...
+    provider_source_id      VARCHAR(100)    NULL, -- Omise src_... / src_test_...
+    provider_refund_id      VARCHAR(100)    NULL, -- Omise rfnd_... / rfnd_test_...
+    provider_transaction_id VARCHAR(100)    NULL, -- Omise trxn_... (ถ้ามี)
+    provider_status         VARCHAR(30)     NULL, -- status ดิบล่าสุดจาก Omise
+    provider_response       JSON            NULL, -- response ล่าสุด (ห้ามมี secret/token)
+
+    idempotency_key         VARCHAR(100)    NOT NULL,
+    description             VARCHAR(255)    NULL,
+    return_uri              VARCHAR(500)    NULL,
+    authorize_uri           VARCHAR(500)    NULL, -- URL สำหรับ 3DS / bank redirect
+
+    bank_code               VARCHAR(30)     NULL,
+    card_brand              VARCHAR(30)     NULL,
+    card_last_digits        CHAR(4)         NULL,
+    failure_code            VARCHAR(100)    NULL,
+    failure_message         VARCHAR(500)    NULL,
+
+    is_livemode             TINYINT(1)      NOT NULL DEFAULT 0,
+    expires_at              DATETIME        NULL,
+    paid_at                 DATETIME        NULL,
+    failed_at               DATETIME        NULL,
+    refunded_at             DATETIME        NULL,
+    created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_payment_transaction_no (transaction_no),
+    UNIQUE KEY uq_payment_idempotency_key (idempotency_key),
+    UNIQUE KEY uq_payment_provider_charge (provider, provider_charge_id),
+    UNIQUE KEY uq_payment_provider_refund (provider, provider_refund_id),
+    KEY idx_payment_request_created (request_id, created_at),
+    KEY idx_payment_status_updated (status, updated_at),
+    KEY idx_payment_parent (parent_transaction_id),
+
+    CONSTRAINT chk_payment_amount
+        CHECK (amount > 0),
+    CONSTRAINT chk_payment_refunded_amount
+        CHECK (refunded_amount >= 0 AND refunded_amount <= amount),
+    CONSTRAINT chk_payment_type
+        CHECK (transaction_type IN ('CHARGE', 'REFUND')),
+    CONSTRAINT chk_payment_channel
+        CHECK (channel IN ('PROMPTPAY', 'CREDIT_CARD', 'INTERNET_BANKING')),
+    CONSTRAINT chk_payment_status
+        CHECK (status IN (
+            'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED',
+            'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'
+        )),
+    CONSTRAINT chk_payment_currency
+        CHECK (currency = 'THB'),
+    CONSTRAINT chk_payment_livemode
+        CHECK (is_livemode IN (0, 1)),
+    CONSTRAINT fk_payment_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_payment_parent
+        FOREIGN KEY (parent_transaction_id) REFERENCES m_payment_transaction (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_request_item (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_name       VARCHAR(255)    NOT NULL,         -- ชื่อเอกสาร เช่น 'สำเนาบัตรประชาชน'
+    sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
+    file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
+    file_path           VARCHAR(500)    NULL,             -- path หรือ URL ของไฟล์ที่อัปโหลด
+    file_uploaded_at    DATETIME        NULL,
+    check_result        VARCHAR(10)     NULL,             -- 'pass' | 'fix' | NULL (ยังไม่ตรวจ)
+    check_note          TEXT            NULL,             -- หมายเหตุเมื่อผล = 'fix' (required)
+    is_updated          TINYINT(1)      NOT NULL DEFAULT 0, -- 1 = ผู้ยื่น resubmit ไฟล์ใหม่
+    checked_at          DATETIME        NULL,
+    checked_by          CHAR(36)        NULL,
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
+    KEY idx_reqitem_check_result (check_result),
+    CONSTRAINT chk_reqitem_file_uploaded
+        CHECK (file_uploaded IN (0, 1)),
+    CONSTRAINT chk_reqitem_is_updated
+        CHECK (is_updated IN (0, 1)),
+    CONSTRAINT chk_reqitem_check_result
+        CHECK (check_result IS NULL OR check_result IN ('pass', 'fix')),
+    CONSTRAINT chk_reqitem_fix_note
+        CHECK (check_result <> 'fix' OR check_note IS NOT NULL),
+    CONSTRAINT fk_reqitem_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_setting_requires (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_code       VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_items_id   CHAR(36)        NOT NULL,
+    sort_order          TINYINT         NOT NULL DEFAULT 1,
+    is_required         TINYINT(1)      NOT NULL DEFAULT 1,
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_setting_requires (document_code, document_items_id),
+    KEY idx_doc_setting_requires_doc_sort (document_code, sort_order),
+    KEY idx_doc_setting_requires_item (document_items_id),
+
+    CONSTRAINT chk_doc_setting_requires_required
+        CHECK (is_required IN (0, 1)),
+    CONSTRAINT chk_doc_setting_requires_active
+        CHECK (is_active IN ('YES', 'NO')),
+
+    CONSTRAINT fk_doc_setting_requires_document
+        FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE),
+    CONSTRAINT fk_doc_setting_requires_item
+        FOREIGN KEY (document_items_id) REFERENCES m_document_request_item (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_transaction (
+    id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id      CHAR(36)        NOT NULL,
+    action          VARCHAR(50)     NOT NULL,   -- รหัส action (ดู Action Reference)
+    from_status     VARCHAR(50)     NULL,       -- status ก่อนเปลี่ยน (NULL = สร้างใหม่)
+    to_status       VARCHAR(50)     NOT NULL,   -- status หลังเปลี่ยน
+    note            TEXT            NULL,       -- หมายเหตุเพิ่มเติม (optional)
+    actioned_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actioned_by     CHAR(36)        NULL,       -- NULL = ระบบ / ลูกเรือ
+
+    PRIMARY KEY (id),
+    KEY idx_doctx_request_actioned (request_id, actioned_at),
+    KEY idx_doctx_action (action),
+    CONSTRAINT chk_doctx_action
+        CHECK (action IN (
+            'CREATE', 'SEND_BACK', 'RESUBMIT', 'CHECK_DOCS',
+            'SUBMIT_TO_DEPT', 'RECORD_DEPT_RESULT', 'RECEIVE_FROM_DEPT',
+            'RECORD_DELIVERY', 'DELIVERY_COMPLETE', 'CANCEL'
+        )),
+    CONSTRAINT fk_doctx_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_dept_submission (
+    id                      CHAR(36)    NOT NULL DEFAULT (UUID()),
+    request_id              CHAR(36)    NOT NULL,
+    submitted_to_dept_date  DATE        NOT NULL,   -- วันที่ยื่น Google Form กรมเจ้าท่า
+    submitted_by            CHAR(36)    NOT NULL,
+    available_from_date     DATE        NULL,       -- วันที่รับเอกสารได้ตั้งแต่ (กรมแจ้งมา)
+    received_from_dept_date DATE        NULL,       -- วันที่รับเอกสารจริง
+    recorded_at             DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_deptsubmit_request (request_id),  -- บังคับ one-to-one
+    KEY idx_deptsubmit_submitted_date (submitted_to_dept_date),
+    CONSTRAINT fk_deptsubmit_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_delivery (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id          CHAR(36)        NOT NULL,
+    tracking_no         VARCHAR(50)     NOT NULL,               -- เช่น 'EF123456789TH'
+    carrier             VARCHAR(100)    NOT NULL DEFAULT 'Thailand Post',
+    shipped_date        DATE            NOT NULL,               -- วันที่นำส่งไปรษณีย์
+    delivery_status     VARCHAR(20)     NOT NULL DEFAULT 'in_transit',
+    shipped_recorded_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    shipped_by          CHAR(36)        NOT NULL,
+    delivered_at        DATETIME        NULL,                   -- NULL = ยังส่งไม่ถึง
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_delivery_request (request_id),    -- บังคับ one-to-one
+    KEY idx_delivery_tracking_no (tracking_no),
+    KEY idx_delivery_status_updated (delivery_status, updated_at),
+    CONSTRAINT chk_delivery_status
+        CHECK (delivery_status IN ('pending', 'in_transit', 'delivered', 'failed', 'returned')),
+    CONSTRAINT fk_delivery_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
