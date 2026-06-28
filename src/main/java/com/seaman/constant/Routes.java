@@ -52,4 +52,6 @@ public class Routes {
     public static final String VOUCHERS_PREVIEW_QR = "/vouchers/qr";
 
     public static final String POLICY = "/privacy_policy";
+
+    public static final String VALIDATE_DOCUMENT_ITEMS = "/documents/request-items/validate";
 }

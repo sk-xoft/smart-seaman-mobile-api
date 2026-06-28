@@ -2,6 +2,7 @@ package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
 import com.seaman.entity.DocumentEntity;
+import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -185,5 +186,40 @@ public class DocumentRepository extends CommonRepository {
         return row;
     }
 
+    public List<DocumentRequestItemEntity> findMissingItemsByUserAndDocumentCode(
+            String mobileUserUuid, String documentCode) {
+
+        List<DocumentRequestItemEntity> result = null;
+        StringBuilder sql = new StringBuilder();
+        sql.append(" SELECT");
+        sql.append("   dri.id, dri.mobile_user_uuid, dri.document_name, dri.sort_order,");
+        sql.append("   dri.file_uploaded, dri.file_path, dri.file_uploaded_at,");
+        sql.append("   dri.check_result, dri.check_note, dri.is_updated,");
+        sql.append("   dri.checked_at, dri.checked_by, dri.created_at, dri.updated_at,");
+        sql.append("   dsr.document_code, dsr.is_required");
+        sql.append(" FROM m_document_setting_requires dsr");
+        sql.append(" INNER JOIN m_document_request_item dri ON dri.id = dsr.document_items_id");
+        sql.append(" WHERE dsr.document_code = :documentCode");
+        sql.append("   AND dsr.is_required = 1");
+        sql.append("   AND dsr.is_active = 'YES'");
+        sql.append("   AND dri.mobile_user_uuid = :mobileUserUuid");
+        sql.append("   AND (dri.file_uploaded = 0 OR dri.check_result = 'fix')");
+        sql.append(" ORDER BY dri.sort_order");
+
+        try {
+            MapSqlParameterSource namedParameters = new MapSqlParameterSource()
+                    .addValue("documentCode", documentCode)
+                    .addValue("mobileUserUuid", mobileUserUuid);
+
+            result = template.query(sql.toString(), namedParameters,
+                    new BeanPropertyRowMapper<>(DocumentRequestItemEntity.class));
+
+        } catch (Exception ex) {
+            log.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
+
+        return result;
+    }
 
 }

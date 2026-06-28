@@ -1,6 +1,8 @@
 package com.seaman.controller;
 
 import com.seaman.constant.AppSys;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+@Tag(name = "App Verification", description = "Android App Links และ iOS Universal Links สำหรับ app verification")
 @RestController
 @RequiredArgsConstructor
 public class AppActivateController {
@@ -21,6 +24,7 @@ public class AppActivateController {
     @Value("${spring.profiles.active}")
     private String activeProfile;
 
+    @Operation(summary = "Android Asset Links", description = "ไฟล์ assetlinks.json สำหรับ Android App Links verification")
     @GetMapping("/.well-known/assetlinks.json")
     public ResponseEntity<String> getRadarData() throws IOException {
         ClassPathResource staticDataResource = null;
@@ -42,6 +46,7 @@ public class AppActivateController {
                 HttpStatus.OK);
     }
 
+    @Operation(summary = "iOS Apple App Site Association", description = "ไฟล์ apple-app-site-association สำหรับ iOS Universal Links verification")
     @GetMapping("/.well-known/apple-app-site-association")
     public ResponseEntity<String> getRenderDataIos() throws IOException {
 

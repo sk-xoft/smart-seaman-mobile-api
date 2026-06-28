@@ -8,9 +8,11 @@ import com.seaman.model.request.FcmNotificationRequest;
 import com.seaman.model.response.FormResponse;
 import com.seaman.service.FcmNotificationService;
 import com.seaman.service.MessageCodeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,14 +22,17 @@ import javax.validation.Valid;
 
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "FCM", description = "Firebase Cloud Messaging — จัดการ token สำหรับ Push Notification")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
-public class FcmController  extends BaseController {
+public class FcmController extends BaseController {
 
     private final MessageCodeService messageCodeService;
 
     private final FcmNotificationService fcmNotificationService;
 
+    @Operation(summary = "อัพเดต FCM Token", description = "บันทึก FCM token ของอุปกรณ์เพื่อรับ push notification")
     @PostMapping(Routes.FCM_UPDATE)
     public ResponseEntity<SuccessResponse<FormResponse>> listSchoolTraining(
             HttpServletRequest httpServletRequest,

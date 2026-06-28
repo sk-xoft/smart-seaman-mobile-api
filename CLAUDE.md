@@ -84,6 +84,18 @@ Scheduled task in `SchedulingConfig.java` refreshes notification cache daily.
 - **Gmail SMTP** — transactional email
 - **ZXing** — QR code generation
 
+## Naming Conventions
+
+| Scope | Convention | Example |
+|-------|-----------|---------|
+| REST URL path | kebab-case | `/school-trainings`, `/refresh-token` |
+| `@RequestParam` name | camelCase | `certCode`, `documentCode`, `courseCode` |
+| Java class | PascalCase | `DocumentController`, `DocumentService` |
+| Java method / variable | camelCase | `validateDocumentItems`, `documentCode` |
+| JSON request/response field | camelCase | `certCode`, `mobileUserUuid` |
+| DB column | snake_case | `document_code`, `mobile_user_uuid` |
+| Constants (`Routes`, `AppStatus`) | UPPER_SNAKE_CASE | `VALIDATE_DOCUMENT_ITEMS` |
+
 ## Logging
 
 Logback config in `src/main/resources/logback-spring.xml`:

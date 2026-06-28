@@ -5,12 +5,14 @@ import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.CertificateEntity;
 import com.seaman.entity.DocumentEntity;
+import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
 import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
+import com.seaman.model.response.DocumentRequestItemResponse;
 import com.seaman.model.response.DocumentUpdateResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import com.seaman.repository.CertificateRepository;
@@ -459,6 +461,60 @@ public class DocumentService {
         }
 
         return response;
+    }
+
+    public List<DocumentRequestItemResponse> validateDocumentItems(String documentCode) {
+
+        List<DocumentRequestItemResponse> responseList = new ArrayList<>();
+
+        String statusCode = AppStatus.SUCCESS_CODE;
+        String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
+        String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
+        String serviceName = "VALIDATE_DOCUMENT_ITEMS";
+        String username = "";
+
+        try {
+
+            UsersEntity usersEntity = (UsersEntity) httpServletRequest.getAttribute("userObject");
+            username = usersEntity.getUsername();
+
+            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+
+            List<DocumentRequestItemEntity> items =
+                    documentRepository.findMissingItemsByUserAndDocumentCode(
+                            usersEntity.getMobileUuid(), documentCode);
+
+            for (DocumentRequestItemEntity item : items) {
+                DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
+                dto.setId(item.getId());
+                dto.setDocumentCode(item.getDocumentCode());
+                dto.setDocumentName(item.getDocumentName());
+                dto.setSortOrder(item.getSortOrder());
+                dto.setFileUploaded(item.getFileUploaded());
+                dto.setFilePath(item.getFilePath());
+                dto.setCheckResult(item.getCheckResult());
+                dto.setCheckNote(item.getCheckNote());
+
+                if (item.getFileUploadedAt() != null) {
+                    dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.YEAR_MONTH_DATE));
+                }
+
+                responseList.add(dto);
+            }
+
+        } catch (CommonException ce) {
+            statusCode = ce.getCode();
+            log.error("{} error -> {}", serviceName, ce);
+            throw ce;
+        } catch (Exception ex) {
+            statusCode = AppStatus.EXCEPTION_GLOBAL;
+            log.error("{} error -> {}", serviceName, ex);
+            throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, ex.getMessage());
+        } finally {
+            transactionLogsService.update(transId, "{}", statusCode, username);
+        }
+
+        return responseList;
     }
 
     public String viewCert(String certCode) {

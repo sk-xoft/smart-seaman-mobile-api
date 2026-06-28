@@ -5,21 +5,23 @@ import com.seaman.constant.AppSys;
 import com.seaman.constant.Routes;
 import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.CoursesResponse;
-import com.seaman.model.response.DocumentResponse;
 import com.seaman.model.response.MasterDataDocumentResponse;
 import com.seaman.model.response.MasterDataResponse;
 import com.seaman.service.CourseService;
 import com.seaman.service.MasterDataService;
 import com.seaman.service.MessageCodeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpServletRequest;
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "Master Data", description = "ข้อมูล Master สำหรับ Dropdown และการตั้งค่า")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 public class MasterController extends BaseController {
@@ -28,11 +30,7 @@ public class MasterController extends BaseController {
 
     private final CourseService courseService;
 
-    /**
-     * this master for user mobile is has register.
-     * @param httpServletRequest
-     * @return
-     */
+    @Operation(summary = "ข้อมูล Master", description = "ดึงข้อมูล Master ทั้งหมดสำหรับผู้ใช้ที่ login แล้ว")
     @GetMapping(Routes.MASTER)
     public ResponseEntity<SuccessResponse<MasterDataResponse>> master(HttpServletRequest httpServletRequest) {
 
@@ -45,11 +43,7 @@ public class MasterController extends BaseController {
         ).build());
     }
 
-    /**
-     * this list data for use dropdown on create certification.
-     * @param httpServletRequest
-     * @return
-     */
+    @Operation(summary = "ประเภทเอกสาร", description = "ดึงรายการประเภทเอกสารสำหรับ Dropdown ในหน้าสร้างใบรับรอง")
     @GetMapping(Routes.MASTER_DOCUMENTS)
     public ResponseEntity<SuccessResponse<MasterDataDocumentResponse>> masterDocuments(HttpServletRequest httpServletRequest) {
 
@@ -62,6 +56,7 @@ public class MasterController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "รายการหลักสูตร", description = "ดึงรายการหลักสูตรทั้งหมดสำหรับ Dropdown")
     @GetMapping(Routes.MASTER_COURSES)
     public ResponseEntity<SuccessResponse<CoursesResponse>> masterCourses(HttpServletRequest httpServletRequest) {
 

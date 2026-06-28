@@ -1,0 +1,1 @@
+-- SHOW INDEX FROM m_mobile_users

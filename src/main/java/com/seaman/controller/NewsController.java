@@ -7,6 +7,10 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.NewsResponse;
 import com.seaman.service.MessageCodeService;
 import com.seaman.service.NewsService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import net.sf.jmimemagic.*;
 import org.springframework.http.*;
@@ -18,6 +22,8 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.Base64;
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "News", description = "ข่าวสารและประกาศ")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 public class NewsController extends  BaseController{
@@ -26,6 +32,7 @@ public class NewsController extends  BaseController{
 
     private final NewsService newsService;
 
+    @Operation(summary = "รายการข่าวสาร", description = "ดึงรายการข่าวสารและประกาศทั้งหมด")
     @GetMapping(Routes.NEWS)
     public ResponseEntity<SuccessResponse<NewsResponse>> listNews(HttpServletRequest httpServletRequest) {
 
@@ -38,8 +45,10 @@ public class NewsController extends  BaseController{
         ).build());
     }
 
+    @Operation(summary = "รายละเอียดข่าว", description = "ดึงรายละเอียดของข่าวตาม ID")
     @GetMapping(Routes.NEWS_DETAIL)
-    public ResponseEntity<SuccessResponse<NewsResponse>> newsDetail(HttpServletRequest httpServletRequest, @RequestParam("newsId") String newsId) {
+    public ResponseEntity<SuccessResponse<NewsResponse>> newsDetail(HttpServletRequest httpServletRequest,
+            @Parameter(description = "News ID", required = true) @RequestParam("newsId") String newsId) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -50,40 +59,11 @@ public class NewsController extends  BaseController{
         ).build());
     }
 
-//    @GetMapping(Routes.PREVIEW_PIC_NEWS)
-//    @ResponseStatus(HttpStatus.OK)
-//    public HttpEntity<byte[]> getImageNews(@RequestParam("newsId") String newsId) throws MagicMatchNotFoundException, MagicException, MagicParseException {
-//
-//        String fileBase64 = newsService.previewNews(newsId);
-//
-//        // 1. download img your location...
-//        byte[] content = Base64.getDecoder().decode(fileBase64);
-//
-//        MagicMatch match = Magic.getMagicMatch(content);
-//        String mimeType = match.getMimeType();
-//        HttpHeaders headers = new HttpHeaders();
-//
-//        if("image/png".equals(mimeType)) {
-//            headers.setContentType(MediaType.IMAGE_PNG);
-//        }
-//
-//        if("image/jpeg".equals(mimeType)) {
-//            headers.setContentType(MediaType.IMAGE_JPEG);
-//        }
-//
-//        if("application/pdf".equals(mimeType)) {
-//            headers.setContentType(MediaType.APPLICATION_PDF);
-//        }
-//
-//        headers.setContentLength(content.length);
-//
-//        return new HttpEntity<byte[]>(content, headers);
-//    }
-
+    @Operation(summary = "รูปภาพข่าว", description = "ดาวน์โหลดรูปภาพของข่าว")
     @GetMapping(value = Routes.PREVIEW_PIC_NEWS, produces = MediaType.IMAGE_PNG_VALUE)
-    public ResponseEntity<byte[]> getImage(@RequestParam("newsId") String newsId) {
+    public ResponseEntity<byte[]> getImage(
+            @Parameter(description = "News ID", required = true) @RequestParam("newsId") String newsId) {
 
-        // Replace with your Base64 encoded image string
         String base64Image = newsService.previewNews(newsId);
         byte[] imageBytes = Base64.getDecoder().decode(base64Image);
 

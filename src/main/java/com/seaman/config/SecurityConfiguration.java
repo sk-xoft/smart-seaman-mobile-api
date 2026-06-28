@@ -31,9 +31,12 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     private final String[] PUBLIC = {
             "/actuator/**",
+            "/swagger-ui.html",
             "/swagger-ui.html/**",
             "/swagger-ui/**",
+            "/smart-seaman-swagger",
             "/smart-seaman-swagger/**",
+            "/v3/api-docs/**",
             "/v1/login",
             "/v1/register",
             "/v1/refresh-token",
@@ -95,7 +98,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(8);
     }
 
     @Bean

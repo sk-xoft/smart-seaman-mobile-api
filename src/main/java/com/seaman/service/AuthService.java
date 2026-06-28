@@ -127,7 +127,6 @@ public class AuthService {
             httpServletRequest.setAttribute("sessionObject", sessionEntity);
             sessionRepository.insert(sessionEntity);
 
-
             // Mark response
             response.setToken(jwtToken);
             response.setRefToken(clientSessionId);
