@@ -17,9 +17,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         private final String[] NOT_VALIDATE_AUTH = {
                         "/actuator/**",
+                        "/swagger-ui.html",
                         "/swagger-ui.html/**",
                         "/swagger-ui/**",
+                        "/smart-seaman-swagger",
                         "/smart-seaman-swagger/**",
+                        "/v3/api-docs/**",
                         "/v1/login",
                         "/v1/register",
                         "/v1/refresh-token",
@@ -38,8 +41,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         public void addInterceptors(InterceptorRegistry registry) {
                 registry.addInterceptor(apiInterceptor)
                                 .excludePathPatterns(
+                                                "/swagger-ui.html",
                                                 "/swagger-ui.html/**",
                                                 "/swagger-ui/**",
+                                                "/smart-seaman-swagger",
                                                 "/smart-seaman-swagger/**")
                                 .addPathPatterns("/v1/**")
                                 .order(1);

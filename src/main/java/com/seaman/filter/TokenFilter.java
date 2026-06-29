@@ -43,16 +43,8 @@ public class TokenFilter extends GenericFilterBean {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
-        ExceptionResponse exceptionResponse = new ExceptionResponse();
-        response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-
         String lang = request.getHeader(AppSys.HEADER_ACCEPT_LANGUAGE);
         try {
-
-            /**
-             * If sent authorization
-             */
 
             String authorization = request.getHeader("Authorization");
             if (ObjectUtils.isEmpty(authorization)) {
@@ -68,10 +60,6 @@ public class TokenFilter extends GenericFilterBean {
             // Get JWT token
             // https://www.baeldung.com/spring-mvc-handlerinterceptor-vs-filter
             String token = authorization.substring(7);
-//        if(jwtTokenService.validateToken(token).equals(Boolean.FALSE)){
-//            filterChain.doFilter(servletRequest, servletResponse);
-//            return;
-//        }
 
             if (!jwtTokenService.verifyToken(token)) {
                 filterChain.doFilter(servletRequest, servletResponse);
@@ -85,7 +73,6 @@ public class TokenFilter extends GenericFilterBean {
             }
 
             List<GrantedAuthority> authorities = new ArrayList<>();
-            // authorities.add(new SimpleGrantedAuthority(role));
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, "(protected)", authorities);
 
@@ -99,9 +86,13 @@ public class TokenFilter extends GenericFilterBean {
             String code = cx.getCode();
             String message = messageCodeService.getMessageDescription(code, lang);
 
+            ExceptionResponse exceptionResponse = new ExceptionResponse();
             exceptionResponse.setCode(code);
             exceptionResponse.setDescription(message);
             exceptionResponse.setData(cx.getMessage());
+
+            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
             Gson gson = new Gson();
             String json = gson.toJson(exceptionResponse);
@@ -111,9 +102,13 @@ public class TokenFilter extends GenericFilterBean {
         } catch (Exception ex) {
             String message = messageCodeService.getMessageDescription(AppStatus.EXCEPTION_GLOBAL, AppSys.LANG_TH);
 
+            ExceptionResponse exceptionResponse = new ExceptionResponse();
             exceptionResponse.setCode(AppStatus.EXCEPTION_GLOBAL);
             exceptionResponse.setDescription(message);
             exceptionResponse.setData(ex.getMessage());
+
+            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
             Gson gson = new Gson();
             String json = gson.toJson(exceptionResponse);

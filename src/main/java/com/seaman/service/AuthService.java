@@ -88,7 +88,6 @@ public class AuthService {
             }
 
             log.info("User is status -> {}.", usersEntity.getUserStatus());
-
             if("D".equals(usersEntity.getUserStatus())) {
                 throw new BusinessException(AppStatus.USER_IS_INACTIVATED, "");
             } else if(!"A".equals(usersEntity.getUserStatus())) {
@@ -127,7 +126,6 @@ public class AuthService {
             httpServletRequest.setAttribute("sessionObject", sessionEntity);
             sessionRepository.insert(sessionEntity);
 
-
             // Mark response
             response.setToken(jwtToken);
             response.setRefToken(clientSessionId);
@@ -152,12 +150,10 @@ public class AuthService {
 
     public RegisterResponse register(RegisterRequest request){
 
-        String statusCode  =  AppStatus.SUCCESS_CODE;
         RegisterResponse response  = new RegisterResponse();
-
+        String statusCode  =  AppStatus.SUCCESS_CODE;
         String userUUID = frameworkUtils.generateUUID();
         String smartSeaManId = userRepository.countMax().toString();
-
         String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
         String serviceName = "REGISTER";

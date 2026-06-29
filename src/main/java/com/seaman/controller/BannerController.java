@@ -7,6 +7,10 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.BannerResponse;
 import com.seaman.service.BannerService;
 import com.seaman.service.MessageCodeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import net.sf.jmimemagic.*;
 import org.springframework.http.*;
@@ -19,6 +23,8 @@ import java.util.Base64;
 
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "Banners", description = "Banner โฆษณาและประชาสัมพันธ์")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 public class BannerController extends  BaseController{
@@ -27,6 +33,7 @@ public class BannerController extends  BaseController{
 
     private final BannerService bannerService;
 
+    @Operation(summary = "รายการ Banner", description = "ดึงรายการ Banner โฆษณาและประชาสัมพันธ์ทั้งหมด")
     @GetMapping(Routes.BANNER)
     public ResponseEntity<SuccessResponse<BannerResponse>> listBanner(HttpServletRequest httpServletRequest) {
 
@@ -39,9 +46,11 @@ public class BannerController extends  BaseController{
         ).build());
     }
 
+    @Operation(summary = "รูปภาพ Banner", description = "ดาวน์โหลดรูปภาพ Banner (รองรับ PNG, JPEG)")
     @GetMapping(Routes.PREVIEW_PIC_BANNER)
     @ResponseStatus(HttpStatus.OK)
-    public HttpEntity<byte[]> getImageBanner(@RequestParam("bannerId") String bannerId) throws MagicMatchNotFoundException, MagicException, MagicParseException {
+    public HttpEntity<byte[]> getImageBanner(
+            @Parameter(description = "Banner ID", required = true) @RequestParam("bannerId") String bannerId) throws MagicMatchNotFoundException, MagicException, MagicParseException {
 
         String fileBase64 = bannerService.previewBanner(bannerId);
 

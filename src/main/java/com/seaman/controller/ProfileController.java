@@ -10,6 +10,9 @@ import com.seaman.model.response.ProfileResponse;
 import com.seaman.model.response.RegisterResponse;
 import com.seaman.service.MessageCodeService;
 import com.seaman.service.ProfileService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import net.sf.jmimemagic.*;
 import org.springframework.http.*;
@@ -21,6 +24,8 @@ import java.util.Base64;
 
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "Profile", description = "ข้อมูลโปรไฟล์ผู้ใช้และการจัดการบัญชี")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 public class ProfileController extends BaseController {
@@ -29,6 +34,7 @@ public class ProfileController extends BaseController {
 
     private final ProfileService profileService;
 
+    @Operation(summary = "ข้อมูลโปรไฟล์", description = "ดึงข้อมูลโปรไฟล์ของผู้ใช้ที่ login อยู่")
     @GetMapping(Routes.PROFILE)
     public ResponseEntity<SuccessResponse<ProfileResponse>> profile(HttpServletRequest httpServletRequest) {
 
@@ -41,6 +47,7 @@ public class ProfileController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "อัพเดตโปรไฟล์", description = "แก้ไขข้อมูลโปรไฟล์และรูปภาพของผู้ใช้")
     @PostMapping(Routes.PROFILE_UPDATE)
     public ResponseEntity<SuccessResponse<RegisterResponse>> profileUpdate(
             HttpServletRequest httpServletRequest,
@@ -55,6 +62,7 @@ public class ProfileController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "รูปโปรไฟล์", description = "ดาวน์โหลดรูปภาพโปรไฟล์ของผู้ใช้")
     @GetMapping(Routes.PROFILE_IMAGE)
     @ResponseStatus(HttpStatus.OK)
     public HttpEntity<byte[]> getImage() throws MagicMatchNotFoundException, MagicException, MagicParseException {
@@ -93,6 +101,7 @@ public class ProfileController extends BaseController {
         return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
     }
 
+    @Operation(summary = "ปิดใช้งานบัญชี", description = "Deactivate บัญชีผู้ใช้ที่ login อยู่")
     @DeleteMapping(Routes.PROFILE_INACTIVE)
     public ResponseEntity<SuccessResponse<RegisterResponse>> profileInactive(
             HttpServletRequest httpServletRequest
@@ -107,6 +116,7 @@ public class ProfileController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "เปิดใช้งานบัญชี", description = "Reactivate บัญชีผู้ใช้")
     @PostMapping(Routes.PROFILE_ACTIVE)
     public ResponseEntity<SuccessResponse<RegisterResponse>> profileActive(
             HttpServletRequest httpServletRequest,

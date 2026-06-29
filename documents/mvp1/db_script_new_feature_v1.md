@@ -8,11 +8,13 @@
 
 ## สารบัญ
 - [ภาพรวม Flow ของระบบ](#ภาพรวม-flow-ของระบบ)
+- [M_DOCUMENTS Migration](#m_documents-migration)
 - [M_DOCUMENT_STATUS](#m_document_status)
 - [M_DOCUMENT_REQUEST](#m_document_request)
 - [M_DOCUMENT_PRICES_SETTING](#m_document_prices_setting)
 - [M_PAYMENT_TRANSACTION](#m_payment_transaction)
 - [M_DOCUMENT_REQUEST_ITEM](#m_document_request_item)
+- [M_DOCUMENT_SETTING_REQUIRES](#m_document_setting_requires)
 - [M_DOCUMENT_TRANSACTION](#m_document_transaction)
 - [M_DEPT_SUBMISSION](#m_dept_submission--รอรับเอกสาร-จากกรมเจ้าท่า)
 - [M_DELIVERY](#m_delivery--กำลังจัดส่ง)
@@ -48,17 +50,41 @@
 
 ---
 
+## M_DOCUMENTS Migration
+
+**บทบาท:** เพิ่ม flag ใน master table `m_documents` เพื่อระบุว่า document ประเภทนั้นสามารถขอต่ออายุผ่าน mobile app ได้หรือไม่
+
+```sql
+ALTER TABLE m_documents
+    ADD COLUMN DOCUMENT_RENEWAL_FLAG VARCHAR(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'NO'
+        COMMENT 'Flag for document renewal on mobile app. YES = can renew, NO = cannot renew'
+        AFTER DOCUMENT_MOBILE_FLAG,
+    ADD CONSTRAINT chk_documents_renewal_flag
+        CHECK (DOCUMENT_RENEWAL_FLAG IN ('YES', 'NO'));
+```
+
+**หมายเหตุ:**
+- `DOCUMENT_RENEWAL_FLAG = 'YES'` หมายถึงสามารถเลือกต่ออายุเอกสารนี้ได้
+- `DOCUMENT_RENEWAL_FLAG = 'NO'` หมายถึงยังไม่เปิดให้ต่ออายุผ่าน flow นี้
+- ตั้ง default เป็น `NO` เพื่อป้องกันไม่ให้เอกสารเดิมทั้งหมดถูกเปิดต่ออายุโดยอัตโนมัติ
+- ใช้ `VARCHAR(3)` และ collation `utf8mb4_general_ci` ให้รองรับค่า `YES`/`NO`
+
+---
+
 ## M_DOCUMENT_STATUS
 **บทบาท:** ตารางเก็บข้อมูล document status 
 
 ```sql
 CREATE TABLE m_document_status (
     id              CHAR(36)        NOT NULL DEFAULT (UUID()),
-    name            VARCHAR(255)    NOT NULL,
+    name_th         VARCHAR(255)    NOT NULL,
+    name_en         VARCHAR(255)    NOT NULL,
+    css_color       VARCHAR(100)    NOT NULL,
     is_active       VARCHAR(3)      NOT NULL DEFAULT 'YES',
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_document_status_name (name),
+    UNIQUE KEY uq_document_status_name_th (name_th),
+    UNIQUE KEY uq_document_status_name_en (name_en),
     CONSTRAINT chk_document_status_active
         CHECK (is_active IN ('YES', 'NO'))
 ) ENGINE=InnoDB
@@ -114,9 +140,7 @@ CREATE TABLE m_document_request (
 ```sql
 CREATE TABLE m_document_prices_setting (
     id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
-    document_code           VARCHAR(50)     NOT NULL,
-    document_name_th        VARCHAR(255)    NOT NULL,
-    document_name_en        VARCHAR(255)    NOT NULL,
+    document_code           VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     government_fee          DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
     document_processing_fee DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
     shipping_fee            DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
@@ -136,14 +160,17 @@ CREATE TABLE m_document_prices_setting (
             AND service_fee_discount >= 0
         ),
     CONSTRAINT chk_docprice_active
-        CHECK (is_active IN ('YES', 'NO'))
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT fk_docprice_document
+        FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 ```
 
 **หมายเหตุ:**
-- `document_code` คือ logical reference ไปยัง `m_documents.DOCUMENT_CODE`
+- `document_code` อ้างอิง `m_documents.DOCUMENT_CODE`; ชื่อเอกสารให้ join จาก `m_documents.DOCUMENT_NAME_TH` และ `m_documents.DOCUMENT_NAME_EN`
+- ไม่เก็บ `document_name_th` และ `document_name_en` ใน table นี้ เพื่อลดข้อมูลซ้ำและกันชื่อเอกสารไม่ตรงกับ master
 - ราคาสุทธิที่เรียกเก็บควรคำนวณที่ application layer จาก `government_fee + document_processing_fee + shipping_fee - shipping_discount - service_fee_discount` และต้องไม่ติดลบ
 
   
@@ -271,12 +298,12 @@ CREATE TABLE m_payment_transaction (
 
 ## M_DOCUMENT_REQUEST_ITEM
 
-**บทบาท:** รายการเอกสารประกอบภายในแต่ละคำขอ เช่น สำเนาบัตรประชาชน, รูปถ่าย, หนังสือรับรองบริษัท, ใบรับรองแพทย์ เก็บผลการตรวจและไฟล์ที่แนบ
+**บทบาท:** รายการเอกสารประกอบของผู้ใช้แต่ละคน เช่น สำเนาบัตรประชาชน, รูปถ่าย, หนังสือรับรองบริษัท, ใบรับรองแพทย์ เก็บผลการตรวจและไฟล์ที่แนบ โดยไม่ผูกตรงกับ `m_document_request`
 
 ```sql
 CREATE TABLE m_document_request_item (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
-    request_id          CHAR(36)        NOT NULL,
+    mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     document_name       VARCHAR(255)    NOT NULL,         -- ชื่อเอกสาร เช่น 'สำเนาบัตรประชาชน'
     sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
     file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
@@ -291,7 +318,7 @@ CREATE TABLE m_document_request_item (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    KEY idx_reqitem_request_sort (request_id, sort_order),
+    KEY idx_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
     KEY idx_reqitem_check_result (check_result),
     CONSTRAINT chk_reqitem_file_uploaded
         CHECK (file_uploaded IN (0, 1)),
@@ -301,9 +328,8 @@ CREATE TABLE m_document_request_item (
         CHECK (check_result IS NULL OR check_result IN ('pass', 'fix')),
     CONSTRAINT chk_reqitem_fix_note
         CHECK (check_result <> 'fix' OR check_note IS NOT NULL),
-    CONSTRAINT fk_reqitem_request
-        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
-        ON DELETE CASCADE
+    CONSTRAINT fk_reqitem_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -312,8 +338,51 @@ CREATE TABLE m_document_request_item (
 **หมายเหตุ:**
 - `check_result` มีได้ 3 ค่า: `'pass'` (ผ่าน), `'fix'` (ต้องแก้ไข), `NULL` (ยังไม่ตรวจ)
 - `check_note` บังคับกรอกเมื่อ `check_result = 'fix'` และ enforce ด้วย `chk_reqitem_fix_note`
-- `ON DELETE CASCADE` บน `fk_reqitem_request` — ลบ request แล้ว item ถูกลบตามอัตโนมัติ
+- `mobile_user_uuid` ผูกกับ `m_mobile_users.MOBILE_UUID` เพื่อให้ item เป็นของผู้ใช้แบบ 1:M
 - `is_updated = 1` ใช้แสดง badge "อัปเดตใหม่" ใน UI เมื่อผู้ยื่น resubmit ไฟล์ใหม่
+
+---
+
+## M_DOCUMENT_SETTING_REQUIRES
+
+**บทบาท:** ตาราง setting สำหรับกำหนดว่า document แต่ละประเภทต้องใช้ document item ใดบ้าง พร้อมลำดับแสดงผลและสถานะเปิด/ปิด
+
+```sql
+CREATE TABLE m_document_setting_requires (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_code       VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_items_id   CHAR(36)        NOT NULL,
+    sort_order          TINYINT         NOT NULL DEFAULT 1,
+    is_required         TINYINT(1)      NOT NULL DEFAULT 1,
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_setting_requires (document_code, document_items_id),
+    KEY idx_doc_setting_requires_doc_sort (document_code, sort_order),
+    KEY idx_doc_setting_requires_item (document_items_id),
+
+    CONSTRAINT chk_doc_setting_requires_required
+        CHECK (is_required IN (0, 1)),
+    CONSTRAINT chk_doc_setting_requires_active
+        CHECK (is_active IN ('YES', 'NO')),
+
+    CONSTRAINT fk_doc_setting_requires_document
+        FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE),
+    CONSTRAINT fk_doc_setting_requires_item
+        FOREIGN KEY (document_items_id) REFERENCES m_document_request_item (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `UNIQUE (document_code, document_items_id)` กัน mapping ซ้ำของ document เดียวกัน
+- `sort_order` ใช้เรียงรายการเอกสารประกอบบน mobile/admin UI แยกตาม `document_code`
+- `is_required` รองรับกรณีบาง item เป็น optional ในอนาคต
+- `is_active` ใช้ปิด mapping โดยไม่ต้องลบ row จริง
+- เวลา drop table ต้อง drop `m_document_setting_requires` ก่อน `m_document_request_item`
 
 ---
 

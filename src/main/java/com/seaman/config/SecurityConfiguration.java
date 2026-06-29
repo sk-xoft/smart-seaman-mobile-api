@@ -5,6 +5,7 @@ import com.seaman.filter.TokenFilterConfiguerer;
 import com.seaman.service.JwtTokenService;
 import com.seaman.service.MessageCodeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -15,9 +16,15 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.FilterChainProxy;
+import org.springframework.security.web.firewall.RequestRejectedException;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import java.util.Collections;
 
 @Configuration
@@ -25,15 +32,20 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfiguration.class);
+
     private final JwtTokenService jwtTokenService;
 
     private final MessageCodeService messageCodeService;
 
     private final String[] PUBLIC = {
             "/actuator/**",
+            "/swagger-ui.html",
             "/swagger-ui.html/**",
             "/swagger-ui/**",
+            "/smart-seaman-swagger",
             "/smart-seaman-swagger/**",
+            "/v3/api-docs/**",
             "/v1/login",
             "/v1/register",
             "/v1/refresh-token",
@@ -95,11 +107,38 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(8);
     }
 
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return new CustomAuthenticationEntryPoint();
+    }
+
+    public static RequestRejectedHandler requestRejectedHandler() {
+        return (request, response, requestRejectedException) -> {
+            response.setStatus(HttpStatus.BAD_REQUEST.value());
+            log.warn("Rejected request [{} {}]: {}", request.getMethod(), request.getRequestURI(),
+                    sanitizeRequestRejectedMessage(requestRejectedException));
+        };
+    }
+
+    @Bean
+    public static BeanPostProcessor requestRejectedHandlerPostProcessor() {
+        return new BeanPostProcessor() {
+            private final RequestRejectedHandler requestRejectedHandler = requestRejectedHandler();
+
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (bean instanceof FilterChainProxy) {
+                    ((FilterChainProxy) bean).setRequestRejectedHandler(requestRejectedHandler);
+                }
+                return bean;
+            }
+        };
+    }
+
+    private static String sanitizeRequestRejectedMessage(RequestRejectedException ex) {
+        return ex.getMessage().replaceAll("[\\r\\n]", " ");
     }
 }

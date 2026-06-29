@@ -17,12 +17,14 @@ import java.util.Date;
 import java.util.TimeZone;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
 @OpenAPIDefinition(info = @Info(title = AppSys.APPLICATION_NAME, version = AppSys.APPLICATION_VERSION, description = AppSys.APPLICATION_DESC))
 // @SecurityScheme(name = AppSys.APPLICATION_NAME, scheme = "basic", type =
 // SecuritySchemeType.HTTP, in = SecuritySchemeIn.HEADER)
 @EnableCaching
+@EnableAsync
 public class SmartSeamanMobileApiApplication {
 
 	private final Logger logger = LoggerFactory.getLogger(SmartSeamanMobileApiApplication.class);

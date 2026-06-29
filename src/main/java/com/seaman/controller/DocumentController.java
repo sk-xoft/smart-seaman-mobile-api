@@ -8,10 +8,16 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
+import com.seaman.model.response.DocumentRequestItemResponse;
 import com.seaman.model.response.PageDocumentResponse;
+import java.util.List;
 import com.seaman.service.DocumentService;
 import com.seaman.service.MessageCodeService;
 import com.seaman.utils.ObjectValidatorUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import net.sf.jmimemagic.*;
 import org.springframework.http.*;
@@ -21,6 +27,8 @@ import javax.validation.Valid;
 import java.util.Base64;
 import static org.springframework.http.ResponseEntity.ok;
 
+@Tag(name = "Documents", description = "จัดการใบรับรอง (Certificate) และเอกสารของลูกเรือ")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 public class DocumentController extends BaseController {
@@ -28,8 +36,10 @@ public class DocumentController extends BaseController {
     private final MessageCodeService messageCodeService;
     private final DocumentService documentService;
 
+    @Operation(summary = "รายการ COT", description = "ดึงรายการ Certificate of Training แบบแบ่งหน้า")
     @GetMapping(Routes.DOCUMENTS_LIST_COT)
-    public ResponseEntity<SuccessResponse<PageDocumentResponse>> documentListCot(HttpServletRequest httpServletRequest, @RequestParam("offSet") int offSet) {
+    public ResponseEntity<SuccessResponse<PageDocumentResponse>> documentListCot(HttpServletRequest httpServletRequest,
+            @Parameter(description = "ตำแหน่งเริ่มต้น (0-based)", required = true) @RequestParam("offSet") int offSet) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -41,8 +51,10 @@ public class DocumentController extends BaseController {
 
     }
 
+    @Operation(summary = "รายการ Document", description = "ดึงรายการเอกสารประเภท Document แบบแบ่งหน้า")
     @GetMapping(Routes.DOCUMENTS_LIST_DOC)
-    public ResponseEntity<SuccessResponse<PageDocumentResponse>> documentListDoc(HttpServletRequest httpServletRequest, @RequestParam("offSet") int offSet) {
+    public ResponseEntity<SuccessResponse<PageDocumentResponse>> documentListDoc(HttpServletRequest httpServletRequest,
+            @Parameter(description = "ตำแหน่งเริ่มต้น (0-based)", required = true) @RequestParam("offSet") int offSet) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -54,8 +66,10 @@ public class DocumentController extends BaseController {
 
     }
 
+    @Operation(summary = "เอกสารใกล้หมดอายุ", description = "รายการใบรับรองที่จะหมดอายุภายใน 18 เดือน")
     @GetMapping(Routes.DOCUMENTS_LIST_CLOSE_TO_EXPIRATION)
-    public ResponseEntity<SuccessResponse<PageDocumentResponse>> closeToExpiration(HttpServletRequest httpServletRequest, @RequestParam("offSet") int offSet) {
+    public ResponseEntity<SuccessResponse<PageDocumentResponse>> closeToExpiration(HttpServletRequest httpServletRequest,
+            @Parameter(description = "ตำแหน่งเริ่มต้น (0-based)", required = true) @RequestParam("offSet") int offSet) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -66,6 +80,7 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "สร้างใบรับรอง", description = "อัพโหลดและบันทึกใบรับรองใหม่ (รองรับ PNG, JPEG, PDF ในรูปแบบ Base64)")
     @PostMapping(Routes.CREATE_CERT)
     public ResponseEntity<SuccessResponse<DocumentCreateResponse>> documentCreate(
             HttpServletRequest httpServletRequest,
@@ -96,6 +111,7 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "แก้ไขใบรับรอง", description = "อัพเดตข้อมูลใบรับรองที่มีอยู่")
     @PostMapping(Routes.UPDATE_CERT)
     public ResponseEntity<SuccessResponse<DocumentCreateResponse>> documentUpdate(
             HttpServletRequest httpServletRequest,
@@ -126,9 +142,11 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "ลบใบรับรอง", description = "ลบใบรับรองตาม document code (soft delete)")
     @DeleteMapping(Routes.DELETE_CERT)
     public ResponseEntity<SuccessResponse<DocumentCreateResponse>> documentDelete(
-            HttpServletRequest httpServletRequest, @RequestParam("certCode") String certCode) {
+            HttpServletRequest httpServletRequest,
+            @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -139,9 +157,11 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
+    @Operation(summary = "ข้อมูลใบรับรองสำหรับแก้ไข", description = "ดึงข้อมูลใบรับรองเพื่อนำไปแสดงในหน้าแก้ไข")
     @GetMapping(Routes.EDIT_CERT)
     public ResponseEntity<SuccessResponse<DocumentCreateResponse>> documentEdit(
-            HttpServletRequest httpServletRequest, @RequestParam("certCode") String certCode) {
+            HttpServletRequest httpServletRequest,
+            @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
 
@@ -152,9 +172,30 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
+    // TODO Implement 
+    // Task file : documents/mvp1/task/1-task_validate_documents_items.md
+    @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
+    @GetMapping(Routes.VALIDATE_DOCUMENT_ITEMS)
+    public ResponseEntity<SuccessResponse<List<DocumentRequestItemResponse>>> validateDocumentItems(
+            HttpServletRequest httpServletRequest,
+            @Parameter(description = "รหัสประเภทเอกสาร", required = true) @RequestParam("documentCode") String documentCode) {
+
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE,
+                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+
+        return ok(SuccessResponse.builder(
+                AppStatus.SUCCESS_CODE,
+                description,
+                documentService.validateDocumentItems(documentCode)
+        ).build());
+    }
+
+    @Operation(summary = "ดูไฟล์ใบรับรอง", description = "ดาวน์โหลดไฟล์ใบรับรอง (รองรับ PNG, JPEG, PDF)")
     @GetMapping(Routes.VIEW_CERT)
     @ResponseStatus(HttpStatus.OK)
-    public HttpEntity<byte[]> getImage(@RequestParam("certCode") String certCode) throws MagicMatchNotFoundException, MagicException, MagicParseException {
+    public HttpEntity<byte[]> getImage(
+            @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode) throws MagicMatchNotFoundException, MagicException, MagicParseException {
 
         String fileBase64 = documentService.viewCert(certCode);
 

@@ -13,6 +13,41 @@ Spring Boot 2.6.2 REST API backend for the Smart Seaman mobile application.
 
 ---
 
+## Run with System Maven (mvn)
+
+หาก Maven Wrapper (`./mvnw`) ไม่พร้อมใช้งาน ให้ใช้ `mvn` ที่ติดตั้งไว้ในระบบแทน โดย set environment variables ก่อนรัน:
+
+```bash
+export DB_URL="jdbc:mysql://<host>:<port>/<database>?autoReconnect=true&useSSL=false"
+export DB_USERNAME="<db_user>"
+export DB_PASSWORD="<db_password>"
+export DO_SPACES_KEY="<digitalocean_spaces_key>"
+export DO_SPACES_SECRET="<digitalocean_spaces_secret>"
+export ENCRYPT_KEY="<encrypt_key>"
+export JWT_SECRET="<jwt_secret>"
+export MAIL_PASSWORD="<gmail_app_password>"
+export FCM_CREDENTIAL_FILE="<absolute_path_to_firebase_json>"
+
+mvn spring-boot:run
+```
+
+หรือรวมเป็นบรรทัดเดียว:
+
+```bash
+DB_URL="..." DB_USERNAME="..." DB_PASSWORD="..." \
+DO_SPACES_KEY="..." DO_SPACES_SECRET="..." \
+ENCRYPT_KEY="..." JWT_SECRET="..." \
+MAIL_PASSWORD="..." FCM_CREDENTIAL_FILE="..." \
+mvn spring-boot:run
+```
+
+> **Note:** ค่า config จริงอยู่ที่ `config/mobile/prod/.env` (ไม่ได้ commit เข้า repo)
+
+API พร้อมใช้งานที่: `http://localhost:8080`
+Swagger UI: `http://localhost:8080/smart-seaman-swagger`
+
+---
+
 ## Run Locally (Development)
 
 ### Option A — ใช้ Dev DB บน DigitalOcean (แนะนำ ไม่ต้องติดตั้ง MySQL)
