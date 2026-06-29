@@ -88,7 +88,6 @@ public class AuthService {
             }
 
             log.info("User is status -> {}.", usersEntity.getUserStatus());
-
             if("D".equals(usersEntity.getUserStatus())) {
                 throw new BusinessException(AppStatus.USER_IS_INACTIVATED, "");
             } else if(!"A".equals(usersEntity.getUserStatus())) {

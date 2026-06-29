@@ -9,8 +9,11 @@ import java.util.Date;
 public class DocumentRequestItemEntity {
 
     private String id;
+    private String profileRequestItemId;
     private String mobileUserUuid;
+    private String documentMasterRequestItemCode;
     private String documentName;
+    private String documentStatus;
     private Integer sortOrder;
     private Integer fileUploaded;
     private String filePath;

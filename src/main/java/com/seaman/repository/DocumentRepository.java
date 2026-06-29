@@ -192,19 +192,30 @@ public class DocumentRepository extends CommonRepository {
         List<DocumentRequestItemEntity> result = null;
         StringBuilder sql = new StringBuilder();
         sql.append(" SELECT");
-        sql.append("   dri.id, dri.mobile_user_uuid, dri.document_name, dri.sort_order,");
-        sql.append("   dri.file_uploaded, dri.file_path, dri.file_uploaded_at,");
+        sql.append("   dri.id, dri.id AS profile_request_item_id, dri.mobile_user_uuid,");
+        sql.append("   dsr.document_master_request_item_code, dmri.document_master_items_name AS document_name,");
+        sql.append("   CASE");
+        sql.append("     WHEN dri.id IS NULL THEN 'MISSING'");
+        sql.append("     WHEN dri.file_uploaded = 0 THEN 'NOT_UPLOADED'");
+        sql.append("     WHEN dri.check_result = 'fix' THEN 'NEED_FIX'");
+        sql.append("   END AS document_status,");
+        sql.append("   dsr.sort_order,");
+        sql.append("   COALESCE(dri.file_uploaded, 0) AS file_uploaded, dri.file_path, dri.file_uploaded_at,");
         sql.append("   dri.check_result, dri.check_note, dri.is_updated,");
         sql.append("   dri.checked_at, dri.checked_by, dri.created_at, dri.updated_at,");
         sql.append("   dsr.document_code, dsr.is_required");
         sql.append(" FROM m_document_setting_requires dsr");
-        sql.append(" INNER JOIN m_document_request_item dri ON dri.id = dsr.document_items_id");
+        sql.append(" INNER JOIN m_document_master_request_item dmri");
+        sql.append("   ON dmri.document_master_items_code = dsr.document_master_request_item_code");
+        sql.append(" LEFT JOIN m_document_profile_request_item dri");
+        sql.append("   ON dri.document_master_request_item_code = dsr.document_master_request_item_code");
+        sql.append("  AND dri.mobile_user_uuid = :mobileUserUuid");
         sql.append(" WHERE dsr.document_code = :documentCode");
         sql.append("   AND dsr.is_required = 1");
         sql.append("   AND dsr.is_active = 'YES'");
-        sql.append("   AND dri.mobile_user_uuid = :mobileUserUuid");
-        sql.append("   AND (dri.file_uploaded = 0 OR dri.check_result = 'fix')");
-        sql.append(" ORDER BY dri.sort_order");
+        sql.append("   AND dmri.is_active = 'YES'");
+        sql.append("   AND (dri.id IS NULL OR dri.file_uploaded = 0 OR dri.check_result = 'fix')");
+        sql.append(" ORDER BY dsr.sort_order, dmri.sort_order");
 
         try {
             MapSqlParameterSource namedParameters = new MapSqlParameterSource()

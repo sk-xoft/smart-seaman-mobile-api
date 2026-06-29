@@ -493,8 +493,11 @@ public class DocumentService {
                 for (DocumentRequestItemEntity item : items) {
                     DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
                     dto.setId(item.getId());
+                    dto.setProfileRequestItemId(item.getProfileRequestItemId());
                     dto.setDocumentCode(item.getDocumentCode());
+                    dto.setDocumentMasterRequestItemCode(item.getDocumentMasterRequestItemCode());
                     dto.setDocumentName(item.getDocumentName());
+                    dto.setDocumentStatus(item.getDocumentStatus());
                     dto.setSortOrder(item.getSortOrder());
                     dto.setFileUploaded(item.getFileUploaded());
                     dto.setFilePath(item.getFilePath());
@@ -502,7 +505,7 @@ public class DocumentService {
                     dto.setCheckNote(item.getCheckNote());
 
                     if (item.getFileUploadedAt() != null) {
-                        dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.YEAR_MONTH_DATE));
+                        dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.DATE_TIME));
                     }
 
                     responseList.add(dto);
@@ -519,7 +522,7 @@ public class DocumentService {
             throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, ex.getMessage());
         } finally {
             if (inserted) {
-                transactionLogsService.update(transId, "{}", statusCode, username);
+                transactionLogsService.update(transId, frameworkUtils.toObjectToJson(responseList), statusCode, username);
             }
         }
 

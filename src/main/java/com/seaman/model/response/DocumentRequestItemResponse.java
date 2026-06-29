@@ -10,8 +10,11 @@ import lombok.Setter;
 public class DocumentRequestItemResponse {
 
     private String id;
+    private String profileRequestItemId;
     private String documentCode;
+    private String documentMasterRequestItemCode;
     private String documentName;
+    private String documentStatus;
     private Integer sortOrder;
     private Integer fileUploaded;
     private String filePath;

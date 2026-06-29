@@ -1,10 +1,3 @@
-ALTER TABLE m_documents
-    ADD COLUMN DOCUMENT_RENEWAL_FLAG VARCHAR(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'NO'
-        COMMENT 'Flag for document renewal on mobile app. YES = can renew, NO = cannot renew'
-        AFTER DOCUMENT_MOBILE_FLAG,
-    ADD CONSTRAINT chk_documents_renewal_flag
-        CHECK (DOCUMENT_RENEWAL_FLAG IN ('YES', 'NO'));
-
 CREATE TABLE m_document_status (
     id              CHAR(36)        NOT NULL DEFAULT (UUID()),
     name_th         VARCHAR(255)    NOT NULL,
@@ -160,10 +153,29 @@ CREATE TABLE m_payment_transaction (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE m_document_request_item (
+CREATE TABLE m_document_master_request_item (
+    id                          CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_master_items_code  VARCHAR(10)     CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_master_items_name  CHAR(36)        NOT NULL,
+    sort_order                  TINYINT         NOT NULL DEFAULT 1,
+    is_active                   VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_master_reqitem_code (document_master_items_code),
+    KEY idx_doc_master_reqitem_active_sort (is_active, sort_order),
+
+    CONSTRAINT chk_doc_master_reqitem_active
+        CHECK (is_active IN ('YES', 'NO'))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE m_document_profile_request_item (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-    document_name       VARCHAR(255)    NOT NULL,         -- ชื่อเอกสาร เช่น 'สำเนาบัตรประชาชน'
+    document_master_request_item_code VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
     file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
     file_path           VARCHAR(500)    NULL,             -- path หรือ URL ของไฟล์ที่อัปโหลด
@@ -177,18 +189,22 @@ CREATE TABLE m_document_request_item (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    KEY idx_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
-    KEY idx_reqitem_check_result (check_result),
-    CONSTRAINT chk_reqitem_file_uploaded
+    KEY idx_profile_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
+    KEY idx_profile_reqitem_master_code (document_master_request_item_code),
+    KEY idx_profile_reqitem_check_result (check_result),
+    UNIQUE KEY uq_profile_reqitem_mobile_master (mobile_user_uuid, document_master_request_item_code),
+    CONSTRAINT chk_profile_reqitem_file_uploaded
         CHECK (file_uploaded IN (0, 1)),
-    CONSTRAINT chk_reqitem_is_updated
+    CONSTRAINT chk_profile_reqitem_is_updated
         CHECK (is_updated IN (0, 1)),
-    CONSTRAINT chk_reqitem_check_result
+    CONSTRAINT chk_profile_reqitem_check_result
         CHECK (check_result IS NULL OR check_result IN ('pass', 'fix')),
-    CONSTRAINT chk_reqitem_fix_note
+    CONSTRAINT chk_profile_reqitem_fix_note
         CHECK (check_result <> 'fix' OR check_note IS NOT NULL),
-    CONSTRAINT fk_reqitem_mobile_user
-        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
+    CONSTRAINT fk_profile_reqitem_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID),
+    CONSTRAINT fk_profile_reqitem_master_code
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -196,7 +212,7 @@ CREATE TABLE m_document_request_item (
 CREATE TABLE m_document_setting_requires (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     document_code       VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-    document_items_id   CHAR(36)        NOT NULL,
+    document_master_request_item_code VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     sort_order          TINYINT         NOT NULL DEFAULT 1,
     is_required         TINYINT(1)      NOT NULL DEFAULT 1,
     is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
@@ -204,9 +220,9 @@ CREATE TABLE m_document_setting_requires (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    UNIQUE KEY uq_doc_setting_requires (document_code, document_items_id),
+    UNIQUE KEY uq_doc_setting_requires (document_code, document_master_request_item_code),
     KEY idx_doc_setting_requires_doc_sort (document_code, sort_order),
-    KEY idx_doc_setting_requires_item (document_items_id),
+    KEY idx_doc_setting_requires_item (document_master_request_item_code),
 
     CONSTRAINT chk_doc_setting_requires_required
         CHECK (is_required IN (0, 1)),
@@ -216,7 +232,7 @@ CREATE TABLE m_document_setting_requires (
     CONSTRAINT fk_doc_setting_requires_document
         FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE),
     CONSTRAINT fk_doc_setting_requires_item
-        FOREIGN KEY (document_items_id) REFERENCES m_document_request_item (id)
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -265,9 +281,39 @@ CREATE TABLE m_dept_submission (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE m_delivery_address (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    first_name          VARCHAR(100)    NOT NULL,
+    last_name           VARCHAR(100)    NOT NULL,
+    address_line        VARCHAR(500)    NOT NULL,   -- บ้านเลขที่, ซอย, หมู่, ถนน
+    province            VARCHAR(100)    NOT NULL,
+    district            VARCHAR(100)    NOT NULL,   -- เขต/อำเภอ
+    sub_district        VARCHAR(100)    NOT NULL,   -- แขวง/ตำบล
+    postal_code         VARCHAR(10)     NOT NULL,
+    is_default          TINYINT(1)      NOT NULL DEFAULT 0,
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_delivery_address_mobile_user (mobile_user_uuid, is_active),
+    KEY idx_delivery_address_postal_code (postal_code),
+
+    CONSTRAINT chk_delivery_address_default
+        CHECK (is_default IN (0, 1)),
+    CONSTRAINT chk_delivery_address_active
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT fk_delivery_address_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE m_delivery (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     request_id          CHAR(36)        NOT NULL,
+    delivery_address_id CHAR(36)        NULL,
     tracking_no         VARCHAR(50)     NOT NULL,               -- เช่น 'EF123456789TH'
     carrier             VARCHAR(100)    NOT NULL DEFAULT 'Thailand Post',
     shipped_date        DATE            NOT NULL,               -- วันที่นำส่งไปรษณีย์
@@ -280,12 +326,15 @@ CREATE TABLE m_delivery (
 
     PRIMARY KEY (id),
     UNIQUE KEY uq_delivery_request (request_id),    -- บังคับ one-to-one
+    KEY idx_delivery_address (delivery_address_id),
     KEY idx_delivery_tracking_no (tracking_no),
     KEY idx_delivery_status_updated (delivery_status, updated_at),
     CONSTRAINT chk_delivery_status
         CHECK (delivery_status IN ('pending', 'in_transit', 'delivered', 'failed', 'returned')),
     CONSTRAINT fk_delivery_request
-        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_delivery_address
+        FOREIGN KEY (delivery_address_id) REFERENCES m_delivery_address (id)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
