@@ -15,8 +15,8 @@
 
 | ลำดับ | Status | Method | API | หมายเหตุ |
 |---:|:---:|---|---|---|
-| 1 | [ ] | GET | `/v1/document-renewals/statuses` | มี schema และ seed `m_document_status` แล้ว แต่ยังไม่มี Java API |
-| 2 | [ ] | GET | `/v1/document-renewals/prices?documentCode={code}` | มี schema `m_document_prices_setting` แล้ว แต่ยังไม่มี Java API และยังไม่พบ seed ราคา |
+| 1 | [x] | GET | `/v1/document-renewals/statuses` | implement controller/service/repository/model และ mobile progress mapping แล้ว; focused tests ผ่าน |
+| 2 | [~] | GET | `/v1/document-renewals/prices?documentCode={code}` | implement API, validation, BigDecimal และ duplicate guard แล้ว แต่ schema ยังไม่มี effective date และยังไม่มี seed ราคาจริง |
 | 3 | [ ] | POST | `/v1/document-renewals` | ยังไม่มี controller/service/repository/model สำหรับสร้าง renewal request |
 | 4 | [ ] | GET | `/v1/document-renewals/my?offSet={n}` | ยังไม่มี API รายการคำขอของ user |
 | 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
@@ -26,7 +26,7 @@
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 0/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 10/10**
+สรุป Mobile APIs: **ทำแล้ว 1/10, ทำบางส่วน 1/10, ยังไม่ได้ทำ 8/10**
 
 ## Prerequisites And Supporting Work
 
@@ -38,23 +38,23 @@
 | [~] | Required document master/setting | มี schema, seed ตัวอย่าง `DOC001` และ validation API แล้ว แต่ยังไม่ยืนยัน master จริงครบทุก `document_code` |
 | [ ] | Renewal price master data | มี table แต่ยังไม่พบ seed/config ราคาที่ใช้งานจริง |
 | [ ] | Delivery address decision | schema มี `m_delivery_address` แล้ว แต่ spec ยังต้องยืนยัน UX/API สำหรับเลือกหรือ snapshot ที่อยู่ |
-| [ ] | Create/update delivery address APIs | เพิ่มเป็น MR-MOB-14; ยังไม่มี route/controller/service/repository/request/response model |
+| [~] | Create/update delivery address APIs | มี route/controller/service/repository/request/response model และ service tests แล้ว แต่ controller/repository tests และ OpenAPI examples ยังไม่ครบ acceptance criteria |
 | [x] | Thailand address master APIs | implement route/controller/service/repository/response model แล้ว; focused tests ผ่าน 5/5 และ pin Lombok ให้รองรับ JDK 21 แล้ว |
 | [ ] | Payment provider decision | ต้องยืนยัน channel, charge flow และ webhook ก่อนปิด payment tasks |
-| [ ] | Automated tests สำหรับ renewal flow | ยังไม่พบ test ของ renewal API |
+| [~] | Automated tests สำหรับ renewal flow | มี `DocumentRenewalServiceTest` ครอบคลุม status/price 6 cases; flow อื่นยังไม่มี test |
 
 ## Task Breakdown
 
 ### MR-MOB-01: Shared Renewal Foundation
 
-Status: [x] ทำแล้ว
+Status: [~] ทำบางส่วน
 
-- เพิ่ม route constants กลุ่ม `/document-renewals`
-- เพิ่ม entity/DTO/repository สำหรับ `m_document_status`, `m_document_request`, `m_document_prices_setting`, `m_document_request_items`, `m_document_transaction`, `m_payment_transaction`, `m_dept_submission`, `m_delivery` และ `m_delivery_address` เท่าที่ mobile API ใช้
-- สร้าง service กลางสำหรับตรวจ ownership ด้วย `mobile_user_uuid`
-- กำหนด enum/constant ของ status และ action โดยไม่ผูก business logic กับชื่อภาษาไทย
-- กำหนด transaction boundary เพื่อให้การเปลี่ยน status กับ append timeline สำเร็จหรือ rollback พร้อมกัน
-- เพิ่ม unit/integration test foundation
+- [x] เพิ่ม route constants กลุ่ม `/document-renewals` สำหรับ status และ price
+- [~] เพิ่ม entity/DTO/repository แล้วเฉพาะ `m_document_status`, `m_document_prices_setting` และ delivery address; renewal flow entities อื่นยังไม่มี
+- [ ] สร้าง service กลางสำหรับตรวจ ownership ด้วย `mobile_user_uuid`
+- [~] status progress mapping ไม่ผูกกับชื่อภาษาไทย แต่ยังไม่มี enum/constant สำหรับ state transition/action
+- [ ] กำหนด transaction boundary เพื่อให้การเปลี่ยน status กับ append timeline สำเร็จหรือ rollback พร้อมกัน
+- [~] เพิ่ม unit test foundation สำหรับ status และ price แล้ว
 
 Acceptance criteria:
 
@@ -64,7 +64,7 @@ Acceptance criteria:
 
 ### MR-MOB-02: Get Renewal Status Master
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API: `GET /v1/document-renewals/statuses`
 
@@ -77,11 +77,11 @@ Acceptance criteria:
 - response ครบ 7 statuses จาก spec เมื่อ master data ครบ
 - `รอผู้ยื่นแก้ไข` map เป็น step 1 และ `ยกเลิก` ไม่เป็น normal progress step
 
-หมายเหตุ: schema ปัจจุบันไม่มี column `step`; ต้องกำหนดว่าจะเก็บใน DB หรือ map ใน application ก่อน implement
+Implementation: map step ใน application จาก stable English status name; correction เป็น step 1 และ cancelled มี `progressStep = null`
 
 ### MR-MOB-03: Get Renewal Price
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [~] ทำบางส่วน
 
 API: `GET /v1/document-renewals/prices?documentCode={code}`
 
@@ -95,6 +95,15 @@ Acceptance criteria:
 - ไม่ใช้ floating-point กับจำนวนเงิน
 - คืนราคาเฉพาะ document ที่เปิด renewal และราคาอยู่ในช่วงใช้งาน
 - มี test กรณีพบราคา, ไม่พบราคา และ config ซ้ำ
+
+Implementation status:
+
+- [x] validate และ normalize `documentCode`
+- [x] query เฉพาะ active price ของ active document
+- [x] ใช้ `BigDecimal` และคืน fee breakdown/total
+- [x] มี test กรณีพบราคา, ไม่พบราคา และ config ซ้ำ
+- [ ] effective-date filtering: schema `m_document_prices_setting` ยังไม่มี effective date columns
+- [ ] production price seed/master data
 
 ### MR-MOB-04: Create Renewal Request
 
@@ -267,7 +276,7 @@ Acceptance criteria:
 
 ### MR-MOB-13: Thailand Address Master APIs
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 APIs:
 
@@ -326,7 +335,7 @@ Implementation decisions:
 
 ### MR-MOB-14: Create And Update Delivery Address
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [~] ทำบางส่วน
 
 APIs:
 

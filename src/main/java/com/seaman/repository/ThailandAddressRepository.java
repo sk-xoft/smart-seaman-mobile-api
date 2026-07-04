@@ -63,13 +63,15 @@ public class ThailandAddressRepository extends CommonRepository {
         String sql = "SELECT COUNT(*) FROM subdistricts s "
                 + "INNER JOIN districts d ON d.id = s.district_id "
                 + "INNER JOIN provinces p ON p.id = d.province_id "
-                + "WHERE (p.name_in_thai = :province OR p.name_in_english = :province) "
-                + "AND (d.name_in_thai = :district OR d.name_in_english = :district) "
-                + "AND (s.name_in_thai = :subDistrict OR s.name_in_english = :subDistrict) "
+                + "WHERE p.code = :provinceCode "
+                + "AND d.code = :districtCode "
+                + "AND s.code = :subDistrictCode "
                 + "AND CAST(s.zip_code AS CHAR) = :postalCode";
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("province", province).addValue("district", district)
-                .addValue("subDistrict", subDistrict).addValue("postalCode", postalCode);
+                .addValue("provinceCode", province)
+                .addValue("districtCode", district)
+                .addValue("subDistrictCode", subDistrict)
+                .addValue("postalCode", postalCode);
         try {
             Integer count = template.queryForObject(sql, parameters, Integer.class);
             return count != null && count > 0;
