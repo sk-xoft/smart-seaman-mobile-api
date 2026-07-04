@@ -18,6 +18,11 @@ public class Routes {
     public static final String MASTER = "/master";
     public static final String MASTER_DOCUMENTS = "/master/documents";
     public static final String MASTER_COURSES = "/master/courses";
+    public static final String MASTER_PROVINCES = "/master/provinces";
+    public static final String MASTER_DISTRICTS = "/master/districts";
+    public static final String MASTER_SUBDISTRICTS = "/master/subdistricts";
+    public static final String DELIVERY_ADDRESSES = "/delivery-addresses";
+    public static final String DELIVERY_ADDRESS = "/delivery-addresses/{addressId}";
     public static final String DOCUMENTS_LIST_COT = "/documents/certification/COT";
     public static final String SCHOOL_TRAINING_LIST = "/school-trainings";
     public static final String SCHOOL_TRAINING_DETAIL = "/school-trainings/detail";

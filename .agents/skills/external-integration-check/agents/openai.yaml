@@ -1,0 +1,4 @@
+interface:
+  display_name: "External Integration Check"
+  short_description: "Validate resilient and secure external service integrations"
+  default_prompt: "Use $external-integration-check to review or implement an external integration with safe retries, timeouts, idempotency, credentials, and error handling."

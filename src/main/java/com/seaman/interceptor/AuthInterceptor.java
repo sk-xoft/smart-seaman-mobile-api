@@ -1,11 +1,11 @@
 package com.seaman.interceptor;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.AppSys;
 import com.seaman.entity.SessionEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.repository.UserRepository;
-import com.seaman.service.JwtTokenService;
 import com.seaman.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.Nullable;
@@ -20,7 +20,6 @@ import javax.servlet.http.HttpServletResponse;
 @RequiredArgsConstructor
 public class AuthInterceptor  implements HandlerInterceptor {
 
-    private final JwtTokenService jwtTokenService;
     private final SessionService sessionService;
     private final UserRepository userRepository;
 
@@ -36,12 +35,7 @@ public class AuthInterceptor  implements HandlerInterceptor {
             throw new BusinessException(AppStatus.AUTH_TYPE_HEADER, null);
         }
 
-        String token = authorization.substring(7);
-        if(jwtTokenService.validateToken(token).equals(Boolean.FALSE)){
-            throw new BusinessException(AppStatus.JWT_EXPIRE, null);
-        }
-
-        String clientSessionId = jwtTokenService.getJti(token);
+        String clientSessionId = (String) request.getAttribute(AppSys.JWT_JTI);
 
         if (clientSessionId == null) {
             throw new BusinessException(AppStatus.MISSING_PARAMETER, "Authorization.");
@@ -54,7 +48,6 @@ public class AuthInterceptor  implements HandlerInterceptor {
 
 //        if(sessionEntity.getToken().equals(token) && sessionEntity.getIsOnline().equals("YES")) {
         if(sessionEntity.getClientSessionId().equals(clientSessionId) && sessionEntity.getIsOnline().equals("YES")) {
-            sessionService.updateStatus(sessionEntity);
         } else {
             throw new BusinessException("MA00026", "Incorrect client session id.");
         }
@@ -67,8 +60,7 @@ public class AuthInterceptor  implements HandlerInterceptor {
         request.setAttribute("sessionObject", sessionEntity);
 
         // Set User Object for request.
-        String username = jwtTokenService.getUsernameFromToken(token);
-        UsersEntity usersEntity = userRepository.findByEmail(username);
+        UsersEntity usersEntity = userRepository.findByUserUID(sessionEntity.getUserId());
 
         if(usersEntity == null) {
             throw new BusinessException(AppStatus.DATA_NOT_FOUND, "Email is not found.");

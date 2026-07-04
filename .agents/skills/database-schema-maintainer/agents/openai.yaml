@@ -1,0 +1,4 @@
+interface:
+  display_name: "Database Schema Maintainer"
+  short_description: "Maintain synchronized SQL schemas and database documentation"
+  default_prompt: "Use $database-schema-maintainer to update and validate this project's SQL schema scripts and database documentation."

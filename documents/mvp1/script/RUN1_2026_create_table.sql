@@ -172,6 +172,32 @@ CREATE TABLE m_document_master_request_item (
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE m_document_request_items (
+    id                                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id                          CHAR(36)        NOT NULL,
+    document_master_request_item_code   VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    approve_status                      VARCHAR(10)     NOT NULL DEFAULT 'PENDING',
+    note                                TEXT            NULL,
+    created_at                          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_reqitems_request_master (request_id, document_master_request_item_code),
+    KEY idx_doc_reqitems_request_status (request_id, approve_status),
+    KEY idx_doc_reqitems_master_code (document_master_request_item_code),
+
+    CONSTRAINT chk_doc_reqitems_approve_status
+        CHECK (approve_status IN ('PENDING', 'PASS', 'FIX')),
+    CONSTRAINT chk_doc_reqitems_fix_note
+        CHECK (approve_status <> 'FIX' OR note IS NOT NULL),
+    CONSTRAINT fk_doc_reqitems_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_doc_reqitems_master_code
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE m_document_profile_request_item (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,

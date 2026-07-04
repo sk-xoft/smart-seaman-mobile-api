@@ -29,6 +29,8 @@ public class AppSys {
     public static final String HEADER_DEVICE_INFO =  "deviceinfo";
 
     public static final String CLIENT_IP = "client_ip";
+    public static final String JWT_SUBJECT = "jwt_subject";
+    public static final String JWT_JTI = "jwt_jti";
 
 
     /** JWT Payload **/

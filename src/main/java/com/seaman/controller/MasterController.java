@@ -7,17 +7,21 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.CoursesResponse;
 import com.seaman.model.response.MasterDataDocumentResponse;
 import com.seaman.model.response.MasterDataResponse;
+import com.seaman.model.response.ThailandAddressResponse;
 import com.seaman.service.CourseService;
 import com.seaman.service.MasterDataService;
 import com.seaman.service.MessageCodeService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 import static org.springframework.http.ResponseEntity.ok;
 
 @Tag(name = "Master Data", description = "ข้อมูล Master สำหรับ Dropdown และการตั้งค่า")
@@ -66,6 +70,58 @@ public class MasterController extends BaseController {
                 AppStatus.SUCCESS_CODE,
                 description,
                 courseService.courses()
+        ).build());
+    }
+
+    @Operation(summary = "รายการจังหวัด", description = "ดึงรายการจังหวัดทั้งหมด เรียงตามชื่อภาษาไทย")
+    @GetMapping(Routes.MASTER_PROVINCES)
+    public ResponseEntity<SuccessResponse<List<ThailandAddressResponse>>> provinces(
+            HttpServletRequest httpServletRequest) {
+
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE,
+                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+
+        return ok(SuccessResponse.builder(
+                AppStatus.SUCCESS_CODE,
+                description,
+                masterDataService.provinces()
+        ).build());
+    }
+
+    @Operation(summary = "รายการอำเภอ/เขต", description = "ดึงรายการอำเภอหรือเขตตามรหัสจังหวัด")
+    @GetMapping(Routes.MASTER_DISTRICTS)
+    public ResponseEntity<SuccessResponse<List<ThailandAddressResponse>>> districts(
+            HttpServletRequest httpServletRequest,
+            @Parameter(description = "รหัสจังหวัด", required = true, example = "10")
+            @RequestParam("provinceCode") Integer provinceCode) {
+
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE,
+                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+
+        return ok(SuccessResponse.builder(
+                AppStatus.SUCCESS_CODE,
+                description,
+                masterDataService.districts(provinceCode)
+        ).build());
+    }
+
+    @Operation(summary = "รายการตำบล/แขวง", description = "ดึงรายการตำบลหรือแขวงตามรหัสอำเภอ/เขต")
+    @GetMapping(Routes.MASTER_SUBDISTRICTS)
+    public ResponseEntity<SuccessResponse<List<ThailandAddressResponse>>> subdistricts(
+            HttpServletRequest httpServletRequest,
+            @Parameter(description = "รหัสอำเภอ/เขต", required = true, example = "1001")
+            @RequestParam("districtCode") Integer districtCode) {
+
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE,
+                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+
+        return ok(SuccessResponse.builder(
+                AppStatus.SUCCESS_CODE,
+                description,
+                masterDataService.subdistricts(districtCode)
         ).build());
     }
 

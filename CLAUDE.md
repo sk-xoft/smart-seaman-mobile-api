@@ -33,7 +33,7 @@ docker run --name smart-seaman-mobile-api -d \
 
 ## Architecture Overview
 
-Spring Boot 2.6.2 REST API (Java 11) for maritime training and certification management. Stateless JWT-based auth.
+Spring Boot 2.6.2 REST API (Java 25) for maritime training and certification management. Stateless JWT-based auth.
 
 **Layer structure** under `src/main/java/com/`:
 

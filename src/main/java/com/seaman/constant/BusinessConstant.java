@@ -6,6 +6,7 @@ public class BusinessConstant {
      */
 
     public static final String MASTER_MESSAGE_CODE =  "masterMessageCode";
+    public static final String MASTER_PROVINCES = "masterProvinces";
 
     public static final int CACHE_GENERAL_EXPIRE_HOURS = 24;
 

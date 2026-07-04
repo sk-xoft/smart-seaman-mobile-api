@@ -6,7 +6,7 @@ Spring Boot 2.6.2 REST API backend for the Smart Seaman mobile application.
 
 ## Prerequisites
 
-- Java 11+
+- Java 25+
 - Maven 3.6+ (or use included `./mvnw`)
 - MySQL 8.0+ (for local DB option)
 - Docker (for container deployment)

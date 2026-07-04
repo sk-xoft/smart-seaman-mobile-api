@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spring API Feature"
+  short_description: "Implement Spring Boot REST features using project conventions"
+  default_prompt: "Use $spring-api-feature to implement a REST API feature following this project's controller, service, repository, DTO, security, and test conventions."

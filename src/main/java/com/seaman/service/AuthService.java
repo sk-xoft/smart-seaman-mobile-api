@@ -125,6 +125,7 @@ public class AuthService {
             // Set session object for transaction logs.
             httpServletRequest.setAttribute("sessionObject", sessionEntity);
             sessionRepository.insert(sessionEntity);
+            sessionRepository.updateStatus(sessionEntity);
 
             // Mark response
             response.setToken(jwtToken);

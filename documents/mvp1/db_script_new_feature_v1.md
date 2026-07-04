@@ -13,10 +13,13 @@
 - [M_DOCUMENT_REQUEST](#m_document_request)
 - [M_DOCUMENT_PRICES_SETTING](#m_document_prices_setting)
 - [M_PAYMENT_TRANSACTION](#m_payment_transaction)
-- [M_DOCUMENT_REQUEST_ITEM](#m_document_request_item)
+- [M_DOCUMENT_MASTER_REQUEST_ITEM](#m_document_master_request_item)
+- [M_DOCUMENT_REQUEST_ITEMS](#m_document_request_items)
+- [M_DOCUMENT_PROFILE_REQUEST_ITEM](#m_document_profile_request_item)
 - [M_DOCUMENT_SETTING_REQUIRES](#m_document_setting_requires)
 - [M_DOCUMENT_TRANSACTION](#m_document_transaction)
 - [M_DEPT_SUBMISSION](#m_dept_submission--รอรับเอกสาร-จากกรมเจ้าท่า)
+- [M_DELIVERY_ADDRESS](#m_delivery_address)
 - [M_DELIVERY](#m_delivery--กำลังจัดส่ง)
 - [Status Reference](#status-reference)
 - [Action Reference](#action-reference)
@@ -296,15 +299,85 @@ CREATE TABLE m_payment_transaction (
 
 
 
-## M_DOCUMENT_REQUEST_ITEM
+## M_DOCUMENT_MASTER_REQUEST_ITEM
 
-**บทบาท:** รายการเอกสารประกอบของผู้ใช้แต่ละคน เช่น สำเนาบัตรประชาชน, รูปถ่าย, หนังสือรับรองบริษัท, ใบรับรองแพทย์ เก็บผลการตรวจและไฟล์ที่แนบ โดยไม่ผูกตรงกับ `m_document_request`
+**บทบาท:** Master รายการเอกสารประกอบที่ระบบรองรับ เช่น สำเนาบัตรประชาชน รูปถ่าย ใบรับรองแพทย์ และ Sea Service Record
 
 ```sql
-CREATE TABLE m_document_request_item (
+CREATE TABLE m_document_master_request_item (
+    id                          CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_master_items_code  VARCHAR(10)     CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_master_items_name  CHAR(36)        NOT NULL,
+    sort_order                  TINYINT         NOT NULL DEFAULT 1,
+    is_active                   VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_master_reqitem_code (document_master_items_code),
+    KEY idx_doc_master_reqitem_active_sort (is_active, sort_order),
+
+    CONSTRAINT chk_doc_master_reqitem_active
+        CHECK (is_active IN ('YES', 'NO'))
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `document_master_items_code` เป็น business key ที่ใช้เชื่อมกับ profile, request item และ document setting
+- `sort_order` เป็นลำดับเริ่มต้นของรายการ และ `is_active` ใช้ปิดรายการโดยไม่ลบ master
+
+---
+
+## M_DOCUMENT_REQUEST_ITEMS
+
+**บทบาท:** เก็บผลตรวจเอกสารประกอบแต่ละรายการภายในคำขอ หนึ่งคำขอมีผลตรวจได้หนึ่งรายการต่อ document master item
+
+```sql
+CREATE TABLE m_document_request_items (
+    id                                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id                          CHAR(36)        NOT NULL,
+    document_master_request_item_code   VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    approve_status                      VARCHAR(10)     NOT NULL DEFAULT 'PENDING',
+    note                                TEXT            NULL,
+    created_at                          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_doc_reqitems_request_master (request_id, document_master_request_item_code),
+    KEY idx_doc_reqitems_request_status (request_id, approve_status),
+    KEY idx_doc_reqitems_master_code (document_master_request_item_code),
+
+    CONSTRAINT chk_doc_reqitems_approve_status
+        CHECK (approve_status IN ('PENDING', 'PASS', 'FIX')),
+    CONSTRAINT chk_doc_reqitems_fix_note
+        CHECK (approve_status <> 'FIX' OR note IS NOT NULL),
+    CONSTRAINT fk_doc_reqitems_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_doc_reqitems_master_code
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `approve_status` มีค่า `PENDING` (รอตรวจ), `PASS` (ผ่าน) และ `FIX` (ต้องแก้ไข)
+- `note` บังคับเป็น non-NULL เมื่อ `approve_status = 'FIX'`
+- Unique key ป้องกัน document master item เดียวกันซ้ำภายใน request เดียวกัน
+
+---
+
+## M_DOCUMENT_PROFILE_REQUEST_ITEM
+
+**บทบาท:** เก็บไฟล์เอกสารประกอบและผลตรวจล่าสุดในระดับ profile ของผู้ใช้ เพื่อให้เอกสารเดิมนำไปตรวจความครบถ้วนกับ document หลายประเภทได้
+
+```sql
+CREATE TABLE m_document_profile_request_item (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-    document_name       VARCHAR(255)    NOT NULL,         -- ชื่อเอกสาร เช่น 'สำเนาบัตรประชาชน'
+    document_master_request_item_code VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
     file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
     file_path           VARCHAR(500)    NULL,             -- path หรือ URL ของไฟล์ที่อัปโหลด
@@ -318,28 +391,31 @@ CREATE TABLE m_document_request_item (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    KEY idx_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
-    KEY idx_reqitem_check_result (check_result),
-    CONSTRAINT chk_reqitem_file_uploaded
+    KEY idx_profile_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
+    KEY idx_profile_reqitem_master_code (document_master_request_item_code),
+    KEY idx_profile_reqitem_check_result (check_result),
+    UNIQUE KEY uq_profile_reqitem_mobile_master (mobile_user_uuid, document_master_request_item_code),
+    CONSTRAINT chk_profile_reqitem_file_uploaded
         CHECK (file_uploaded IN (0, 1)),
-    CONSTRAINT chk_reqitem_is_updated
+    CONSTRAINT chk_profile_reqitem_is_updated
         CHECK (is_updated IN (0, 1)),
-    CONSTRAINT chk_reqitem_check_result
+    CONSTRAINT chk_profile_reqitem_check_result
         CHECK (check_result IS NULL OR check_result IN ('pass', 'fix')),
-    CONSTRAINT chk_reqitem_fix_note
+    CONSTRAINT chk_profile_reqitem_fix_note
         CHECK (check_result <> 'fix' OR check_note IS NOT NULL),
-    CONSTRAINT fk_reqitem_mobile_user
-        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
+    CONSTRAINT fk_profile_reqitem_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID),
+    CONSTRAINT fk_profile_reqitem_master_code
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 ```
 
 **หมายเหตุ:**
-- `check_result` มีได้ 3 ค่า: `'pass'` (ผ่าน), `'fix'` (ต้องแก้ไข), `NULL` (ยังไม่ตรวจ)
-- `check_note` บังคับกรอกเมื่อ `check_result = 'fix'` และ enforce ด้วย `chk_reqitem_fix_note`
-- `mobile_user_uuid` ผูกกับ `m_mobile_users.MOBILE_UUID` เพื่อให้ item เป็นของผู้ใช้แบบ 1:M
-- `is_updated = 1` ใช้แสดง badge "อัปเดตใหม่" ใน UI เมื่อผู้ยื่น resubmit ไฟล์ใหม่
+- หนึ่งผู้ใช้มีได้หนึ่ง profile item ต่อ `document_master_request_item_code`
+- `check_result` มีค่า `'pass'`, `'fix'` หรือ `NULL`; เมื่อเป็น `'fix'` ต้องมี `check_note`
+- `is_updated = 1` ใช้แสดงว่าไฟล์ถูกส่งมาแก้ไขใหม่
 
 ---
 
@@ -351,7 +427,7 @@ CREATE TABLE m_document_request_item (
 CREATE TABLE m_document_setting_requires (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     document_code       VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-    document_items_id   CHAR(36)        NOT NULL,
+    document_master_request_item_code VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     sort_order          TINYINT         NOT NULL DEFAULT 1,
     is_required         TINYINT(1)      NOT NULL DEFAULT 1,
     is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
@@ -359,9 +435,9 @@ CREATE TABLE m_document_setting_requires (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    UNIQUE KEY uq_doc_setting_requires (document_code, document_items_id),
+    UNIQUE KEY uq_doc_setting_requires (document_code, document_master_request_item_code),
     KEY idx_doc_setting_requires_doc_sort (document_code, sort_order),
-    KEY idx_doc_setting_requires_item (document_items_id),
+    KEY idx_doc_setting_requires_item (document_master_request_item_code),
 
     CONSTRAINT chk_doc_setting_requires_required
         CHECK (is_required IN (0, 1)),
@@ -371,18 +447,18 @@ CREATE TABLE m_document_setting_requires (
     CONSTRAINT fk_doc_setting_requires_document
         FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE),
     CONSTRAINT fk_doc_setting_requires_item
-        FOREIGN KEY (document_items_id) REFERENCES m_document_request_item (id)
+        FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 ```
 
 **หมายเหตุ:**
-- `UNIQUE (document_code, document_items_id)` กัน mapping ซ้ำของ document เดียวกัน
+- `UNIQUE (document_code, document_master_request_item_code)` กัน mapping ซ้ำของ document เดียวกัน
 - `sort_order` ใช้เรียงรายการเอกสารประกอบบน mobile/admin UI แยกตาม `document_code`
 - `is_required` รองรับกรณีบาง item เป็น optional ในอนาคต
 - `is_active` ใช้ปิด mapping โดยไม่ต้องลบ row จริง
-- เวลา drop table ต้อง drop `m_document_setting_requires` ก่อน `m_document_request_item`
+- เวลา drop table ต้อง drop `m_document_setting_requires` ก่อน `m_document_master_request_item`
 
 ---
 
@@ -472,6 +548,48 @@ CREATE TABLE m_dept_submission (
 
 ---
 
+## M_DELIVERY_ADDRESS
+
+**บทบาท:** เก็บที่อยู่จัดส่งของผู้ใช้ รองรับหลายที่อยู่ การตั้งค่า default และการปิดใช้งานโดยไม่ลบข้อมูล
+
+```sql
+CREATE TABLE m_delivery_address (
+    id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
+    mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    first_name          VARCHAR(100)    NOT NULL,
+    last_name           VARCHAR(100)    NOT NULL,
+    address_line        VARCHAR(500)    NOT NULL,   -- บ้านเลขที่, ซอย, หมู่, ถนน
+    province            VARCHAR(100)    NOT NULL,
+    district            VARCHAR(100)    NOT NULL,   -- เขต/อำเภอ
+    sub_district        VARCHAR(100)    NOT NULL,   -- แขวง/ตำบล
+    postal_code         VARCHAR(10)     NOT NULL,
+    is_default          TINYINT(1)      NOT NULL DEFAULT 0,
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_delivery_address_mobile_user (mobile_user_uuid, is_active),
+    KEY idx_delivery_address_postal_code (postal_code),
+
+    CONSTRAINT chk_delivery_address_default
+        CHECK (is_default IN (0, 1)),
+    CONSTRAINT chk_delivery_address_active
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT fk_delivery_address_mobile_user
+        FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+```
+
+**หมายเหตุ:**
+- `mobile_user_uuid` ผูกที่อยู่กับผู้ใช้ใน `m_mobile_users`
+- `is_default` ระบุที่อยู่หลัก โดย application ต้องควบคุมให้มี default ได้ไม่เกินหนึ่งรายการต่อผู้ใช้
+- `is_active = 'NO'` ใช้ซ่อนที่อยู่เก่าโดยยังรักษาประวัติการอ้างอิงจาก delivery
+
+---
+
 ## M_DELIVERY > กำลังจัดส่ง
 
 **บทบาท:** เก็บข้อมูลการจัดส่งเอกสารกลับให้ลูกเรือ เก็บ Tracking Number, วันจัดส่ง, สถานะ tracking จากไปรษณีย์ไทย
@@ -480,6 +598,7 @@ CREATE TABLE m_dept_submission (
 CREATE TABLE m_delivery (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     request_id          CHAR(36)        NOT NULL,
+    delivery_address_id CHAR(36)        NULL,
     tracking_no         VARCHAR(50)     NOT NULL,               -- เช่น 'EF123456789TH'
     carrier             VARCHAR(100)    NOT NULL DEFAULT 'Thailand Post',
     shipped_date        DATE            NOT NULL,               -- วันที่นำส่งไปรษณีย์
@@ -492,12 +611,15 @@ CREATE TABLE m_delivery (
 
     PRIMARY KEY (id),
     UNIQUE KEY uq_delivery_request (request_id),    -- บังคับ one-to-one
+    KEY idx_delivery_address (delivery_address_id),
     KEY idx_delivery_tracking_no (tracking_no),
     KEY idx_delivery_status_updated (delivery_status, updated_at),
     CONSTRAINT chk_delivery_status
         CHECK (delivery_status IN ('pending', 'in_transit', 'delivered', 'failed', 'returned')),
     CONSTRAINT fk_delivery_request
-        FOREIGN KEY (request_id) REFERENCES m_document_request (id)
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_delivery_address
+        FOREIGN KEY (delivery_address_id) REFERENCES m_delivery_address (id)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -505,6 +627,7 @@ CREATE TABLE m_delivery (
 
 **หมายเหตุ:**
 - `UNIQUE KEY` บน `request_id` บังคับ one-to-one กับ `m_document_request`
+- `delivery_address_id` อ้างอิงที่อยู่จัดส่งที่เลือก และอนุญาตให้เป็น `NULL`
 - `delivery_status` อัปเดตได้จาก webhook ของ API ไปรษณีย์ไทย หรือ manual โดย admin
 - เมื่อ `delivery_status = 'delivered'` ควร trigger update `m_document_request.document_status_id` ให้ชี้ไป status `จัดส่งสำเร็จ` และบันทึก `m_document_transaction` action `DELIVERY_COMPLETE`
 

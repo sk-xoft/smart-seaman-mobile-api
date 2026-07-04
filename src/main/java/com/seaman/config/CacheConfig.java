@@ -15,8 +15,9 @@ public class CacheConfig {
     @Bean
     public SimpleCacheManager buildCacheManager(){
         CaffeineCache masterMessageCode = buildCaffeineCache(BusinessConstant.MASTER_MESSAGE_CODE, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
+        CaffeineCache masterProvinces = buildCaffeineCache(BusinessConstant.MASTER_PROVINCES, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
         SimpleCacheManager simpleCacheManager = new SimpleCacheManager();
-        simpleCacheManager.setCaches(Arrays.asList(masterMessageCode));
+        simpleCacheManager.setCaches(Arrays.asList(masterMessageCode, masterProvinces));
         simpleCacheManager.initializeCaches();
 
         return simpleCacheManager;
@@ -24,7 +25,6 @@ public class CacheConfig {
 
     private CaffeineCache buildCaffeineCache(String name, int expireHours){
         return new CaffeineCache(name, Caffeine.newBuilder()
-                .softValues()
                 .expireAfterWrite(Duration.ofHours(expireHours))
                 .build());
     }

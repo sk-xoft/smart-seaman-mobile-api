@@ -1,14 +1,18 @@
 package com.seaman.service;
 
 import com.seaman.constant.AppSys;
+import com.seaman.constant.AppStatus;
 import com.seaman.entity.CompanyEntity;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.PositionsEntity;
+import com.seaman.entity.ThailandAddressEntity;
+import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
 import com.seaman.model.response.*;
 import com.seaman.repository.CompanyRepository;
 import com.seaman.repository.DocumentRepository;
 import com.seaman.repository.PositionRepository;
+import com.seaman.repository.ThailandAddressRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +30,7 @@ public class MasterDataService {
     private final CompanyRepository companyRepository;
     private final PositionRepository positionRepository;
     private final DocumentRepository documentRepository;
+    private final ThailandAddressRepository thailandAddressRepository;
 
     public MasterDataResponse list() {
 
@@ -147,6 +152,46 @@ public class MasterDataService {
         }
 
         return listFull;
+    }
+
+    public List<ThailandAddressResponse> provinces() {
+        return mapThailandAddresses(thailandAddressRepository.findProvinces());
+    }
+
+    public List<ThailandAddressResponse> districts(Integer provinceCode) {
+        validateAddressCode(provinceCode, "provinceCode");
+        return mapThailandAddresses(thailandAddressRepository.findDistrictsByProvinceCode(provinceCode));
+    }
+
+    public List<ThailandAddressResponse> subdistricts(Integer districtCode) {
+        validateAddressCode(districtCode, "districtCode");
+        return mapThailandAddresses(thailandAddressRepository.findSubdistrictsByDistrictCode(districtCode));
+    }
+
+    private void validateAddressCode(Integer code, String parameterName) {
+        if (code == null || code <= 0) {
+            throw new BusinessException(AppStatus.INVALID_FORMAT, parameterName);
+        }
+    }
+
+    private List<ThailandAddressResponse> mapThailandAddresses(List<ThailandAddressEntity> entities) {
+        String language = httpServletRequest.getHeader(AppSys.HEADER_ACCEPT_LANGUAGE);
+        boolean english = AppSys.LANG_EN.equalsIgnoreCase(language);
+        List<ThailandAddressResponse> responses = new ArrayList<>();
+
+        for (ThailandAddressEntity entity : entities) {
+            ThailandAddressResponse response = new ThailandAddressResponse();
+            response.setCode(String.valueOf(entity.getCode()));
+            response.setName(english ? entity.getNameInEnglish() : entity.getNameInThai());
+            response.setNameTh(entity.getNameInThai());
+            response.setNameEn(entity.getNameInEnglish());
+            if (entity.getPostalCode() != null) {
+                response.setPostalCode(String.valueOf(entity.getPostalCode()));
+            }
+            responses.add(response);
+        }
+
+        return responses;
     }
 
 }

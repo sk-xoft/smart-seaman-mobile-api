@@ -7,6 +7,7 @@ import com.seaman.exception.CommonException;
 import com.seaman.model.response.ExceptionResponse;
 import com.seaman.service.JwtTokenService;
 import com.seaman.service.MessageCodeService;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,16 +62,15 @@ public class TokenFilter extends GenericFilterBean {
             // https://www.baeldung.com/spring-mvc-handlerinterceptor-vs-filter
             String token = authorization.substring(7);
 
-            if (!jwtTokenService.verifyToken(token)) {
-                filterChain.doFilter(servletRequest, servletResponse);
-                return;
-            }
-
-            String username = jwtTokenService.getUsernameFromToken(token);
+            Claims claims = jwtTokenService.parseClaims(token);
+            String username = claims.getSubject();
             if (username == null) {
                 filterChain.doFilter(servletRequest, servletResponse);
                 return;
             }
+
+            request.setAttribute(AppSys.JWT_SUBJECT, username);
+            request.setAttribute(AppSys.JWT_JTI, claims.getId());
 
             List<GrantedAuthority> authorities = new ArrayList<>();
 

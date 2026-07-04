@@ -1,6 +1,6 @@
-# Use official base image of Java Runtim
-#FROM openjdk:11-slim-buster
-FROM eclipse-temurin:11-jre
+# Use official base image of Java Runtime
+#FROM openjdk:17-slim-buster
+FROM eclipse-temurin:17-jre
 
 RUN apt-get update
 

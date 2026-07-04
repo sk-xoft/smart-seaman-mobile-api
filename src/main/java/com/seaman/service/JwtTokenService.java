@@ -38,23 +38,23 @@ public class JwtTokenService {
     }
 
     //for retrieving any information from token we will need the secret key
-    private Claims getAllClaimsFromToken(String token) {
-        return Jwts.parser().setSigningKey(jwtSecretKey).parseClaimsJws(token).getBody();
-    }
-
-    public boolean verifyToken(String token) {
-        boolean verifySuccess = false;
-
+    public Claims parseClaims(String token) {
         try {
-            Jwts.parser().setSigningKey(jwtSecretKey).parseClaimsJws(token);
-            verifySuccess = true;
+            return Jwts.parser().setSigningKey(jwtSecretKey).parseClaimsJws(token).getBody();
         } catch (SignatureException | MalformedJwtException | UnsupportedJwtException | IllegalArgumentException ex) {
             throw new BusinessException(AppStatus.JWT_SIGNATURE_INVALID, ex.getMessage());
         } catch (ExpiredJwtException ex) {
             throw new BusinessException(AppStatus.JWT_EXPIRE, ex.getMessage());
         }
+    }
 
-        return verifySuccess;
+    private Claims getAllClaimsFromToken(String token) {
+        return parseClaims(token);
+    }
+
+    public boolean verifyToken(String token) {
+        parseClaims(token);
+        return true;
     }
 
     //check if the token has expired
