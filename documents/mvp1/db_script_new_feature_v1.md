@@ -107,6 +107,8 @@ CREATE TABLE m_document_request (
     mobile_user_uuid    VARCHAR(50)     NOT NULL,
     document_code       VARCHAR(50)     NOT NULL,
     document_status_id  CHAR(36)        NOT NULL,
+    price_setting_id    CHAR(36)        NULL,
+    delivery_address_id CHAR(36)        NULL,
     is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
     amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
     submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -117,6 +119,8 @@ CREATE TABLE m_document_request (
     UNIQUE KEY uq_docreq_request_no (request_no),
     KEY idx_docreq_mobile_user (mobile_user_uuid),
     KEY idx_docreq_document_code (document_code),
+    KEY idx_docreq_price_setting (price_setting_id),
+    KEY idx_docreq_delivery_address (delivery_address_id),
     KEY idx_docreq_status_submitted (document_status_id, submitted_at),
     CONSTRAINT chk_docreq_amount
         CHECK (amount >= 0),
@@ -135,6 +139,8 @@ CREATE TABLE m_document_request (
 - ยังไม่ใส่ FK ตรงไปยัง `m_mobile_users` และ `m_documents` ใน script นี้ เพราะต้องยืนยัน DDL/type ของ table เดิมก่อน หาก type/index ตรงกันให้เพิ่ม FK ใน migration เฉพาะ environment ได้
 - `request_no` สร้างจาก sequence ที่ฝั่ง application (format: `YYMM` + running 5 digits เช่น `250500001`) เพื่อรองรับมากกว่า 999 requests ต่อเดือน
 - `is_resubmit = 1` จะเซ็ตเมื่อลูกเรือแก้ไขเอกสารแล้วส่งกลับมาใหม่ UI จะแสดง badge "ผู้ยื่น resubmit"
+- `price_setting_id` อ้าง `m_document_prices_setting.id`; `amount` เป็นยอดรวมที่ตรึงไว้ตอนสร้าง request
+- `delivery_address_id` อ้าง `m_delivery_address.id`; ระบบไม่สร้าง price/address snapshot table ซ้ำ
 
 ---
 ## M_DOCUMENT_PRICES_SETTING

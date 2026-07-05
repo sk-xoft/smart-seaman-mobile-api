@@ -13,7 +13,7 @@ public class DocumentRenewalRepository extends CommonRepository {
 
     public List<DocumentRenewalStatusEntity> findActiveStatuses() {
         String sql = "SELECT id, name_th, name_en, css_color FROM m_document_status "
-                + "WHERE is_active = 'YES' ORDER BY CASE name_th "
+                + "WHERE is_active = 'YES' AND is_mobile_visible = 'YES' ORDER BY CASE name_th "
                 + "WHEN 'รอตรวจเอกสาร' THEN 1 WHEN 'รอผู้ยื่นแก้ไข' THEN 2 "
                 + "WHEN 'รอผลกรมเจ้าท่า' THEN 3 WHEN 'รอรับเอกสารจากกรม' THEN 4 "
                 + "WHEN 'กำลังจัดส่ง' THEN 5 WHEN 'จัดส่งสำเร็จ' THEN 6 "
@@ -23,7 +23,7 @@ public class DocumentRenewalRepository extends CommonRepository {
     }
 
     public List<DocumentRenewalPriceEntity> findActivePrices(String documentCode) {
-        String sql = "SELECT p.document_code, p.government_fee, p.document_processing_fee, "
+        String sql = "SELECT p.id AS price_setting_id, p.document_code, p.government_fee, p.document_processing_fee, "
                 + "p.shipping_fee, p.shipping_discount, p.service_fee_discount "
                 + ", p.effective_from, p.effective_to "
                 + "FROM m_document_prices_setting p JOIN m_documents d "

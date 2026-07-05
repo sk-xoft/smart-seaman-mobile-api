@@ -12,6 +12,16 @@ import java.util.List;
 @Repository
 public class DeliveryAddressRepository extends CommonRepository {
 
+    public void lockUser(String mobileUserUuid) {
+        List<String> users = template.query(
+                "SELECT MOBILE_UUID FROM m_mobile_users WHERE MOBILE_UUID = :mobileUserUuid FOR UPDATE",
+                new MapSqlParameterSource("mobileUserUuid", mobileUserUuid),
+                (rs, rowNum) -> rs.getString("MOBILE_UUID"));
+        if (users.size() != 1) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "mobileUser");
+        }
+    }
+
     public void lockActiveAddresses(String mobileUserUuid) {
         template.query("SELECT id FROM m_delivery_address "
                         + "WHERE mobile_user_uuid = :mobileUserUuid AND is_active = 'YES' FOR UPDATE",
@@ -52,6 +62,14 @@ public class DeliveryAddressRepository extends CommonRepository {
                         .addValue("mobileUserUuid", mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public List<DeliveryAddressEntity> findActiveDefaults(String mobileUserUuid) {
+        return template.query(
+                "SELECT * FROM m_delivery_address WHERE mobile_user_uuid = :mobileUserUuid "
+                        + "AND is_default = 1 AND is_active = 'YES' ORDER BY updated_at DESC, id",
+                new MapSqlParameterSource("mobileUserUuid", mobileUserUuid),
+                new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
     }
 
     public void update(DeliveryAddressEntity entity) {

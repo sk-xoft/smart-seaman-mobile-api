@@ -4,12 +4,15 @@ CREATE TABLE m_document_status (
     name_en         VARCHAR(255)    NOT NULL,
     css_color       VARCHAR(100)    NOT NULL,
     is_active       VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    is_mobile_visible VARCHAR(3)    NOT NULL DEFAULT 'YES',
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_document_status_name_th (name_th),
     UNIQUE KEY uq_document_status_name_en (name_en),
     CONSTRAINT chk_document_status_active
-        CHECK (is_active IN ('YES', 'NO'))
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT chk_document_status_mobile_visible
+        CHECK (is_mobile_visible IN ('YES', 'NO'))
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -20,6 +23,8 @@ CREATE TABLE m_document_request (
     mobile_user_uuid    VARCHAR(50)     NOT NULL,
     document_code       VARCHAR(50)     NOT NULL,
     document_status_id  CHAR(36)        NOT NULL,
+    price_setting_id    CHAR(36)        NULL,
+    delivery_address_id CHAR(36)        NULL,
     is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
     amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
     submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,6 +35,8 @@ CREATE TABLE m_document_request (
     UNIQUE KEY uq_docreq_request_no (request_no),
     KEY idx_docreq_mobile_user (mobile_user_uuid),
     KEY idx_docreq_document_code (document_code),
+    KEY idx_docreq_price_setting (price_setting_id),
+    KEY idx_docreq_delivery_address (delivery_address_id),
     KEY idx_docreq_status_submitted (document_status_id, submitted_at),
     CONSTRAINT chk_docreq_amount
         CHECK (amount >= 0),
@@ -74,6 +81,18 @@ CREATE TABLE m_document_prices_setting (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE m_document_request
+    ADD CONSTRAINT fk_docreq_price_setting
+        FOREIGN KEY (price_setting_id) REFERENCES m_document_prices_setting (id);
+
+CREATE TABLE m_document_request_sequence (
+    period          CHAR(4)     NOT NULL,
+    last_number     INT         NOT NULL DEFAULT 0,
+    updated_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (period),
+    CONSTRAINT chk_docreq_sequence_number CHECK (last_number >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE m_payment_transaction (
     id                      CHAR(36)        NOT NULL DEFAULT (UUID()),
@@ -324,12 +343,16 @@ CREATE TABLE m_delivery_address (
     postal_code         VARCHAR(10)     NOT NULL,
     is_default          TINYINT(1)      NOT NULL DEFAULT 0,
     is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    default_owner_uuid  VARCHAR(36) GENERATED ALWAYS AS (
+        CASE WHEN is_default = 1 AND is_active = 'YES' THEN mobile_user_uuid ELSE NULL END
+    ) STORED,
     created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
     KEY idx_delivery_address_mobile_user (mobile_user_uuid, is_active),
     KEY idx_delivery_address_postal_code (postal_code),
+    UNIQUE KEY uq_delivery_address_active_default (default_owner_uuid),
 
     CONSTRAINT chk_delivery_address_default
         CHECK (is_default IN (0, 1)),
@@ -340,6 +363,10 @@ CREATE TABLE m_delivery_address (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE m_document_request
+    ADD CONSTRAINT fk_docreq_delivery_address
+        FOREIGN KEY (delivery_address_id) REFERENCES m_delivery_address (id);
 
 CREATE TABLE m_delivery (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),

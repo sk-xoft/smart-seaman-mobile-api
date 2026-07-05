@@ -23,7 +23,7 @@
 |---:|:---:|---|---|---|
 | 1 | [x] | GET | `/v1/document-renewals/statuses` | implement controller/service/repository/model และ mobile progress mapping แล้ว; focused tests ผ่าน |
 | 2 | [x] | GET | `/v1/document-renewals/prices?documentCode={code}` | implement API, validation, BigDecimal, effective-date filtering และ overlapping-config guard แล้ว |
-| 3 | [ ] | POST | `/v1/document-renewals` | ยังไม่มี controller/service/repository/model สำหรับสร้าง renewal request |
+| 3 | [x] | POST | `/v1/document-renewals` | สร้าง unpaid draft, อ้าง price/address records เดิม, snapshot ยอดรวม, running number และ request items ใน transaction เดียวกัน |
 | 4 | [ ] | GET | `/v1/document-renewals/my?offSet={n}` | ยังไม่มี API รายการคำขอของ user |
 | 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
 | 6 | [ ] | GET | `/v1/document-renewals/{requestId}/timeline` | ยังไม่มี API timeline |
@@ -32,7 +32,7 @@
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 2/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 8/10**
+สรุป Mobile APIs: **ทำแล้ว 3/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 7/10**
 
 ## Prerequisites And Supporting Work
 
@@ -43,11 +43,11 @@
 | [?] | Status master seed | มี upsert 7 statuses ใน `RUN2_2026_insert_master.sql`; ไม่สามารถสรุปว่า run แล้วจาก source code |
 | [~] | Required document master/setting | มี schema, seed ตัวอย่าง `DOC001` และ validation API แล้ว แต่ยังไม่ยืนยัน master จริงครบทุก `document_code` |
 | [ ] | Renewal price master data | มี table แต่ยังไม่พบ seed/config ราคาที่ใช้งานจริง |
-| [ ] | Delivery address decision | schema มี `m_delivery_address` แล้ว แต่ spec ยังต้องยืนยัน UX/API สำหรับเลือกหรือ snapshot ที่อยู่ |
-| [~] | Create/update delivery address APIs | มี route/controller/service/repository/request/response model และ service tests แล้ว แต่ controller/repository tests และ OpenAPI examples ยังไม่ครบ acceptance criteria |
+| [x] | Delivery address decision | request เก็บ `delivery_address_id` อ้าง `m_delivery_address`; ไม่สร้าง snapshot table ซ้ำ |
+| [x] | Create/update delivery address APIs | มี route/controller/service/repository/model, concurrency guard, OpenAPI examples, cURL และ focused tests ครบแล้ว |
 | [x] | Thailand address master APIs | implement route/controller/service/repository/response model แล้ว; focused tests ผ่าน 5/5 และ pin Lombok ให้รองรับ JDK 21 แล้ว |
 | [ ] | Payment provider decision | ต้องยืนยัน channel, charge flow และ webhook ก่อนปิด payment tasks |
-| [~] | Automated tests สำหรับ renewal flow | มี focused tests สำหรับ status/price/foundation 11 cases; flow อื่นยังไม่มี test |
+| [~] | Automated tests สำหรับ renewal flow | มี focused tests สำหรับ status/price/foundation/create request 15 cases; flow อื่นยังไม่มี test |
 
 ## Task Breakdown
 
@@ -166,17 +166,17 @@ Operational prerequisite: ต้องกำหนด production price master da
 
 ### MR-MOB-04: Create Renewal Request
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API: `POST /v1/document-renewals`
 
 - validate document เปิดให้ renewal
 - validate required document items จาก profile
-- snapshot ราคาและข้อมูลที่จำเป็นลง request
+- เก็บ `price_setting_id` และ snapshot ยอดรวม `amount` ลง request
 - generate `request_no` แบบ concurrency-safe
 - สร้าง request items จาก required document setting
 - กำหนด initial status ตาม payment decision
-- append transaction action `CREATE` เมื่อเข้า `รอตรวจเอกสาร`
+- append transaction action `CREATE` เมื่อสร้าง unpaid draft สถานะ `PAYMENT_PENDING`; payment success flow ต้อง append transaction ก่อนเข้า `รอตรวจเอกสาร`
 
 Acceptance criteria:
 
@@ -185,11 +185,54 @@ Acceptance criteria:
 - ไม่เข้า `รอตรวจเอกสาร` ก่อน payment success เว้นแต่ product ยืนยัน unpaid draft flow
 - rollback ทั้ง request/items/transaction เมื่อขั้นตอนใดล้มเหลว
 
-Blocked decisions:
+Implementation decisions:
 
-- รูปแบบ running number
-- unpaid draft หรือ create หลัง payment success
-- delivery address snapshot/selection
+- สร้าง unpaid draft ก่อนชำระเงินด้วย internal status `PAYMENT_PENDING` (`รอชำระเงิน`)
+- `PAYMENT_PENDING` active สำหรับ workflow แต่ `is_mobile_visible = 'NO'` จึงไม่เพิ่มรายการใน status progress master 7 สถานะ
+- `request_no` ใช้ `YYMM` + running 5 หลัก เช่น `260700001`; sequence แยกตามเดือนและ lock ด้วย database transaction
+- request body รับเฉพาะ `documentCode` และ `deliveryAddressId`; user, ราคา และ status มาจาก server
+- `m_document_request.price_setting_id` อ้าง `m_document_prices_setting.id`; ไม่สร้าง `m_document_request_price`
+- `m_document_request.delivery_address_id` อ้าง `m_delivery_address.id`; ไม่สร้าง `m_document_request_delivery_address`
+- คง `m_document_request.amount` เป็นยอดรวม ณ เวลาสร้าง request เพื่อไม่ให้ยอดชำระเปลี่ยนตาม price setting ภายหลัง
+- สร้าง header, required request items และ `CREATE` timeline ภายใน transaction เดียวกัน
+- เพิ่ม fresh-install schema ใน RUN1 และ migration `RUN7_create_renewal_request_draft.sql` สำหรับฐานข้อมูลเดิม
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/document-renewals" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "documentCode": "DOC001",
+    "deliveryAddressId": "11111111-2222-3333-4444-555555555555"
+  }'
+```
+
+ตัวอย่าง response:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "requestNo": "260700001",
+    "documentCode": "DOC001",
+    "status": "PAYMENT_PENDING",
+    "amount": 1500.00,
+    "deliveryAddressId": "11111111-2222-3333-4444-555555555555"
+  }
+}
+```
+
+ก่อนเรียก API:
+
+- ต้องมี active/effective price ของ `documentCode`
+- required profile document items ต้อง upload ครบและไม่มีผลตรวจ `fix`
+- `deliveryAddressId` ต้องเป็น active address ของ user จาก JWT
 
 ### MR-MOB-05: List My Renewal Requests
 
@@ -394,7 +437,7 @@ Implementation decisions:
 
 ### MR-MOB-14: Create And Update Delivery Address
 
-Status: [~] ทำบางส่วน
+Status: [x] ทำแล้ว
 
 APIs:
 
@@ -424,7 +467,7 @@ APIs:
 - อนุญาตให้แก้ไขเฉพาะที่อยู่ที่มี `is_active = 'YES'`
 - การแก้ไขรองรับ fields ชุดเดียวกับ create แต่ห้ามเปลี่ยน `id`, `mobile_user_uuid` และ `is_active` จาก request body
 - หากแก้ไข `isDefault = true` ให้ยกเลิก default เดิมและตั้งรายการนี้เป็น default ภายใน transaction เดียวกัน
-- หากแก้ไข default address ปัจจุบันเป็น `isDefault = false` ต้องกำหนด behavior ให้ชัดเจน: ปฏิเสธคำขอ หรือเลือก active address อื่นเป็น default โดยอัตโนมัติ
+- หากแก้ไข default address ปัจจุบันเป็น `isDefault = false` ให้ปฏิเสธคำขอด้วย validation error
 - update `updated_at` เมื่อแก้ไขสำเร็จ และ response คืนข้อมูลล่าสุดภายใต้ `SuccessResponse`
 
 Acceptance criteria:
@@ -438,6 +481,61 @@ Acceptance criteria:
 - update address ที่ไม่มีอยู่, เป็นของ user อื่น หรือ inactive ต้องไม่แก้ไขข้อมูล
 - มี controller/service/repository tests สำหรับ create/update happy path, invalid address hierarchy, invalid postal code, first address, replace default, not found, forbidden ownership, inactive address และ unauthenticated request
 - OpenAPI ระบุ request/response example และ validation error
+
+Concurrency and data integrity:
+
+- lock row ของ user ใน `m_mobile_users` ด้วย `FOR UPDATE` ก่อน create/update address เพื่อ serialize mutations แม้ผู้ใช้ยังไม่มี address
+- lock active address rows ก่อนนับ, clear หรือ update default
+- เพิ่ม generated column `default_owner_uuid` และ unique key
+  `uq_delivery_address_active_default` เพื่อบังคับ active default ไม่เกินหนึ่งรายการต่อ user ที่ระดับฐานข้อมูล
+- fresh install ใช้ schema ใน RUN1; ฐานข้อมูลเดิมให้รัน `RUN9_harden_delivery_address_default.sql`
+
+ตัวอย่าง cURL สำหรับสร้างที่อยู่:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/delivery-addresses" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "addressLine": "16 ม. 8",
+    "province": "39",
+    "district": "3902",
+    "subDistrict": "390202",
+    "postalCode": "39170",
+    "isDefault": true
+  }'
+```
+
+ตัวอย่าง cURL สำหรับแก้ไขที่อยู่:
+
+```bash
+curl --request PUT \
+  --url "${base_url}/v1/delivery-addresses/${address_id}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "addressLine": "99 ม. 1",
+    "province": "39",
+    "district": "3902",
+    "subDistrict": "390202",
+    "postalCode": "39170",
+    "isDefault": true
+  }'
+```
+
+Implementation evidence:
+
+- controller/service/repository tests ครอบคลุม create, update, default replacement, ownership,
+  inactive/not found, unauthenticated context และ default-address query
+- request validation tests ครอบคลุม required fields และ postal code format
+- OpenAPI models มี field examples และ controller ระบุ success/validation responses
 
 ### MR-MOB-15: Identity Document Multi-File Upload
 
@@ -538,18 +636,94 @@ Acceptance criteria:
   ownership, replace, type switch, MIME/size validation, storage failure และ DB rollback
 - อัปเดต OpenAPI multipart request/response examples และ validation errors
 
+### MR-MOB-16: Get Default Delivery Address
+
+Status: [x] ทำแล้ว
+
+API:
+
+| Method | API | Purpose |
+|---|---|---|
+| GET | `/v1/delivery-addresses` | ดึง active default delivery address ของ mobile user ที่ login อยู่ |
+
+Behavior:
+
+- อ่าน `mobile_user_uuid` จาก JWT/request context เท่านั้น ห้ามรับ `mobileUserUuid` จาก query, path หรือ request body
+- query `m_delivery_address` ด้วย `mobile_user_uuid`, `is_default = 1` และ `is_active = 'YES'`
+- response อยู่ภายใต้ `SuccessResponse` และคืน fields:
+  - `id`
+  - `firstName`
+  - `lastName`
+  - `addressLine`
+  - `province`
+  - `district`
+  - `subDistrict`
+  - `postalCode`
+  - `isDefault`
+- เมื่อไม่พบ active default address ให้คืน business error `MA00016` (`DATA_NOT_FOUND`) สำหรับ `deliveryAddress`
+- หากพบ active default address มากกว่าหนึ่งรายการ ให้ถือเป็น data-integrity error และคืน `MA00012` (`EXCEPTION_DATABASE`); ห้ามเลือก row แรกโดยเงียบ ๆ
+- endpoint ต้อง authenticated ตาม security convention ปัจจุบัน
+
+Acceptance criteria:
+
+- คืนเฉพาะ default address ของ user จาก JWT
+- ไม่คืน inactive address แม้มี `is_default = 1`
+- user ไม่สามารถส่งหรือแก้ `mobile_user_uuid` เพื่ออ่าน address ของ user อื่น
+- not found และ duplicate default มี behavior ตามที่กำหนด
+- response ใช้ field naming เดียวกับ create/update delivery address APIs
+- มี controller/service/repository tests สำหรับ happy path, no default, inactive default,
+  duplicate default, unauthenticated request และ ownership isolation
+- เพิ่ม OpenAPI response description และตัวอย่าง cURL
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/delivery-addresses" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+ตัวอย่าง response:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "addressLine": "16 ม. 8",
+    "province": "39",
+    "district": "3902",
+    "subDistrict": "390202",
+    "postalCode": "39170",
+    "isDefault": true
+  }
+}
+```
+
+Implementation evidence:
+
+- controller ใช้ `GET` บน `Routes.DELIVERY_ADDRESSES` และ endpoint ยังอยู่หลัง JWT authentication
+- service อ่าน `mobile_user_uuid` จาก `userObject` ใน request context เท่านั้น
+- repository filter `mobile_user_uuid`, `is_default = 1` และ `is_active = 'YES'`
+- focused tests `DeliveryAddressControllerTest`, `DeliveryAddressServiceTest` และ
+  `DeliveryAddressRepositoryTest` ผ่าน 10/10 tests
+
 ## Recommended Implementation Order
 
 1. ปิด open decisions: request number, unpaid draft, address, upload format, payment channel
 2. MR-MOB-01 shared foundation
 3. MR-MOB-02 status และ MR-MOB-03 price
 4. MR-MOB-15 identity document multi-file upload และปรับ profile document validation
-5. MR-MOB-04 create request
-6. MR-MOB-08 renewal item upload และ MR-MOB-09 resubmit โดย reuse file validation/storage component จาก MR-MOB-15
-7. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
-8. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
-9. MR-MOB-13 Thailand address master APIs ก่อนเริ่ม delivery-address UI/API
-10. MR-MOB-14 create/update delivery address APIs
+5. MR-MOB-13 Thailand address master APIs ก่อนเริ่ม delivery-address UI/API
+6. MR-MOB-14 create/update delivery address APIs และ MR-MOB-16 get default delivery address
+7. MR-MOB-04 create request
+8. MR-MOB-08 renewal item upload และ MR-MOB-09 resubmit โดย reuse file validation/storage component จาก MR-MOB-15
+9. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
+10. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 11. MR-MOB-12 contract/integration/concurrency tests
 
 ## Evidence Checked
@@ -565,3 +739,5 @@ Acceptance criteria:
 - `documents/mvp1/script/RUN3_create_index.sql`
 - `documents/mvp1/script/RUN4_external_data`
 - `documents/mvp1/script/RUN5_document_renewal_foundation.sql`
+- `documents/mvp1/script/RUN7_create_renewal_request_draft.sql`
+- `documents/mvp1/script/RUN9_harden_delivery_address_default.sql`

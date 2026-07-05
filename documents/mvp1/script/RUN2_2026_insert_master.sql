@@ -2,19 +2,22 @@ INSERT INTO m_document_status (
     name_th,
     name_en,
     css_color,
-    is_active
+    is_active,
+    is_mobile_visible
 ) VALUES
-    ('รอตรวจเอกสาร', 'Pending Document Review', '#ff0000', 'YES'),
-    ('รอผู้ยื่นแก้ไข', 'Pending Applicant Correction', '#ff914d', 'YES'),
-    ('รอผลกรมเจ้าท่า', 'Pending Marine Department Result', '#af87ff', 'YES'),
-    ('รอรับเอกสารจากกรม', 'Pending Department Document Pickup', '#ffde59', 'YES'),
-    ('กำลังจัดส่ง', 'Delivering', '#21e5f8', 'YES'),
-    ('จัดส่งสำเร็จ', 'Delivered', '#00bf63', 'YES'),
-    ('ยกเลิก', 'Cancelled', '#ff5eb3', 'YES')
+    ('รอชำระเงิน', 'Payment Pending', '#999999', 'YES', 'NO'),
+    ('รอตรวจเอกสาร', 'Pending Document Review', '#ff0000', 'YES', 'YES'),
+    ('รอผู้ยื่นแก้ไข', 'Pending Applicant Correction', '#ff914d', 'YES', 'YES'),
+    ('รอผลกรมเจ้าท่า', 'Pending Marine Department Result', '#af87ff', 'YES', 'YES'),
+    ('รอรับเอกสารจากกรม', 'Pending Department Document Pickup', '#ffde59', 'YES', 'YES'),
+    ('กำลังจัดส่ง', 'Delivering', '#21e5f8', 'YES', 'YES'),
+    ('จัดส่งสำเร็จ', 'Delivered', '#00bf63', 'YES', 'YES'),
+    ('ยกเลิก', 'Cancelled', '#ff5eb3', 'YES', 'YES')
 ON DUPLICATE KEY UPDATE
     name_en = VALUES(name_en),
     css_color = VALUES(css_color),
-    is_active = VALUES(is_active);
+    is_active = VALUES(is_active),
+    is_mobile_visible = VALUES(is_mobile_visible);
 
 INSERT INTO m_document_master_request_item (
     document_master_items_code,

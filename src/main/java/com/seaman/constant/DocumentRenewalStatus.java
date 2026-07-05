@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum DocumentRenewalStatus {
+    PAYMENT_PENDING("Payment Pending"),
     PENDING_DOCUMENT_REVIEW("Pending Document Review"),
     PENDING_APPLICANT_CORRECTION("Pending Applicant Correction"),
     PENDING_MARINE_DEPARTMENT_RESULT("Pending Marine Department Result"),

@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @Getter
 @Setter
 public class DocumentRenewalPriceEntity {
+    private String id;
     private String documentCode;
     private BigDecimal governmentFee;
     private BigDecimal documentProcessingFee;

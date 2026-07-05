@@ -11,9 +11,12 @@ import com.seaman.service.MessageCodeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,7 +36,18 @@ public class DeliveryAddressController extends BaseController {
     private final DeliveryAddressService deliveryAddressService;
     private final MessageCodeService messageCodeService;
 
+    @Operation(summary = "ดึงที่อยู่จัดส่งหลักของผู้ใช้")
+    @GetMapping(Routes.DELIVERY_ADDRESSES)
+    public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> getDefault(
+            HttpServletRequest httpRequest) {
+        return ok(success(httpRequest, deliveryAddressService.getDefault()));
+    }
+
     @Operation(summary = "สร้างที่อยู่จัดส่ง")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "สร้างที่อยู่สำเร็จ"),
+            @ApiResponse(responseCode = "400", description = "Request validation error")
+    })
     @PostMapping(Routes.DELIVERY_ADDRESSES)
     public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> create(
             HttpServletRequest httpRequest, @Valid @RequestBody DeliveryAddressRequest request) {
@@ -41,6 +55,10 @@ public class DeliveryAddressController extends BaseController {
     }
 
     @Operation(summary = "แก้ไขที่อยู่จัดส่ง")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "แก้ไขที่อยู่สำเร็จ"),
+            @ApiResponse(responseCode = "400", description = "Request validation error")
+    })
     @PutMapping(Routes.DELIVERY_ADDRESS)
     public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> update(
             HttpServletRequest httpRequest, @PathVariable String addressId,

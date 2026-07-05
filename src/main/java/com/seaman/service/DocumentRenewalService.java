@@ -36,6 +36,7 @@ public class DocumentRenewalService {
         }
         DocumentRenewalPriceEntity price = prices.get(0);
         DocumentRenewalPriceResponse response = new DocumentRenewalPriceResponse();
+        response.setPriceSettingId(price.getId());
         response.setDocumentCode(price.getDocumentCode());
         response.setGovernmentFee(money(price.getGovernmentFee()));
         response.setDocumentProcessingFee(money(price.getDocumentProcessingFee()));

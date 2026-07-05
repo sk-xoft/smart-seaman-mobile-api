@@ -13,6 +13,8 @@ public class DocumentRenewalRequestEntity {
     private String mobileUserUuid;
     private String documentCode;
     private String documentStatusId;
+    private String priceSettingId;
+    private String deliveryAddressId;
     private String statusNameEn;
     private Boolean isResubmit;
     private BigDecimal amount;

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,10 +24,24 @@ public class DeliveryAddressService {
     private final ThailandAddressRepository thailandAddressRepository;
     private final HttpServletRequest httpServletRequest;
 
+    public DeliveryAddressResponse getDefault() {
+        List<DeliveryAddressEntity> addresses =
+                deliveryAddressRepository.findActiveDefaults(currentUserUuid());
+        if (addresses.isEmpty()) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "deliveryAddress");
+        }
+        if (addresses.size() != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
+                    "Duplicate active default delivery address");
+        }
+        return toResponse(addresses.get(0));
+    }
+
     @Transactional
     public DeliveryAddressResponse create(DeliveryAddressRequest request) {
         String mobileUserUuid = currentUserUuid();
         validateMasterAddress(request);
+        deliveryAddressRepository.lockUser(mobileUserUuid);
         deliveryAddressRepository.lockActiveAddresses(mobileUserUuid);
 
         boolean isDefault = deliveryAddressRepository.countActive(mobileUserUuid) == 0
@@ -46,6 +61,7 @@ public class DeliveryAddressService {
         String mobileUserUuid = currentUserUuid();
         validateAddressId(addressId);
         validateMasterAddress(request);
+        deliveryAddressRepository.lockUser(mobileUserUuid);
         deliveryAddressRepository.lockActiveAddresses(mobileUserUuid);
 
         DeliveryAddressEntity current = deliveryAddressRepository.findActiveOwned(addressId, mobileUserUuid);
