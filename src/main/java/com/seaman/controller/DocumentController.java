@@ -9,9 +9,11 @@ import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
 import com.seaman.model.response.DocumentRequestItemResponse;
+import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import java.util.List;
 import com.seaman.service.DocumentService;
+import com.seaman.service.DocumentRequestItemFileService;
 import com.seaman.service.MessageCodeService;
 import com.seaman.utils.ObjectValidatorUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import net.sf.jmimemagic.*;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.util.Base64;
@@ -35,6 +38,7 @@ public class DocumentController extends BaseController {
 
     private final MessageCodeService messageCodeService;
     private final DocumentService documentService;
+    private final DocumentRequestItemFileService documentRequestItemFileService;
 
     @Operation(summary = "รายการ COT", description = "ดึงรายการ Certificate of Training แบบแบ่งหน้า")
     @GetMapping(Routes.DOCUMENTS_LIST_COT)
@@ -189,6 +193,23 @@ public class DocumentController extends BaseController {
                 description,
                 documentService.validateDocumentItems(documentCode)
         ).build());
+    }
+
+    @Operation(summary = "Upload supporting document file",
+            description = "รองรับ ID_CARD FRONT/BACK, PASSPORT MAIN และ GENERAL MAIN")
+    @PostMapping(value = Routes.DOCUMENT_REQUEST_ITEM_FILES,
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<SuccessResponse<DocumentRequestItemUploadResponse>> uploadRequestItemFile(
+            HttpServletRequest httpServletRequest,
+            @PathVariable String itemCode,
+            @RequestParam(defaultValue = "GENERAL") String documentType,
+            @RequestParam String slotCode,
+            @RequestPart("file") MultipartFile file) {
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+        return ok(SuccessResponse.<DocumentRequestItemUploadResponse>builder(
+                AppStatus.SUCCESS_CODE, description,
+                documentRequestItemFileService.upload(itemCode, documentType, slotCode, file)).build());
     }
 
     @Operation(summary = "ดูไฟล์ใบรับรอง", description = "ดาวน์โหลดไฟล์ใบรับรอง (รองรับ PNG, JPEG, PDF)")

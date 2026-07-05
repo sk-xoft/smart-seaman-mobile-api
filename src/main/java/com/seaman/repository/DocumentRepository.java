@@ -193,7 +193,7 @@ public class DocumentRepository extends CommonRepository {
         StringBuilder sql = new StringBuilder();
         sql.append(" SELECT");
         sql.append("   dri.id, dri.id AS profile_request_item_id, dri.mobile_user_uuid,");
-        sql.append("   dsr.document_master_request_item_code, dmri.document_master_items_name AS document_name,");
+        sql.append("   dsr.document_master_request_item_code, dri.document_type, dmri.document_master_items_name AS document_name,");
         sql.append("   CASE");
         sql.append("     WHEN dri.id IS NULL THEN 'MISSING'");
         sql.append("     WHEN dri.file_uploaded = 0 THEN 'NOT_UPLOADED'");
@@ -210,11 +210,26 @@ public class DocumentRepository extends CommonRepository {
         sql.append(" LEFT JOIN m_document_profile_request_item dri");
         sql.append("   ON dri.document_master_request_item_code = dsr.document_master_request_item_code");
         sql.append("  AND dri.mobile_user_uuid = :mobileUserUuid");
+        sql.append("  AND dri.id = (SELECT MIN(px.id) FROM m_document_profile_request_item px");
+        sql.append("    WHERE px.mobile_user_uuid = :mobileUserUuid");
+        sql.append("    AND px.document_master_request_item_code = dsr.document_master_request_item_code)");
         sql.append(" WHERE dsr.document_code = :documentCode");
         sql.append("   AND dsr.is_required = 1");
         sql.append("   AND dsr.is_active = 'YES'");
         sql.append("   AND dmri.is_active = 'YES'");
-        sql.append("   AND (dri.id IS NULL OR dri.file_uploaded = 0 OR dri.check_result = 'fix')");
+        sql.append("   AND ((dsr.document_master_request_item_code = 'MRI001' AND NOT (");
+        sql.append("       (SELECT COUNT(DISTINCT p.slot_code) FROM m_document_profile_request_item p");
+        sql.append("        WHERE p.mobile_user_uuid = :mobileUserUuid AND p.document_master_request_item_code = 'MRI001'");
+        sql.append("        AND p.document_type = 'ID_CARD' AND p.slot_code IN ('FRONT','BACK')");
+        sql.append("        AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix')) = 2");
+        sql.append("       OR EXISTS (SELECT 1 FROM m_document_profile_request_item p WHERE p.mobile_user_uuid = :mobileUserUuid");
+        sql.append("        AND p.document_master_request_item_code = 'MRI001' AND p.document_type = 'PASSPORT'");
+        sql.append("        AND p.slot_code = 'MAIN' AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix'))))");
+        sql.append("     OR (dsr.document_master_request_item_code <> 'MRI001' AND NOT EXISTS (");
+        sql.append("       SELECT 1 FROM m_document_profile_request_item p WHERE p.mobile_user_uuid = :mobileUserUuid");
+        sql.append("       AND p.document_master_request_item_code = dsr.document_master_request_item_code");
+        sql.append("       AND p.document_type = 'GENERAL' AND p.slot_code = 'MAIN' AND p.file_uploaded = 1");
+        sql.append("       AND (p.check_result IS NULL OR p.check_result <> 'fix'))))");
         sql.append(" ORDER BY dsr.sort_order, dmri.sort_order");
 
         try {

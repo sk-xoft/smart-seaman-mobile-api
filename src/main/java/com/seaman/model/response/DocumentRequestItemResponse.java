@@ -13,6 +13,7 @@ public class DocumentRequestItemResponse {
     private String profileRequestItemId;
     private String documentCode;
     private String documentMasterRequestItemCode;
+    private String documentType;
     private String documentName;
     private String documentStatus;
     private Integer sortOrder;
@@ -21,4 +22,5 @@ public class DocumentRequestItemResponse {
     private String fileUploadedAt;
     private String checkResult;
     private String checkNote;
+    private java.util.List<DocumentRequestItemFileResponse> files;
 }

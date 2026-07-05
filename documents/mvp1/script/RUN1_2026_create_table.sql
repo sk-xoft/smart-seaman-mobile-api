@@ -226,9 +226,14 @@ CREATE TABLE m_document_profile_request_item (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     mobile_user_uuid    VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     document_master_request_item_code VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    document_type       VARCHAR(20)     NULL,
+    slot_code           VARCHAR(20)     NULL,
     sort_order          TINYINT         NOT NULL DEFAULT 1, -- ลำดับที่ในตาราง (1, 2, 3, 4)
     file_uploaded       TINYINT(1)      NOT NULL DEFAULT 0,
     file_path           VARCHAR(500)    NULL,             -- path หรือ URL ของไฟล์ที่อัปโหลด
+    original_file_name  VARCHAR(255)    NULL,
+    mime_type           VARCHAR(100)    NULL,
+    file_size           BIGINT          NULL,
     file_uploaded_at    DATETIME        NULL,
     check_result        VARCHAR(10)     NULL,             -- 'pass' | 'fix' | NULL (ยังไม่ตรวจ)
     check_note          TEXT            NULL,             -- หมายเหตุเมื่อผล = 'fix' (required)
@@ -242,7 +247,8 @@ CREATE TABLE m_document_profile_request_item (
     KEY idx_profile_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
     KEY idx_profile_reqitem_master_code (document_master_request_item_code),
     KEY idx_profile_reqitem_check_result (check_result),
-    UNIQUE KEY uq_profile_reqitem_mobile_master (mobile_user_uuid, document_master_request_item_code),
+    UNIQUE KEY uq_profile_reqitem_mobile_master_slot
+        (mobile_user_uuid, document_master_request_item_code, document_type, slot_code),
     CONSTRAINT chk_profile_reqitem_file_uploaded
         CHECK (file_uploaded IN (0, 1)),
     CONSTRAINT chk_profile_reqitem_is_updated
@@ -255,9 +261,7 @@ CREATE TABLE m_document_profile_request_item (
         FOREIGN KEY (mobile_user_uuid) REFERENCES m_mobile_users (MOBILE_UUID),
     CONSTRAINT fk_profile_reqitem_master_code
         FOREIGN KEY (document_master_request_item_code) REFERENCES m_document_master_request_item (document_master_items_code)
-) ENGINE=InnoDB
-  DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE m_document_setting_requires (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),

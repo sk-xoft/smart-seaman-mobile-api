@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-<!--    <property name="LOGS" value="/apps/smart-seaman-mobile-api/logs" />-->
-<!--    <property name="LOGS" value="/Users/sarunyook/apps-logs-service/smart-seaman-mobile-api/logs"/>-->
-     <property name="LOGS" value="/Users/sarunyook/workspaces/xoftspace/apps-logs-service/smart-seaman-mobile-api/logs"/>
+     <property name="LOGS" value="/Users/sk/works/products/smartseaman.com/app-logs"/>
 <!--    <property name="LOGS" value="/apps-logs-service/smart-seaman-mobile-api/logs"/>-->
     <property name="APPS" value="smart-seaman-mobile-api" />
 
@@ -35,7 +33,6 @@
             </timeBasedFileNamingAndTriggeringPolicy>
         </rollingPolicy>
     </appender>
-
 
     <appender name="SevereRollingFile"
               class="ch.qos.logback.core.rolling.RollingFileAppender">

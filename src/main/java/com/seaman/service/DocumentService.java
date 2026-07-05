@@ -17,6 +17,7 @@ import com.seaman.model.response.DocumentUpdateResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import com.seaman.repository.CertificateRepository;
 import com.seaman.repository.DocumentRepository;
+import com.seaman.repository.DocumentRequestItemFileRepository;
 import com.seaman.utils.DateUtil;
 import com.seaman.utils.FrameworkUtils;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,8 @@ public class DocumentService {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final HttpServletRequest httpServletRequest;
     private final DocumentRepository documentRepository;
+    private final DocumentRequestItemFileRepository documentRequestItemFileRepository;
+    private final DocumentRequestItemFileService documentRequestItemFileService;
     private final CertificateRepository certificateRepository;
     private final DateUtil dateUtil;
     private final AmazonS3 getS3;
@@ -496,6 +499,7 @@ public class DocumentService {
                     dto.setProfileRequestItemId(item.getProfileRequestItemId());
                     dto.setDocumentCode(item.getDocumentCode());
                     dto.setDocumentMasterRequestItemCode(item.getDocumentMasterRequestItemCode());
+                    dto.setDocumentType(item.getDocumentType());
                     dto.setDocumentName(item.getDocumentName());
                     dto.setDocumentStatus(item.getDocumentStatus());
                     dto.setSortOrder(item.getSortOrder());
@@ -503,6 +507,11 @@ public class DocumentService {
                     dto.setFilePath(item.getFilePath());
                     dto.setCheckResult(item.getCheckResult());
                     dto.setCheckNote(item.getCheckNote());
+                    if (item.getProfileRequestItemId() != null) {
+                        dto.setFiles(documentRequestItemFileService.mapFiles(
+                                documentRequestItemFileRepository.findFiles(item.getMobileUserUuid(),
+                                        item.getDocumentMasterRequestItemCode())));
+                    }
 
                     if (item.getFileUploadedAt() != null) {
                         dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.DATE_TIME));

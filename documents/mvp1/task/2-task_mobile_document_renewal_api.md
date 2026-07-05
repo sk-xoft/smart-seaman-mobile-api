@@ -539,7 +539,7 @@ Implementation evidence:
 
 ### MR-MOB-15: Identity Document Multi-File Upload
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API:
 
@@ -564,35 +564,12 @@ Request multipart fields:
 Schema changes:
 
 - คง `MRI001` เป็นหนึ่ง row ใน `m_document_master_request_item`; ห้ามแตกเป็นสาม master items เพราะเป็น requirement ทางธุรกิจรายการเดียว
-- เพิ่ม `m_document_master_request_item_slot` สำหรับกำหนด slot ที่รองรับ โดยมีอย่างน้อย:
-  - `id`
-  - `document_master_request_item_code`
-  - `document_type`
-  - `slot_code`
-  - `slot_name_th`
-  - `slot_name_en`
-  - `sort_order`
-  - `is_required`
-  - `is_active`
-- กำหนด unique key `(document_master_request_item_code, document_type, slot_code)`
-- seed `MRI001/ID_CARD/FRONT`, `MRI001/ID_CARD/BACK` และ `MRI001/PASSPORT/MAIN`
-- แยกไฟล์เป็น child table `m_document_profile_request_item_file` เพื่อให้หนึ่ง
-  `m_document_profile_request_item` มีหลายไฟล์ โดยมีอย่างน้อย:
-  - `id`
-  - `profile_request_item_id`
-  - `document_type`
-  - `slot_code`
-  - `storage_key`
-  - `original_file_name`
-  - `mime_type`
-  - `file_size`
-  - `file_uploaded_at`
-  - `check_result`
-  - `check_note`
-  - `is_updated`
-  - audit timestamps/users
-- กำหนด unique key `(profile_request_item_id, document_type, slot_code)` และ foreign key ไป profile item/master slot ที่เกี่ยวข้อง
-- document items ทั่วไปใช้ `document_type = 'GENERAL'` และ `slot_code = 'MAIN'` เพื่อให้ใช้ upload model เดียวกัน
+- ไม่เพิ่ม slot/file table ใหม่; reuse `m_document_master_request_item` และ `m_document_profile_request_item`
+- slot rules (`ID_CARD/FRONT+BACK`, `PASSPORT/MAIN`, `GENERAL/MAIN`) กำหนดด้วย application constants
+- ปรับ `m_document_profile_request_item` ให้หนึ่ง row ต่อ upload slot โดยเพิ่ม `document_type`,
+  `slot_code`, `original_file_name`, `mime_type` และ `file_size`
+- เปลี่ยน unique key เป็น `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
+- document items ทั่วไปใช้ `document_type = 'GENERAL'` และ `slot_code = 'MAIN'`
 
 Upload behavior:
 
@@ -635,6 +612,61 @@ Acceptance criteria:
 - มี controller/service/repository tests สำหรับ happy paths, missing slot, invalid combination,
   ownership, replace, type switch, MIME/size validation, storage failure และ DB rollback
 - อัปเดต OpenAPI multipart request/response examples และ validation errors
+
+Implementation evidence:
+
+- reuse ตารางเดิมและปรับ multi-slot columns/unique key ใน RUN1 พร้อม migration
+  `RUN10_identity_document_multi_file.sql`
+- upload ใช้ authenticated user จาก JWT, UUID storage key และไม่ expose object-storage path
+- ตรวจ signature ของ JPEG/PNG/PDF และจำกัดขนาด 10 MB ต่อไฟล์
+- ใช้ transaction synchronization: rollback ลบ object ใหม่ และ commit แล้วจึงลบ object ที่ถูก replace
+- validation API คำนวณความครบจาก required slots และคืน `documentType`/`files[]`
+- focused controller/service/repository tests ผ่าน 6/6 cases
+
+ตัวอย่าง cURL อัปโหลดบัตรประชาชนด้านหน้า:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/documents/request-items/MRI001/files" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH" \
+  --form "documentType=ID_CARD" \
+  --form "slotCode=FRONT" \
+  --form "file=@${file_path};type=image/jpeg"
+```
+
+อัปโหลดด้านหลังโดยเปลี่ยน `slotCode=BACK`:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/documents/request-items/MRI001/files" \
+  --header "Authorization: Bearer ${access_token}" \
+  --form "documentType=ID_CARD" \
+  --form "slotCode=BACK" \
+  --form "file=@${file_path};type=image/jpeg"
+```
+
+ตัวอย่าง cURL อัปโหลด Passport:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/documents/request-items/MRI001/files" \
+  --header "Authorization: Bearer ${access_token}" \
+  --form "documentType=PASSPORT" \
+  --form "slotCode=MAIN" \
+  --form "file=@${file_path};type=application/pdf"
+```
+
+ตัวอย่างตรวจ required document slots หลัง upload:
+
+```bash
+curl --request GET \
+  --get \
+  --url "${base_url}/v1/documents/request-items/validate" \
+  --data-urlencode "documentCode=DOC001" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
 
 ### MR-MOB-16: Get Default Delivery Address
 
@@ -741,3 +773,4 @@ Implementation evidence:
 - `documents/mvp1/script/RUN5_document_renewal_foundation.sql`
 - `documents/mvp1/script/RUN7_create_renewal_request_draft.sql`
 - `documents/mvp1/script/RUN9_harden_delivery_address_default.sql`
+- `documents/mvp1/script/RUN10_identity_document_multi_file.sql`
