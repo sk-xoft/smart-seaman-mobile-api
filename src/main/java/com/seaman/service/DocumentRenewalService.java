@@ -42,6 +42,8 @@ public class DocumentRenewalService {
         response.setShippingFee(money(price.getShippingFee()));
         response.setShippingDiscount(money(price.getShippingDiscount()));
         response.setServiceFeeDiscount(money(price.getServiceFeeDiscount()));
+        response.setEffectiveFrom(price.getEffectiveFrom());
+        response.setEffectiveTo(price.getEffectiveTo());
         BigDecimal total = response.getGovernmentFee().add(response.getDocumentProcessingFee())
                 .add(response.getShippingFee()).subtract(response.getShippingDiscount())
                 .subtract(response.getServiceFeeDiscount());

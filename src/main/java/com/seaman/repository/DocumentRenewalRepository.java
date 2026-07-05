@@ -25,10 +25,13 @@ public class DocumentRenewalRepository extends CommonRepository {
     public List<DocumentRenewalPriceEntity> findActivePrices(String documentCode) {
         String sql = "SELECT p.document_code, p.government_fee, p.document_processing_fee, "
                 + "p.shipping_fee, p.shipping_discount, p.service_fee_discount "
+                + ", p.effective_from, p.effective_to "
                 + "FROM m_document_prices_setting p JOIN m_documents d "
                 + "ON d.DOCUMENT_CODE = p.document_code "
                 + "WHERE p.document_code = :documentCode AND p.is_active = 'YES' "
-                + "AND d.DOCUMENT_STATUS = 'A'";
+                + "AND p.effective_from <= CURRENT_DATE "
+                + "AND (p.effective_to IS NULL OR p.effective_to >= CURRENT_DATE) "
+                + "AND d.DOCUMENT_STATUS = 'A' ORDER BY p.effective_from DESC";
         return template.query(sql, new MapSqlParameterSource("documentCode", documentCode),
                 new BeanPropertyRowMapper<>(DocumentRenewalPriceEntity.class));
     }

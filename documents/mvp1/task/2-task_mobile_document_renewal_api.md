@@ -16,7 +16,7 @@
 | ลำดับ | Status | Method | API | หมายเหตุ |
 |---:|:---:|---|---|---|
 | 1 | [x] | GET | `/v1/document-renewals/statuses` | implement controller/service/repository/model และ mobile progress mapping แล้ว; focused tests ผ่าน |
-| 2 | [~] | GET | `/v1/document-renewals/prices?documentCode={code}` | implement API, validation, BigDecimal และ duplicate guard แล้ว แต่ schema ยังไม่มี effective date และยังไม่มี seed ราคาจริง |
+| 2 | [x] | GET | `/v1/document-renewals/prices?documentCode={code}` | implement API, validation, BigDecimal, effective-date filtering และ overlapping-config guard แล้ว |
 | 3 | [ ] | POST | `/v1/document-renewals` | ยังไม่มี controller/service/repository/model สำหรับสร้าง renewal request |
 | 4 | [ ] | GET | `/v1/document-renewals/my?offSet={n}` | ยังไม่มี API รายการคำขอของ user |
 | 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
@@ -26,7 +26,7 @@
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 1/10, ทำบางส่วน 1/10, ยังไม่ได้ทำ 8/10**
+สรุป Mobile APIs: **ทำแล้ว 2/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 8/10**
 
 ## Prerequisites And Supporting Work
 
@@ -41,20 +41,55 @@
 | [~] | Create/update delivery address APIs | มี route/controller/service/repository/request/response model และ service tests แล้ว แต่ controller/repository tests และ OpenAPI examples ยังไม่ครบ acceptance criteria |
 | [x] | Thailand address master APIs | implement route/controller/service/repository/response model แล้ว; focused tests ผ่าน 5/5 และ pin Lombok ให้รองรับ JDK 21 แล้ว |
 | [ ] | Payment provider decision | ต้องยืนยัน channel, charge flow และ webhook ก่อนปิด payment tasks |
-| [~] | Automated tests สำหรับ renewal flow | มี `DocumentRenewalServiceTest` ครอบคลุม status/price 6 cases; flow อื่นยังไม่มี test |
+| [~] | Automated tests สำหรับ renewal flow | มี focused tests สำหรับ status/price/foundation 11 cases; flow อื่นยังไม่มี test |
 
 ## Task Breakdown
 
 ### MR-MOB-01: Shared Renewal Foundation
 
-Status: [~] ทำบางส่วน
+Status: [x] ทำแล้ว
 
 - [x] เพิ่ม route constants กลุ่ม `/document-renewals` สำหรับ status และ price
-- [~] เพิ่ม entity/DTO/repository แล้วเฉพาะ `m_document_status`, `m_document_prices_setting` และ delivery address; renewal flow entities อื่นยังไม่มี
-- [ ] สร้าง service กลางสำหรับตรวจ ownership ด้วย `mobile_user_uuid`
-- [~] status progress mapping ไม่ผูกกับชื่อภาษาไทย แต่ยังไม่มี enum/constant สำหรับ state transition/action
-- [ ] กำหนด transaction boundary เพื่อให้การเปลี่ยน status กับ append timeline สำเร็จหรือ rollback พร้อมกัน
-- [~] เพิ่ม unit test foundation สำหรับ status และ price แล้ว
+- [x] เพิ่ม entity/DTO สำหรับ renewal request, status, price, request item, transaction, payment, department submission, delivery และ delivery address
+- [x] เพิ่ม service/repository กลางสำหรับตรวจ ownership ด้วย `mobile_user_uuid` จาก authenticated request context
+- [x] กำหนด enum ของ status/action โดยใช้ stable internal code และ English master name ไม่ผูก business logic กับชื่อภาษาไทย
+- [x] lock owned request และกำหนด `@Transactional` boundary ครอบ status update กับ append timeline
+- [x] ป้องกัน stale/concurrent transition ด้วย expected current status ใน update condition
+- [x] เพิ่ม focused tests สำหรับ ownership, invalid request ID, invalid state และ status/timeline write
+
+API coverage:
+
+- MR-MOB-01 เป็น internal/shared foundation จึงไม่มี public API เฉพาะของตัวเอง
+- foundation ถูกใช้งานโดย `GET /v1/document-renewals/statuses` (MR-MOB-02) และ
+  `GET /v1/document-renewals/prices` (MR-MOB-03)
+- ownership guard และ atomic status transition จะถูกเรียกจาก request detail, timeline,
+  resubmit และ payment APIs เมื่อ MR-MOB-04 ถึง MR-MOB-11 implement
+- ยังไม่มี endpoint สำหรับเรียก status transition โดยตรง และไม่ควร expose generic transition API ให้ mobile
+
+ตัวอย่าง cURL สำหรับตรวจ foundation ผ่าน APIs ที่เปิดใช้งานแล้ว:
+
+```bash
+# Active renewal status master
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/statuses" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+
+# Active/effective renewal price
+curl --request GET \
+  --get \
+  --url "${base_url}/v1/document-renewals/prices" \
+  --data-urlencode "documentCode=DOC001" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+หมายเหตุ:
+
+- `${base_url}` ไม่รวม `/v1` เช่น `https://api.example.com`
+- `${access_token}` เป็น JWT ของ mobile user ที่ login แล้ว
+- price API จะคืน `MA00016` เมื่อไม่มี active/effective price ของ `documentCode`
+- ownership/transition foundation ยังไม่มี cURL จนกว่า endpoint ที่ใช้ request ownership จะ implement
 
 Acceptance criteria:
 
@@ -81,7 +116,7 @@ Implementation: map step ใน application จาก stable English status name
 
 ### MR-MOB-03: Get Renewal Price
 
-Status: [~] ทำบางส่วน
+Status: [x] ทำแล้ว
 
 API: `GET /v1/document-renewals/prices?documentCode={code}`
 
@@ -102,8 +137,12 @@ Implementation status:
 - [x] query เฉพาะ active price ของ active document
 - [x] ใช้ `BigDecimal` และคืน fee breakdown/total
 - [x] มี test กรณีพบราคา, ไม่พบราคา และ config ซ้ำ
-- [ ] effective-date filtering: schema `m_document_prices_setting` ยังไม่มี effective date columns
-- [ ] production price seed/master data
+- [x] เพิ่ม `effective_from`/`effective_to`, effective-period constraint และ lookup index ใน RUN1
+- [x] เพิ่ม migration `RUN5_document_renewal_foundation.sql` สำหรับฐานข้อมูลเดิม
+- [x] filter ช่วงวันที่แบบ inclusive และรองรับ `effective_to = NULL`
+- [x] fail เมื่อพบ active/effective config ซ้อนกันมากกว่าหนึ่งรายการ
+
+Operational prerequisite: ต้องกำหนด production price master data จริงก่อนเปิด renewal; ไม่ hard-code ราคาใน application หรือ seed ตัวอย่างเป็นราคาจริง
 
 ### MR-MOB-04: Create Renewal Request
 
@@ -380,18 +419,118 @@ Acceptance criteria:
 - มี controller/service/repository tests สำหรับ create/update happy path, invalid address hierarchy, invalid postal code, first address, replace default, not found, forbidden ownership, inactive address และ unauthenticated request
 - OpenAPI ระบุ request/response example และ validation error
 
+### MR-MOB-15: Identity Document Multi-File Upload
+
+Status: [ ] ยังไม่ได้ทำ
+
+API:
+
+| Method | API | Content-Type | Purpose |
+|---|---|---|---|
+| POST | `/v1/documents/request-items/{itemCode}/files` | `multipart/form-data` | upload หรือ replace ไฟล์ในแต่ละ slot ของ profile supporting document |
+
+รองรับ `m_document_master_request_item` รหัส `MRI001` ซึ่งเป็น master item เดียวสำหรับ
+`สำเนาบัตรประชาชน / Passport` แต่มีจำนวนไฟล์ที่ต้อง upload ต่างกัน:
+
+| `documentType` | Required `slotCode` | จำนวนไฟล์ |
+|---|---|---:|
+| `ID_CARD` | `FRONT`, `BACK` | 2 |
+| `PASSPORT` | `MAIN` | 1 |
+
+Request multipart fields:
+
+- `documentType`: required สำหรับ `MRI001`; รับเฉพาะ `ID_CARD` หรือ `PASSPORT`
+- `slotCode`: `FRONT`/`BACK` สำหรับ `ID_CARD` และ `MAIN` สำหรับ `PASSPORT`
+- `file`: binary file; รองรับ JPEG, PNG และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+
+Schema changes:
+
+- คง `MRI001` เป็นหนึ่ง row ใน `m_document_master_request_item`; ห้ามแตกเป็นสาม master items เพราะเป็น requirement ทางธุรกิจรายการเดียว
+- เพิ่ม `m_document_master_request_item_slot` สำหรับกำหนด slot ที่รองรับ โดยมีอย่างน้อย:
+  - `id`
+  - `document_master_request_item_code`
+  - `document_type`
+  - `slot_code`
+  - `slot_name_th`
+  - `slot_name_en`
+  - `sort_order`
+  - `is_required`
+  - `is_active`
+- กำหนด unique key `(document_master_request_item_code, document_type, slot_code)`
+- seed `MRI001/ID_CARD/FRONT`, `MRI001/ID_CARD/BACK` และ `MRI001/PASSPORT/MAIN`
+- แยกไฟล์เป็น child table `m_document_profile_request_item_file` เพื่อให้หนึ่ง
+  `m_document_profile_request_item` มีหลายไฟล์ โดยมีอย่างน้อย:
+  - `id`
+  - `profile_request_item_id`
+  - `document_type`
+  - `slot_code`
+  - `storage_key`
+  - `original_file_name`
+  - `mime_type`
+  - `file_size`
+  - `file_uploaded_at`
+  - `check_result`
+  - `check_note`
+  - `is_updated`
+  - audit timestamps/users
+- กำหนด unique key `(profile_request_item_id, document_type, slot_code)` และ foreign key ไป profile item/master slot ที่เกี่ยวข้อง
+- document items ทั่วไปใช้ `document_type = 'GENERAL'` และ `slot_code = 'MAIN'` เพื่อให้ใช้ upload model เดียวกัน
+
+Upload behavior:
+
+- อ่าน `mobile_user_uuid` จาก JWT/request context เท่านั้น และหา/create profile item ด้วย user + `itemCode`
+- validate ว่า `itemCode`, `documentType` และ `slotCode` เป็น active combination ใน master slot
+- ตรวจ MIME จาก file signature; ห้ามเชื่อเฉพาะ `Content-Type` หรือ extension จาก client
+- generate storage key ด้วย UUID ฝั่ง server; ห้ามนำ original filename มาใช้เป็น key โดยตรง
+- upload object ใหม่ให้สำเร็จก่อน update metadata ใน DB
+- replace slot เดิมด้วย transaction; หลัง commit จึงลบ object เก่า
+- ถ้า object upload ล้มเหลว ห้ามแก้ DB; ถ้า DB update ล้มเหลวหลัง upload ต้องลบ orphan object ใหม่
+- เมื่อ upload ชนิดใหม่ต่างจากชนิด active เดิม (`ID_CARD` ↔ `PASSPORT`) ให้ลบ metadata/files ของชนิดเดิมและเริ่ม validation ใหม่
+- ห้ามคืน permanent public object-storage path; file view/download ต้องผ่าน authenticated API หรือ short-lived signed URL
+
+Validation API changes:
+
+- ปรับ `GET /v1/documents/request-items/validate?documentCode={code}` ให้คำนวณความครบจาก required slots
+- `ID_CARD` ถือว่าครบเมื่อมีทั้ง `FRONT` และ `BACK`; `PASSPORT` ถือว่าครบเมื่อมี `MAIN`
+- slot ที่ไม่มีไฟล์หรือมี `checkResult = fix` ถือว่ายังไม่ครบ
+- response ของ item เพิ่ม `documentType` และ `files[]`; แต่ละ file คืน `fileId`, `slotCode`,
+  `fileUploaded`, `fileUploadedAt`, `checkResult`, `checkNote`, `isUpdated`
+- `fileUploaded` ระดับ item เป็น aggregate flag และเป็น `true` เมื่อ required slots ครบเท่านั้น
+
+Migration and compatibility:
+
+- migrate profile items อื่นที่มีไฟล์เดิมเป็น `GENERAL/MAIN` โดยคง storage key และ upload timestamp เดิม
+- ไฟล์เดิมของ `MRI001` ไม่มีข้อมูลระบุว่าเป็นด้านใด จึงเก็บ legacy metadata ไว้เพื่อ audit แต่ไม่นับว่าครบ
+- หลัง deploy ผู้ใช้ที่มี `MRI001` เดิมต้องเลือก `ID_CARD` หรือ `PASSPORT` และ upload ตาม required slots ใหม่
+- deployment ต้องทำ schema/seed ก่อน application rollout; application version ใหม่ต้องไม่อ่าน legacy single-file columns เพื่อสรุปความครบของ `MRI001`
+
+Acceptance criteria:
+
+- upload `ID_CARD/FRONT` เพียงไฟล์เดียวยังคงคืน `BACK` เป็น missing
+- upload `ID_CARD/FRONT` และ `ID_CARD/BACK` ครบแล้ว item ผ่าน file-completeness validation
+- upload `PASSPORT/MAIN` แล้ว item ผ่าน file-completeness validation
+- reject combination เช่น `ID_CARD/MAIN`, `PASSPORT/FRONT` และ document type ที่ไม่รองรับ
+- reject empty file, MIME/signature ไม่ตรง allowlist และไฟล์เกิน 10 MB
+- user ไม่สามารถอ่าน, replace หรือลบไฟล์ของ user อื่น
+- replace ไฟล์ไม่ทำให้ DB ชี้ object ที่ upload ไม่สำเร็จ และไม่ทิ้ง orphan object เมื่อ DB ล้มเหลว
+- การเปลี่ยน `ID_CARD`/`PASSPORT` ไม่นำไฟล์ชนิดเดิมมาคำนวณความครบ
+- มี controller/service/repository tests สำหรับ happy paths, missing slot, invalid combination,
+  ownership, replace, type switch, MIME/size validation, storage failure และ DB rollback
+- อัปเดต OpenAPI multipart request/response examples และ validation errors
+
 ## Recommended Implementation Order
 
 1. ปิด open decisions: request number, unpaid draft, address, upload format, payment channel
 2. MR-MOB-01 shared foundation
 3. MR-MOB-02 status และ MR-MOB-03 price
-4. MR-MOB-04 create request
-5. MR-MOB-08 upload และ MR-MOB-09 resubmit
-6. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
-7. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
-8. MR-MOB-13 Thailand address master APIs ก่อนเริ่ม delivery-address UI/API
-9. MR-MOB-14 create/update delivery address APIs
-10. MR-MOB-12 contract/integration/concurrency tests
+4. MR-MOB-15 identity document multi-file upload และปรับ profile document validation
+5. MR-MOB-04 create request
+6. MR-MOB-08 renewal item upload และ MR-MOB-09 resubmit โดย reuse file validation/storage component จาก MR-MOB-15
+7. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
+8. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
+9. MR-MOB-13 Thailand address master APIs ก่อนเริ่ม delivery-address UI/API
+10. MR-MOB-14 create/update delivery address APIs
+11. MR-MOB-12 contract/integration/concurrency tests
 
 ## Evidence Checked
 
@@ -405,3 +544,4 @@ Acceptance criteria:
 - `documents/mvp1/script/RUN2_2026_insert_master.sql`
 - `documents/mvp1/script/RUN3_create_index.sql`
 - `documents/mvp1/script/RUN4_external_data`
+- `documents/mvp1/script/RUN5_document_renewal_foundation.sql`

@@ -149,11 +149,14 @@ CREATE TABLE m_document_prices_setting (
     shipping_fee            DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
     shipping_discount       DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
     service_fee_discount    DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,
+    effective_from          DATE             NOT NULL,
+    effective_to            DATE             NULL,
     is_active               VARCHAR(3)      NOT NULL DEFAULT 'YES',
     created_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_docprice_document_code (document_code),
+    UNIQUE KEY uq_docprice_document_effective (document_code, effective_from),
+    KEY idx_docprice_active_effective (document_code, is_active, effective_from, effective_to),
     CONSTRAINT chk_docprice_fee
         CHECK (
             government_fee >= 0
@@ -164,6 +167,8 @@ CREATE TABLE m_document_prices_setting (
         ),
     CONSTRAINT chk_docprice_active
         CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT chk_docprice_effective_period
+        CHECK (effective_to IS NULL OR effective_to >= effective_from),
     CONSTRAINT fk_docprice_document
         FOREIGN KEY (document_code) REFERENCES m_documents (DOCUMENT_CODE)
 ) ENGINE=InnoDB

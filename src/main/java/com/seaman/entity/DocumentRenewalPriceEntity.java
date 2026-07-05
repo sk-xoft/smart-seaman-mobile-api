@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -14,4 +15,6 @@ public class DocumentRenewalPriceEntity {
     private BigDecimal shippingFee;
     private BigDecimal shippingDiscount;
     private BigDecimal serviceFeeDiscount;
+    private LocalDate effectiveFrom;
+    private LocalDate effectiveTo;
 }
