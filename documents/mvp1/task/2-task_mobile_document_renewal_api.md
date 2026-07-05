@@ -11,6 +11,12 @@
 - [ ] ยังไม่ได้ทำ
 - [?] มี script/design แล้ว แต่ยังยืนยัน runtime/deployment ไม่ได้
 
+## Documentation Rule
+
+- เมื่อ API task ใด implement เสร็จและเปลี่ยน Status เป็น `[x]` ต้องเพิ่มตัวอย่าง cURL ที่เรียกใช้งานได้ไว้ใน section ของ task นั้นทุกครั้ง
+- cURL ต้องใช้ `${base_url}` โดยไม่รวม `/v1`, ใช้ `${access_token}` สำหรับ JWT และแสดง required headers, query parameters หรือ request body ให้ครบ
+- task ที่เป็น internal foundation และไม่มี public endpoint ต้องระบุว่าไม่มี cURL โดยตรง พร้อมอ้างอิง API ที่ใช้ foundation นั้น
+
 ## Current Status
 
 | ลำดับ | Status | Method | API | หมายเหตุ |
@@ -113,6 +119,20 @@ Acceptance criteria:
 - `รอผู้ยื่นแก้ไข` map เป็น step 1 และ `ยกเลิก` ไม่เป็น normal progress step
 
 Implementation: map step ใน application จาก stable English status name; correction เป็น step 1 และ cancelled มี `progressStep = null`
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/statuses" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+ตัวแปร:
+
+- `${base_url}` ไม่รวม `/v1` เช่น `https://api.example.com`
+- `${access_token}` เป็น JWT ของ mobile user ที่ login แล้ว
 
 ### MR-MOB-03: Get Renewal Price
 
