@@ -30,11 +30,22 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public DocumentRenewalRequestEntity lockOwnedRequestByNo(
             String requestNo, String mobileUserUuid) {
+        return findOwnedRequestByNo(requestNo, mobileUserUuid, true);
+    }
+
+    public DocumentRenewalRequestEntity findOwnedRequestByNo(
+            String requestNo, String mobileUserUuid) {
+        return findOwnedRequestByNo(requestNo, mobileUserUuid, false);
+    }
+
+    private DocumentRenewalRequestEntity findOwnedRequestByNo(
+            String requestNo, String mobileUserUuid, boolean lock) {
         List<DocumentRenewalRequestEntity> rows = template.query(
-                "SELECT r.*, s.name_en AS status_name_en FROM m_document_request r "
+                "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                        + "s.css_color AS status_css_color FROM m_document_request r "
                         + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
-                        + "WHERE r.request_no = :requestNo AND r.mobile_user_uuid = :mobileUserUuid "
-                        + "FOR UPDATE",
+                        + "WHERE r.request_no = :requestNo AND r.mobile_user_uuid = :mobileUserUuid"
+                        + (lock ? " FOR UPDATE" : ""),
                 new MapSqlParameterSource().addValue("requestNo", requestNo)
                         .addValue("mobileUserUuid", mobileUserUuid),
                 new BeanPropertyRowMapper<>(DocumentRenewalRequestEntity.class));
@@ -46,7 +57,8 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     private DocumentRenewalRequestEntity findOwned(
             String requestId, String mobileUserUuid, boolean lock) {
-        String sql = "SELECT r.*, s.name_en AS status_name_en FROM m_document_request r "
+        String sql = "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                + "s.css_color AS status_css_color FROM m_document_request r "
                 + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
                 + "WHERE r.id = :requestId AND r.mobile_user_uuid = :mobileUserUuid"
                 + (lock ? " FOR UPDATE" : "");
@@ -75,10 +87,14 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public List<RenewalRequestItemEntity> findOwnedRequestItems(
             String requestId, String mobileUserUuid) {
-        return template.query("SELECT i.* FROM m_document_request_items i "
+        return template.query("SELECT i.*, m.document_master_items_name AS document_name_th, "
+                        + "m.document_master_items_name AS document_name_en, m.sort_order "
+                        + "FROM m_document_request_items i "
                         + "INNER JOIN m_document_request r ON r.id = i.request_id "
+                        + "INNER JOIN m_document_master_request_item m "
+                        + "ON m.document_master_items_code = i.document_master_request_item_code "
                         + "WHERE i.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
-                        + "ORDER BY i.created_at, i.id",
+                        + "ORDER BY m.sort_order, i.id",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(RenewalRequestItemEntity.class));
     }
@@ -150,6 +166,17 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         if (updated < 1) {
             throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
                     "documentRenewalRequestItems");
+        }
+    }
+
+    public void markResubmitted(String requestId) {
+        int updated = template.update(
+                "UPDATE m_document_request SET is_resubmit = 1, updated_at = NOW() "
+                        + "WHERE id = :requestId",
+                new MapSqlParameterSource("requestId", requestId));
+        if (updated != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
+                    "documentRenewalRequest");
         }
     }
 

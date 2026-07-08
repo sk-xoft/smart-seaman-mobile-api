@@ -24,15 +24,15 @@
 | 1 | [x] | GET | `/v1/document-renewals/statuses` | implement controller/service/repository/model และ mobile progress mapping แล้ว; focused tests ผ่าน |
 | 2 | [x] | GET | `/v1/document-renewals/prices?documentCode={code}` | implement API, validation, BigDecimal, effective-date filtering และ overlapping-config guard แล้ว |
 | 3 | [x] | POST | `/v1/document-renewals` | สร้าง unpaid draft, อ้าง price/address records เดิม, snapshot ยอดรวม, running number และ request items ใน transaction เดียวกัน |
-| 4 | [ ] | GET | `/v1/document-renewals/my?offSet={n}` | ยังไม่มี API รายการคำขอของ user |
-| 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
-| 6 | [ ] | GET | `/v1/document-renewals/{requestId}/timeline` | ยังไม่มี API timeline |
+| 4 | [x] | GET | `/v1/document-renewals/my?offSet={n}` | implement owner-scoped pagination, summary/status mapping และ date formatting แล้ว |
+| 5 | [x] | GET | `/v1/document-renewals/{requestNo}` | implement owner-scoped detail, correction state, conditional status detail และ signed file access แล้ว |
+| 6 | [x] | GET | `/v1/document-renewals/{requestNo}/timeline` | implement owner-scoped append-only timeline, deterministic ordering และ safe display detail แล้ว |
 | 7 | [x] | POST | `/v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file` | implement multipart replace, ownership/item/state guard และ reuse secure profile-file storage flow แล้ว |
 | 8 | [x] | POST | `/v1/document-renewals/{requestNo}/resubmit` | implement corrected-item validation, atomic transition/timeline และ after-commit notification แล้ว |
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 5/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 5/10**
+สรุป Mobile APIs: **ทำแล้ว 8/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 2/10**
 
 ## Prerequisites And Supporting Work
 
@@ -237,7 +237,7 @@ curl --request POST \
 
 ### MR-MOB-05: List My Renewal Requests
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API: `GET /v1/document-renewals/my?offSet={n}`
 
@@ -251,11 +251,33 @@ Acceptance criteria:
 - วันที่แสดงเป็น `DD/MM/YYYY HH:mm`
 - ไม่คืน request ของ user อื่น
 
+Implementation status:
+
+- [x] ใช้ `mobile_user_uuid` จาก authenticated user เท่านั้น
+- [x] validate `offSet >= 0`, page size 10 และเรียง `submitted_at DESC, id DESC`
+- [x] query `itemTotal` ด้วย owner filter เดียวกับรายการและคำนวณ `isLast`
+- [x] map request/document/current status/amount/`isResubmit` ตาม response summary
+- [x] map status progress step และเลือกชื่อเอกสารตาม `Accept-Language` โดย fallback อย่างปลอดภัย
+- [x] format `submittedAt` เป็น `DD/MM/YYYY HH:mm` ใน timezone `Asia/Bangkok`
+- [x] MR-MOB-09 ตั้ง `m_document_request.is_resubmit = 1` ภายใน resubmit transaction
+- [x] เพิ่ม focused controller/service/repository tests
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request GET \
+  --get \
+  --url "${base_url}/v1/document-renewals/my" \
+  --data-urlencode "offSet=0" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
 ### MR-MOB-06: Get Renewal Request Detail
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
-API: `GET /v1/document-renewals/{requestId}`
+API: `GET /v1/document-renewals/{requestNo}`
 
 - ตรวจ ownership
 - คืน header, current status, supporting items, current status detail, department submission และ delivery เฉพาะส่วนที่เกี่ยวข้อง
@@ -268,11 +290,33 @@ Acceptance criteria:
 - response แสดง correction state และ rejected item note ชัดเจน
 - delivery data แสดงเมื่อ status เกี่ยวกับการจัดส่ง
 
+Implementation status:
+
+- [x] ใช้ `requestNo` จาก path และตรวจ ownership ด้วย authenticated `mobile_user_uuid`
+- [x] คืน request header, localized document name, current status, amount และ `isResubmit`
+- [x] คืน supporting items เรียงตาม master sort order พร้อม `FIX/PASS/PENDING` state
+- [x] แสดง `checkNote` เฉพาะ item สถานะ `FIX` และรองรับ multi-file identity document
+- [x] ไม่คืน object-storage key; สร้าง signed file URL อายุ 10 นาทีหลังผ่าน ownership check
+- [x] คืน department submission เฉพาะ status ตั้งแต่รอผล/รับเอกสารจากกรมจนถึงจัดส่ง
+- [x] คืน delivery เฉพาะ status `Delivering` หรือ `Delivered`
+- [x] ไม่ query/ไม่คืน future status detail สำหรับสถานะก่อนหน้า
+- [x] format date/time เป็น `DD/MM/YYYY HH:mm` และ date เป็น `DD/MM/YYYY`
+- [x] เพิ่ม focused controller/service/repository tests
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/${request_no}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
 ### MR-MOB-07: Get Renewal Timeline
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
-API: `GET /v1/document-renewals/{requestId}/timeline`
+API: `GET /v1/document-renewals/{requestNo}/timeline`
 
 - ตรวจ ownership
 - อ่าน append-only rows จาก `m_document_transaction`
@@ -283,6 +327,26 @@ Acceptance criteria:
 - เรียงตามเวลาที่เกิดเหตุการณ์อย่างแน่นอน
 - วันที่แสดงเป็น `DD/MM/YYYY HH:mm`
 - ไม่ expose internal/admin-only note ที่ไม่ควรแสดงบน mobile
+
+Implementation status:
+
+- [x] ใช้ `requestNo` จาก path และ `mobile_user_uuid` จาก authenticated user
+- [x] validate ownership ก่อนอ่าน `m_document_transaction`
+- [x] query timeline แบบ read-only และเรียง `actioned_at ASC, id ASC` อย่าง deterministic
+- [x] map `action`, `fromStatus`, `toStatus`, `actionedAt` และ controlled display `detail`
+- [x] format `actionedAt` เป็น `DD/MM/YYYY HH:mm` ใน timezone `Asia/Bangkok`
+- [x] รองรับ display detail ภาษาไทย/อังกฤษตาม `Accept-Language`
+- [x] ไม่คืน `note` และ `actionedBy` เพื่อป้องกัน internal/admin detail หลุดไป mobile
+- [x] เพิ่ม focused controller/service/repository tests
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/${request_no}/timeline" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
 
 ### MR-MOB-08: Upload Or Replace Supporting File
 

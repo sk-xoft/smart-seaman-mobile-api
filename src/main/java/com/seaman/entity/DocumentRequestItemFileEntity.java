@@ -15,6 +15,7 @@ public class DocumentRequestItemFileEntity {
     private String originalFileName;
     private String mimeType;
     private Long fileSize;
+    private Integer fileUploaded;
     private Date fileUploadedAt;
     private String checkResult;
     private String checkNote;

@@ -21,7 +21,7 @@ public class DocumentRequestItemFileRepository extends CommonRepository {
 
     public List<DocumentRequestItemFileEntity> findFiles(String mobileUserUuid, String itemCode) {
         return template.query("SELECT id, id AS profile_request_item_id, document_type, slot_code, "
-                        + "file_path AS storage_key, original_file_name, mime_type, file_size, file_uploaded_at, "
+                        + "file_path AS storage_key, original_file_name, mime_type, file_size, file_uploaded, file_uploaded_at, "
                         + "check_result, check_note, is_updated FROM m_document_profile_request_item "
                         + "WHERE mobile_user_uuid = :mobileUserUuid AND document_master_request_item_code = :itemCode "
                         + "AND document_type IS NOT NULL ORDER BY document_type, slot_code",

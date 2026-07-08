@@ -1,6 +1,8 @@
 package com.seaman.repository;
 
 import com.seaman.entity.RenewalRequestItemEntity;
+import com.seaman.entity.DocumentRenewalRequestEntity;
+import com.seaman.entity.DocumentRenewalTransactionEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,5 +66,22 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getValue().contains("p.check_result <> 'fix'"));
         assertTrue(sql.getValue().contains("p.slot_code IN ('FRONT','BACK')"));
         assertTrue(sql.getValue().contains("p.document_type = 'PASSPORT'"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void timelineOwnershipLookupDoesNotLockAndRowsAreDeterministicallyOrdered() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(new DocumentRenewalRequestEntity()))
+                .thenReturn(Collections.<DocumentRenewalTransactionEntity>emptyList());
+
+        repository.findOwnedRequestByNo("260700001", "user-uuid");
+        repository.findOwnedTransactions("request-id", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template, times(2)).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertTrue(sql.getAllValues().get(0).contains("r.request_no = :requestNo"));
+        assertTrue(!sql.getAllValues().get(0).contains("FOR UPDATE"));
+        assertTrue(sql.getAllValues().get(1).contains("ORDER BY t.actioned_at, t.id"));
     }
 }

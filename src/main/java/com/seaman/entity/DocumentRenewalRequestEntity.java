@@ -16,6 +16,8 @@ public class DocumentRenewalRequestEntity {
     private String priceSettingId;
     private String deliveryAddressId;
     private String statusNameEn;
+    private String statusNameTh;
+    private String statusCssColor;
     private Boolean isResubmit;
     private BigDecimal amount;
     private Date submittedAt;

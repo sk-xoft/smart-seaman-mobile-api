@@ -57,6 +57,7 @@ class DocumentRenewalResubmitServiceTest {
         assertEquals("260700001", response.getRequestNo());
         assertEquals("RESUBMIT", response.getAction());
         verify(repository).resetFixItemsForReview("request-id");
+        verify(repository).markResubmitted("request-id");
         verify(repository).updateStatus("request-id", "correction-status-id", "review-status-id");
         verify(repository).appendTransaction("request-id", DocumentRenewalAction.RESUBMIT,
                 DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION,

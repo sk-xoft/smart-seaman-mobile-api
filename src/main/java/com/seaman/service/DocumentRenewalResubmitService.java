@@ -45,6 +45,7 @@ public class DocumentRenewalResubmitService {
         String targetStatusId = repository.findActiveStatusId(
                 DocumentRenewalStatus.PENDING_DOCUMENT_REVIEW);
         repository.resetFixItemsForReview(request.getId());
+        repository.markResubmitted(request.getId());
         repository.updateStatus(request.getId(), request.getDocumentStatusId(), targetStatusId);
         repository.appendTransaction(request.getId(), DocumentRenewalAction.RESUBMIT,
                 DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION,

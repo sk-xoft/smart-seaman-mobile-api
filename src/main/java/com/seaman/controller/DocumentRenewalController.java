@@ -8,11 +8,17 @@ import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRenewalStatusResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRenewalResubmitResponse;
+import com.seaman.model.response.PageDocumentRenewalResponse;
+import com.seaman.model.response.DocumentRenewalTimelineResponse;
+import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
 import com.seaman.service.DocumentRenewalResubmitService;
+import com.seaman.service.DocumentRenewalListService;
+import com.seaman.service.DocumentRenewalTimelineService;
+import com.seaman.service.DocumentRenewalDetailService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +51,9 @@ public class DocumentRenewalController extends BaseController {
     private final DocumentRenewalCreateService createService;
     private final DocumentRenewalItemFileService itemFileService;
     private final DocumentRenewalResubmitService resubmitService;
+    private final DocumentRenewalListService listService;
+    private final DocumentRenewalTimelineService timelineService;
+    private final DocumentRenewalDetailService detailService;
 
     @Operation(summary = "Create unpaid document renewal draft")
     @PostMapping(Routes.DOCUMENT_RENEWALS)
@@ -72,6 +81,27 @@ public class DocumentRenewalController extends BaseController {
     public ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> resubmit(
             HttpServletRequest request, @PathVariable String requestNo) {
         return ok(success(request, resubmitService.resubmit(requestNo)));
+    }
+
+    @Operation(summary = "List the current user's document renewal requests")
+    @GetMapping(Routes.DOCUMENT_RENEWALS_MY)
+    public ResponseEntity<SuccessResponse<PageDocumentRenewalResponse>> myRequests(
+            HttpServletRequest request, @RequestParam int offSet) {
+        return ok(success(request, listService.listMyRequests(offSet)));
+    }
+
+    @Operation(summary = "Get the current user's document renewal timeline")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_TIMELINE)
+    public ResponseEntity<SuccessResponse<DocumentRenewalTimelineResponse>> timeline(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, timelineService.timeline(requestNo)));
+    }
+
+    @Operation(summary = "Get the current user's document renewal request detail")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_DETAIL)
+    public ResponseEntity<SuccessResponse<DocumentRenewalDetailResponse>> detail(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, detailService.detail(requestNo)));
     }
 
     @Operation(summary = "Get active renewal statuses")
