@@ -17,6 +17,7 @@ public class DeliveryAddressEntity {
     private String district;
     private String subDistrict;
     private String postalCode;
+    private String mobileNumber;
     private Boolean isDefault;
     private String isActive;
     private LocalDateTime createdAt;

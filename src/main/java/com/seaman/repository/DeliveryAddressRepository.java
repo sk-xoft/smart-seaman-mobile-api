@@ -66,8 +66,12 @@ public class DeliveryAddressRepository extends CommonRepository {
 
     public List<DeliveryAddressEntity> findActiveDefaults(String mobileUserUuid) {
         return template.query(
-                "SELECT * FROM m_delivery_address WHERE mobile_user_uuid = :mobileUserUuid "
-                        + "AND is_default = 1 AND is_active = 'YES' ORDER BY updated_at DESC, id",
+                "SELECT da.*, mu.MOBILE_NUMBER AS mobile_number "
+                        + "FROM m_delivery_address da "
+                        + "INNER JOIN m_mobile_users mu ON mu.MOBILE_UUID = da.mobile_user_uuid "
+                        + "WHERE da.mobile_user_uuid = :mobileUserUuid "
+                        + "AND da.is_default = 1 AND da.is_active = 'YES' "
+                        + "ORDER BY da.updated_at DESC, da.id",
                 new MapSqlParameterSource("mobileUserUuid", mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
     }

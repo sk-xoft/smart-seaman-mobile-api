@@ -9,6 +9,7 @@ import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
+import com.seaman.exception.MissingParameterException;
 import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
@@ -491,6 +492,10 @@ public class DocumentService {
             List<DocumentRequestItemEntity> items =
                     documentRepository.findMissingItemsByUserAndDocumentCode(
                             usersEntity.getMobileUuid(), documentCode);
+
+            if (items == null || items.isEmpty()) {
+                throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
+            }
 
             if (items != null) {
                 for (DocumentRequestItemEntity item : items) {

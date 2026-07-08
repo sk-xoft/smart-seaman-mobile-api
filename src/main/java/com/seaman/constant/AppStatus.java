@@ -28,6 +28,7 @@ public class AppStatus {
     public static final String USER_IS_INACTIVATED  = "MA00023";
     public static final String LINK_IS_EXPIRE = "MA00024";
     public static final String EXCEPTION_USERNAME_INCORRECT  = "MA00027";
+    public static final String DOCUMENT_SETTING_NOT_FOUND = "MA00028";
 
     public static final String EXCEPTION_GLOBAL  = "MA99999";
 

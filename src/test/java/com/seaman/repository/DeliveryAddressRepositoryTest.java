@@ -42,6 +42,8 @@ class DeliveryAddressRepositoryTest {
         assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
         assertTrue(sql.getValue().contains("is_default = 1"));
         assertTrue(sql.getValue().contains("is_active = 'YES'"));
+        assertTrue(sql.getValue().contains("m_mobile_users"));
+        assertTrue(sql.getValue().contains("MOBILE_NUMBER AS mobile_number"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
     }
 

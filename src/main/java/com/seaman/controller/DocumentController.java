@@ -176,7 +176,6 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
-    // TODO Implement 
     // Task file : documents/mvp1/task/1-task_validate_documents_items.md
     @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
     @GetMapping(Routes.VALIDATE_DOCUMENT_ITEMS)

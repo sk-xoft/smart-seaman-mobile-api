@@ -23,6 +23,8 @@ public class DeliveryAddressResponse {
     private String subDistrict;
     @Schema(example = "39170")
     private String postalCode;
+    @Schema(example = "0812345678")
+    private String mobileNumber;
     @Schema(example = "true")
     private Boolean isDefault;
 }
