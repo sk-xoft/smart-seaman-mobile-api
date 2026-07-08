@@ -47,10 +47,14 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
 
     public int insertRequestItems(String requestId, String documentCode) {
         return template.update("INSERT INTO m_document_request_items "
-                        + "(id, request_id, document_master_request_item_code, approve_status) "
-                        + "SELECT UUID(), :requestId, document_master_request_item_code, 'PENDING' "
-                        + "FROM m_document_setting_requires WHERE document_code = :documentCode "
-                        + "AND is_required = 1 AND is_active = 'YES'",
+                        + "(id, request_id, request_no, document_master_request_item_code, "
+                        + "approve_status) "
+                        + "SELECT UUID(), r.id, r.request_no, s.document_master_request_item_code, "
+                        + "'PENDING' FROM m_document_request r "
+                        + "INNER JOIN m_document_setting_requires s "
+                        + "ON s.document_code = :documentCode "
+                        + "AND s.is_required = 1 AND s.is_active = 'YES' "
+                        + "WHERE r.id = :requestId",
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("documentCode", documentCode));
     }

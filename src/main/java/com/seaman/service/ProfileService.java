@@ -25,10 +25,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
 import java.time.Period;
 import java.util.Date;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -112,6 +114,7 @@ public class ProfileService {
         return profileResponse;
     }
 
+    @Transactional
     public RegisterResponse profileUpdate(ProfileRequest request) throws MagicMatchNotFoundException, MagicException, MagicParseException {
 
         RegisterResponse response = new RegisterResponse();
@@ -127,7 +130,18 @@ public class ProfileService {
         try {
 
             UsersEntity usersEntity = (UsersEntity) httpServletRequest.getAttribute("userObject");
+            if (usersEntity == null || usersEntity.getMobileUuid() == null) {
+                throw new BusinessException(
+                        AppStatus.USERNAME_IS_NOT_FOUND_SECURITY_CONTEXT, "userObject");
+            }
             username = usersEntity.getUsername();
+
+            String mobileNumber = request.getMobileNumber().trim();
+            String currentMobileNumber = userRepository.lockMobileNumber(usersEntity.getMobileUuid());
+            if (!Objects.equals(currentMobileNumber, mobileNumber)) {
+                userRepository.insertMobileNumberHistory(usersEntity.getMobileUuid(),
+                        currentMobileNumber, mobileNumber, usersEntity.getUsername());
+            }
 
             // Insert Trans logs.
             transactionLogsService.insert(transId, bodyReqJson, serviceName, usersEntity.getUsername());
@@ -138,10 +152,10 @@ public class ProfileService {
             entity.setEmail(request.getEmail());
             entity.setFirstName(request.getFirstName());
             entity.setLastName(request.getLastName());
-            entity.setMobileNumber(request.getMobileNumber());
+            entity.setMobileNumber(mobileNumber);
             entity.setCompanyCode(request.getCompanyCode());
             entity.setPositionCode(request.getPositionCode());
-            entity.setUpdateBy(request.getEmail());
+            entity.setUpdateBy(usersEntity.getUsername());
             entity.setUpdateDate(new Date());
             entity.setDateOfBirth(request.getDateOfBirth());
 
@@ -169,12 +183,12 @@ public class ProfileService {
             }
 
             if (!isStatusUpdate) {
-                // Case not update user profile.
-                statusCode = AppStatus.USERNAME_IS_NOT_FOUND_SECURITY_CONTEXT;
+                throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "profileUpdate");
             }
 
             response.setEmail(request.getEmail());
             response.setUsername(request.getEmail());
+            response.setMobileNumber(mobileNumber);
 
         } catch (CommonException ce) {
             log.error("{}", ce.getMessage());

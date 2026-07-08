@@ -9,6 +9,7 @@ import java.util.Date;
 public class RenewalRequestItemEntity {
     private String id;
     private String requestId;
+    private String requestNo;
     private String documentMasterRequestItemCode;
     private String approveStatus;
     private String note;

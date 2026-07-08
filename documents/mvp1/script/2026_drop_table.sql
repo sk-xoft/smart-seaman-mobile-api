@@ -2,6 +2,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS m_delivery;
 DROP TABLE IF EXISTS m_delivery_address;
+DROP TABLE IF EXISTS m_mobile_number_history;
 DROP TABLE IF EXISTS m_dept_submission;
 DROP TABLE IF EXISTS m_document_transaction;
 DROP TABLE IF EXISTS m_document_setting_requires;

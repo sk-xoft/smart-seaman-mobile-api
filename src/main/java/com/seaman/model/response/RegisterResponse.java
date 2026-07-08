@@ -10,4 +10,5 @@ import lombok.Setter;
 public class RegisterResponse {
     private String username;
     private String email;
+    private String mobileNumber;
 }

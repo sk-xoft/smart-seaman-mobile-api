@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class UserRepository extends CommonRepository {
@@ -180,12 +181,12 @@ public class UserRepository extends CommonRepository {
         StringBuilder sql = new StringBuilder();
         sql.append("  update m_mobile_users ");
         sql.append(" set ");
-        sql.append("    USERNAME = :USERNAME, ");
+        // sql.append("    USERNAME = :USERNAME, ");
         sql.append("    FIRST_NAME = :FIRST_NAME, ");
         sql.append("    LAST_NAME = :LAST_NAME, ");
         sql.append("    COMPANY_CODE = :COMPANY_CODE, ");
         sql.append("    POSITION_CODE = :POSITION_CODE, ");
-        sql.append("    EMAIL = :EMAIL, ");
+        // sql.append("    EMAIL = :EMAIL, ");
         sql.append("    MOBILE_NUMBER = :MOBILE_NUMBER, ");
         sql.append("    DATE_OF_BIRTH = :DATE_OF_BIRTH, ");
         sql.append("    UPDATE_DATE =  now(),");
@@ -195,16 +196,16 @@ public class UserRepository extends CommonRepository {
         try {
 
             MapSqlParameterSource namedParameters = new MapSqlParameterSource()
-                    .addValue("USERNAME", entity.getUsername())
+                    // .addValue("USERNAME", entity.getUsername())
                     .addValue("FIRST_NAME", entity.getFirstName())
                     .addValue("LAST_NAME", entity.getLastName())
                     .addValue("COMPANY_CODE", entity.getCompanyCode())
                     .addValue("POSITION_CODE", entity.getPositionCode())
-                    .addValue("EMAIL", entity.getEmail())
+                    // .addValue("EMAIL", entity.getEmail())
                     .addValue("MOBILE_NUMBER", entity.getMobileNumber())
                     .addValue("DATE_OF_BIRTH", entity.getDateOfBirth())
                     .addValue("MOBILE_UUID", entity.getMobileUuid())
-                    .addValue("UPDATE_BY", entity.getUsername());
+                    .addValue("UPDATE_BY", entity.getUpdateBy());
 
             int rowAffected = template.update(sql.toString(), namedParameters);
             if (rowAffected > 0) {
@@ -217,6 +218,49 @@ public class UserRepository extends CommonRepository {
         }
 
         return result;
+    }
+
+    public String lockMobileNumber(String mobileUuid) {
+        try {
+            List<String> mobileNumbers = template.query(
+                    "SELECT MOBILE_NUMBER FROM m_mobile_users "
+                            + "WHERE MOBILE_UUID = :MOBILE_UUID FOR UPDATE",
+                    new MapSqlParameterSource("MOBILE_UUID", mobileUuid),
+                    (rs, rowNum) -> rs.getString("MOBILE_NUMBER"));
+            if (mobileNumbers.isEmpty()) {
+                throw new BusinessException(AppStatus.DATA_NOT_FOUND, "mobileUser");
+            }
+            return mobileNumbers.get(0);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            logger.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
+    }
+
+    public void insertMobileNumberHistory(String mobileUuid, String oldMobileNumber,
+                                          String newMobileNumber, String changedBy) {
+        try {
+            int rows = template.update(
+                    "INSERT INTO m_mobile_number_history "
+                            + "(id, mobile_user_uuid, old_mobile_number, new_mobile_number, changed_by) "
+                            + "VALUES (:id, :mobileUserUuid, :oldMobileNumber, :newMobileNumber, :changedBy)",
+                    new MapSqlParameterSource()
+                            .addValue("id", UUID.randomUUID().toString())
+                            .addValue("mobileUserUuid", mobileUuid)
+                            .addValue("oldMobileNumber", oldMobileNumber)
+                            .addValue("newMobileNumber", newMobileNumber)
+                            .addValue("changedBy", changedBy));
+            if (rows != 1) {
+                throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "mobileNumberHistory");
+            }
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            logger.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
     }
 
     public boolean updateStatus(UsersEntity entity) {

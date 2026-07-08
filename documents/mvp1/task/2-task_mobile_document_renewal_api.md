@@ -46,6 +46,7 @@
 | [x] | Delivery address decision | request เก็บ `delivery_address_id` อ้าง `m_delivery_address`; ไม่สร้าง snapshot table ซ้ำ |
 | [x] | Create/update delivery address APIs | มี route/controller/service/repository/model, concurrency guard, OpenAPI examples, cURL และ focused tests ครบแล้ว |
 | [x] | Thailand address master APIs | implement route/controller/service/repository/response model แล้ว; focused tests ผ่าน 5/5 และ pin Lombok ให้รองรับ JDK 21 แล้ว |
+| [x] | Update mobile number with change history | `POST /v1/profile-update` ใช้ row lock และ transaction เพื่ออัปเดต `MOBILE_NUMBER` พร้อม append history |
 | [ ] | Payment provider decision | ต้องยืนยัน channel, charge flow และ webhook ก่อนปิด payment tasks |
 | [~] | Automated tests สำหรับ renewal flow | มี focused tests สำหรับ status/price/foundation/create request 15 cases; flow อื่นยังไม่มี test |
 
@@ -744,6 +745,84 @@ Implementation evidence:
 - focused tests `DeliveryAddressControllerTest`, `DeliveryAddressServiceTest` และ
   `DeliveryAddressRepositoryTest` ผ่าน 10/10 tests
 
+### MR-MOB-17: Update Mobile Number With History
+
+Status: [x] ทำแล้ว
+
+API:
+
+| Method | API | Purpose |
+|---|---|---|
+| POST | `/v1/profile-update` | อัปเดต `MOBILE_NUMBER` ของ mobile user และเก็บประวัติเมื่อเบอร์เปลี่ยน |
+
+Implementation status:
+
+- reuse endpoint และ request field `mobileNumber` เดิม
+- lock ค่าเดิมด้วย `SELECT MOBILE_NUMBER ... FOR UPDATE`
+- บันทึก history เฉพาะเมื่อค่าเปลี่ยน และ update profile ภายใน transaction เดียวกัน
+- เพิ่ม validation หมายเลขโทรศัพท์ไทย 10 หลักและ focused tests สำหรับ changed/unchanged/ค่าเดิมเป็น `NULL`
+
+Schema changes:
+
+- fresh install ใช้ schema ใน RUN1 และฐานข้อมูลเดิมใช้ migration `RUN12_mobile_number_history.sql`
+- table เก็บ `id CHAR(36)`, `mobile_user_uuid VARCHAR(36)`, `old_mobile_number VARCHAR(10) NULL`,
+  `new_mobile_number VARCHAR(10) NOT NULL`, `changed_by VARCHAR(255) NOT NULL` และ
+  `changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`
+- กำหนด primary key ที่ `id`, index `(mobile_user_uuid, changed_at)` และ foreign key
+  `mobile_user_uuid` ไปยัง `m_mobile_users.MOBILE_UUID` โดยไม่ใช้ `ON DELETE CASCADE`
+- history เป็น append-only: application ห้าม update หรือลบ row เดิม
+
+Update behavior:
+
+- ระบุตัวผู้ใช้จาก JWT/request context เท่านั้น ห้ามรับ `mobileUserUuid` จาก client
+- ภายใน transaction ให้ query
+  `SELECT MOBILE_NUMBER FROM m_mobile_users WHERE MOBILE_UUID = :mobileUserUuid FOR UPDATE`
+- normalize และ validate `mobileNumber` เป็นหมายเลขโทรศัพท์ไทย 10 หลักก่อนเขียนข้อมูล
+- ถ้าเบอร์ใหม่เท่ากับเบอร์ปัจจุบัน ให้ถือว่า update profile สำเร็จโดยไม่เพิ่ม history
+- ถ้าเบอร์เปลี่ยน ให้ insert ค่าเดิมและค่าใหม่ลง `m_mobile_number_history` ก่อน update
+  `m_mobile_users.MOBILE_NUMBER`, `UPDATE_BY` และ `UPDATE_DATE`
+- history insert และ user update ต้องอยู่ใน transaction เดียวกัน; เมื่อขั้นตอนใดล้มเหลวต้อง rollback ทั้งคู่
+- `changed_by` ใช้ username/email ของ authenticated user จาก server ห้ามรับจาก request body
+- ไม่กำหนดให้เบอร์โทร unique ใน task นี้ เพราะ schema ปัจจุบันไม่มี unique constraint และยังไม่มี requirement ยืนยัน
+
+Acceptance criteria:
+
+- เปลี่ยนเบอร์จากค่าเดิมเป็นค่าใหม่แล้ว `m_mobile_users.MOBILE_NUMBER` มีค่าใหม่ และ history มีหนึ่ง row ที่ค่า old/new ถูกต้อง
+- เปลี่ยนจาก `NULL` เป็นเบอร์ใหม่ได้และ history เก็บ `old_mobile_number = NULL`
+- ส่งเบอร์เดิมซ้ำไม่สร้าง history ซ้ำ
+- reject ค่า blank, ไม่ใช่ตัวเลข หรือความยาวไม่ครบ 10 หลัก โดยไม่เปลี่ยน user/history
+- concurrent updates ของ user เดียวกันถูก serialize ด้วย `FOR UPDATE` และแต่ละ history row ต่อค่าจาก state ก่อนหน้าจริง
+- เมื่อ insert history หรือ update user ล้มเหลว ต้องไม่มี partial write
+- มี repository/service/controller tests สำหรับ changed, unchanged, old value เป็น `NULL`, invalid format,
+  unauthenticated request, rollback และ concurrent update
+- อัปเดต OpenAPI description ให้ระบุการเก็บประวัติการเปลี่ยนเบอร์
+
+Implementation evidence:
+
+- `ProfileService.profileUpdate()` กำหนด `@Transactional` และอ่าน authenticated user จาก request context
+- `UserRepository` lock ค่าเดิม, insert append-only history และใช้ authenticated username ใน `UPDATE_BY`
+- focused tests `ProfileMobileNumberUpdateTest` และ `ProfileMobileNumberValidationTest` ผ่าน 5/5 cases
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/profile-update" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "companyCode": "COMP001",
+    "dateOfBirth": "1990-01-01",
+    "positionCode": "POS001",
+    "email": "user@example.com",
+    "mobileNumber": "0812345678",
+    "isChangeFile": "N"
+  }'
+```
+
 ## Recommended Implementation Order
 
 1. ปิด open decisions: request number, unpaid draft, address, upload format, payment channel
@@ -757,6 +836,7 @@ Implementation evidence:
 9. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
 10. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 11. MR-MOB-12 contract/integration/concurrency tests
+12. MR-MOB-17 atomic mobile-number update และ change history
 
 ## Evidence Checked
 
@@ -774,3 +854,8 @@ Implementation evidence:
 - `documents/mvp1/script/RUN7_create_renewal_request_draft.sql`
 - `documents/mvp1/script/RUN9_harden_delivery_address_default.sql`
 - `documents/mvp1/script/RUN10_identity_document_multi_file.sql`
+- `documents/mvp1/script/RUN12_mobile_number_history.sql`
+- `src/main/java/com/seaman/controller/ProfileController.java`
+- `src/main/java/com/seaman/service/ProfileService.java`
+- `src/main/java/com/seaman/repository/UserRepository.java`
+- `documents/non_prod_db_schema.md`
