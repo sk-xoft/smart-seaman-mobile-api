@@ -62,5 +62,7 @@ public class Routes {
     public static final String DOCUMENT_RENEWAL_STATUSES = "/document-renewals/statuses";
     public static final String DOCUMENT_RENEWAL_PRICES = "/document-renewals/prices";
     public static final String DOCUMENT_RENEWALS = "/document-renewals";
+    public static final String DOCUMENT_RENEWAL_ITEM_FILE =
+            "/document-renewals/{requestNo}/items/{documentRequestItemCode}/file";
     public static final String DOCUMENT_REQUEST_ITEM_FILES = "/documents/request-items/{itemCode}/files";
 }

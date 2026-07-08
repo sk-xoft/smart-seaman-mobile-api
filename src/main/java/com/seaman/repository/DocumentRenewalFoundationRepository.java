@@ -67,6 +67,25 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                 new BeanPropertyRowMapper<>(RenewalRequestItemEntity.class));
     }
 
+    public RenewalRequestItemEntity lockOwnedRequestItem(
+            String requestNo, String documentRequestItemCode, String mobileUserUuid) {
+        List<RenewalRequestItemEntity> rows = template.query(
+                "SELECT i.*, s.name_en AS status_name_en FROM m_document_request_items i "
+                        + "INNER JOIN m_document_request r ON r.id = i.request_id "
+                        + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
+                        + "WHERE r.request_no = :requestNo "
+                        + "AND i.document_master_request_item_code = :documentRequestItemCode "
+                        + "AND r.mobile_user_uuid = :mobileUserUuid FOR UPDATE",
+                new MapSqlParameterSource().addValue("requestNo", requestNo)
+                        .addValue("documentRequestItemCode", documentRequestItemCode)
+                        .addValue("mobileUserUuid", mobileUserUuid),
+                new BeanPropertyRowMapper<>(RenewalRequestItemEntity.class));
+        if (rows.isEmpty()) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "documentRenewalRequestItem");
+        }
+        return rows.get(0);
+    }
+
     public List<DocumentRenewalTransactionEntity> findOwnedTransactions(
             String requestId, String mobileUserUuid) {
         return template.query("SELECT t.* FROM m_document_transaction t "

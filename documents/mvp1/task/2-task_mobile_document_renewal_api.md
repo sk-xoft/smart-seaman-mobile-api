@@ -27,12 +27,12 @@
 | 4 | [ ] | GET | `/v1/document-renewals/my?offSet={n}` | ยังไม่มี API รายการคำขอของ user |
 | 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
 | 6 | [ ] | GET | `/v1/document-renewals/{requestId}/timeline` | ยังไม่มี API timeline |
-| 7 | [ ] | POST | `/v1/document-renewals/{requestId}/items/{itemId}/file` | ยังไม่มี API upload/replace file สำหรับ renewal item |
+| 7 | [x] | POST | `/v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file` | implement multipart replace, ownership/item/state guard และ reuse secure profile-file storage flow แล้ว |
 | 8 | [ ] | POST | `/v1/document-renewals/{requestId}/resubmit` | ยังไม่มี API resubmit และ state transition |
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 3/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 7/10**
+สรุป Mobile APIs: **ทำแล้ว 4/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 6/10**
 
 ## Prerequisites And Supporting Work
 
@@ -286,12 +286,12 @@ Acceptance criteria:
 
 ### MR-MOB-08: Upload Or Replace Supporting File
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
-API: `POST /v1/document-renewals/{requestId}/items/{itemId}/file`
+API: `POST /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file`
 
 - ตรวจ ownership และ item ต้องอยู่ใน request
-- รองรับ upload format ที่ product เลือก
+- รองรับ multipart upload
 - validate MIME type, size และ empty payload
 - upload object storage แล้ว update metadata อย่างปลอดภัย
 - เมื่อ replace ใน correction flow ให้ตั้ง `is_updated = 1` และ reset review fields ตามกติกา
@@ -302,7 +302,29 @@ Acceptance criteria:
 - DB ไม่ชี้ไฟล์ใหม่หาก upload ล้มเหลว และจัดการ orphan object เมื่อ DB update ล้มเหลว
 - ไม่ใช้ชื่อไฟล์จาก client เป็น storage key โดยตรง
 
-Blocked decision: multipart, base64 หรือ pre-signed URL
+Implementation status:
+
+- [x] ใช้ `multipart/form-data` พร้อม fields `documentType`, `slotCode` และ `file`
+- [x] validate `requestNo` และ `documentRequestItemCode`, authenticated ownership และ item membership ภายใต้ row lock
+- [x] อนุญาตเฉพาะ request สถานะ `Pending Applicant Correction` และ item สถานะ `FIX`
+- [x] reuse MIME/size validation, UUID storage key และ transaction-aware object cleanup จาก MR-MOB-15
+- [x] replace profile file metadata, reset review fields และตั้ง `is_updated = 1`
+- [x] เพิ่ม focused service/controller tests สำหรับ success, invalid state, non-FIX item และ invalid ID
+
+ตัวอย่าง cURL สำหรับเอกสารทั่วไป:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/document-renewals/${request_no}/items/${document_request_item_code}/file" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH" \
+  --form "documentType=GENERAL" \
+  --form "slotCode=MAIN" \
+  --form "file=@${file_path};type=application/pdf"
+```
+
+สำหรับ `MRI001` ใช้ `documentType=ID_CARD` กับ `slotCode=FRONT|BACK` หรือ
+`documentType=PASSPORT` กับ `slotCode=MAIN`
 
 ### MR-MOB-09: Resubmit Corrected Documents
 
@@ -825,7 +847,7 @@ curl --request POST \
 
 ## Recommended Implementation Order
 
-1. ปิด open decisions: request number, unpaid draft, address, upload format, payment channel
+1. ปิด open decisions: request number, unpaid draft, address และ payment channel
 2. MR-MOB-01 shared foundation
 3. MR-MOB-02 status และ MR-MOB-03 price
 4. MR-MOB-15 identity document multi-file upload และปรับ profile document validation

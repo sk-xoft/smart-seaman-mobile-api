@@ -13,6 +13,7 @@ public class RenewalRequestItemEntity {
     private String documentMasterRequestItemCode;
     private String approveStatus;
     private String note;
+    private String statusNameEn;
     private Date createdAt;
     private Date updatedAt;
 }
