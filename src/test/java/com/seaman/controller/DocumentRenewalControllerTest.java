@@ -3,8 +3,10 @@ package com.seaman.controller;
 import com.seaman.constant.AppStatus;
 import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
+import com.seaman.model.response.DocumentRenewalResubmitResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
+import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ class DocumentRenewalControllerTest {
         MessageCodeService messages = mock(MessageCodeService.class);
         DocumentRenewalCreateService create = mock(DocumentRenewalCreateService.class);
         DocumentRenewalItemFileService files = mock(DocumentRenewalItemFileService.class);
+        DocumentRenewalResubmitService resubmit = mock(DocumentRenewalResubmitService.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
         MultipartFile file = mock(MultipartFile.class);
         DocumentRequestItemUploadResponse data = new DocumentRequestItemUploadResponse();
@@ -32,12 +35,35 @@ class DocumentRenewalControllerTest {
         when(files.upload("260700001", "MRI002", "GENERAL", "MAIN", file)).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller =
-                new DocumentRenewalController(renewal, messages, create, files);
+                new DocumentRenewalController(renewal, messages, create, files, resubmit);
 
         ResponseEntity<SuccessResponse<DocumentRequestItemUploadResponse>> response =
                 controller.uploadItemFile(request, "260700001", "MRI002", "GENERAL", "MAIN", file);
 
         assertEquals("profile-item-id", response.getBody().getData().getProfileRequestItemId());
         verify(files).upload("260700001", "MRI002", "GENERAL", "MAIN", file);
+    }
+
+    @Test
+    void resubmitDelegatesByRequestNumber() {
+        DocumentRenewalService renewal = mock(DocumentRenewalService.class);
+        MessageCodeService messages = mock(MessageCodeService.class);
+        DocumentRenewalCreateService create = mock(DocumentRenewalCreateService.class);
+        DocumentRenewalItemFileService files = mock(DocumentRenewalItemFileService.class);
+        DocumentRenewalResubmitService resubmit = mock(DocumentRenewalResubmitService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        DocumentRenewalResubmitResponse data = new DocumentRenewalResubmitResponse(
+                "260700001", "PENDING_APPLICANT_CORRECTION",
+                "PENDING_DOCUMENT_REVIEW", "RESUBMIT");
+        when(resubmit.resubmit("260700001")).thenReturn(data);
+        when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
+        DocumentRenewalController controller =
+                new DocumentRenewalController(renewal, messages, create, files, resubmit);
+
+        ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> response =
+                controller.resubmit(request, "260700001");
+
+        assertEquals("260700001", response.getBody().getData().getRequestNo());
+        verify(resubmit).resubmit("260700001");
     }
 }

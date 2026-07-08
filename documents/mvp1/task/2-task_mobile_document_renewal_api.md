@@ -28,11 +28,11 @@
 | 5 | [ ] | GET | `/v1/document-renewals/{requestId}` | ยังไม่มี API รายละเอียดคำขอ |
 | 6 | [ ] | GET | `/v1/document-renewals/{requestId}/timeline` | ยังไม่มี API timeline |
 | 7 | [x] | POST | `/v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file` | implement multipart replace, ownership/item/state guard และ reuse secure profile-file storage flow แล้ว |
-| 8 | [ ] | POST | `/v1/document-renewals/{requestId}/resubmit` | ยังไม่มี API resubmit และ state transition |
+| 8 | [x] | POST | `/v1/document-renewals/{requestNo}/resubmit` | implement corrected-item validation, atomic transition/timeline และ after-commit notification แล้ว |
 | 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
 | 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
 
-สรุป Mobile APIs: **ทำแล้ว 4/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 6/10**
+สรุป Mobile APIs: **ทำแล้ว 5/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 5/10**
 
 ## Prerequisites And Supporting Work
 
@@ -328,9 +328,9 @@ curl --request POST \
 
 ### MR-MOB-09: Resubmit Corrected Documents
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
-API: `POST /v1/document-renewals/{requestId}/resubmit`
+API: `POST /v1/document-renewals/{requestNo}/resubmit`
 
 - อนุญาตเฉพาะ status `รอผู้ยื่นแก้ไข`
 - validate ว่า item ที่เป็น `fix` ถูก replace ครบ
@@ -343,6 +343,28 @@ Acceptance criteria:
 - concurrent/double submit ไม่สร้าง transition ซ้ำ
 - status update และ timeline เป็น atomic transaction
 - item ที่แก้แล้วแสดง `is_updated = 1`
+
+Implementation status:
+
+- [x] ใช้ `requestNo` จาก path และ authenticated user จาก JWT; ไม่รับ user/status จาก client
+- [x] lock request row และอนุญาตเฉพาะ `Pending Applicant Correction`
+- [x] require อย่างน้อยหนึ่ง request item สถานะ `FIX`
+- [x] ตรวจไฟล์แก้ไขให้ครบทั้ง `GENERAL/MAIN`, `ID_CARD/FRONT+BACK` และ `PASSPORT/MAIN`
+- [x] require `is_updated = 1`, `file_uploaded = 1` และไม่มี `check_result = 'fix'`
+- [x] reset corrected request items เป็น `PENDING`, เปลี่ยน request เป็น `Pending Document Review`
+  และ append `RESUBMIT` transaction ภายใน database transaction เดียวกัน
+- [x] publish renewal event ใน transaction และสร้าง in-app/FCM notification หลัง commit เท่านั้น
+- [x] row lock และ expected-current-status update ป้องกัน concurrent/double submit
+- [x] เพิ่ม focused controller/service/repository/notification tests
+
+ตัวอย่าง cURL:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/document-renewals/${request_no}/resubmit" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
 
 ### MR-MOB-10: Create Payment Attempt
 

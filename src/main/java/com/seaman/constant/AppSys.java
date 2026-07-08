@@ -45,6 +45,7 @@ public class AppSys {
 
     /** Company Condition **/
     public static final String NOTI_TYPE_CERT_EXPIRED = "CERT_EXPIRED";
+    public static final String NOTI_TYPE_DOCUMENT_RENEWAL = "DOCUMENT_RENEWAL";
 
 
     /** For mobile register **/

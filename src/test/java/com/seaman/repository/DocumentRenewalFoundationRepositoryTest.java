@@ -49,4 +49,20 @@ class DocumentRenewalFoundationRepositoryTest {
         assertEquals("MRI002", parameters.getValue().getValue("documentRequestItemCode"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
     }
+
+    @Test
+    void correctionCompletenessRequiresUpdatedValidProfileFiles() {
+        when(template.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+
+        repository.countIncompleteCorrectedFixItems("request-id", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).queryForObject(sql.capture(), any(MapSqlParameterSource.class), eq(Integer.class));
+        assertTrue(sql.getValue().contains("i.approve_status = 'FIX'"));
+        assertTrue(sql.getValue().contains("p.is_updated = 1"));
+        assertTrue(sql.getValue().contains("p.check_result <> 'fix'"));
+        assertTrue(sql.getValue().contains("p.slot_code IN ('FRONT','BACK')"));
+        assertTrue(sql.getValue().contains("p.document_type = 'PASSPORT'"));
+    }
 }

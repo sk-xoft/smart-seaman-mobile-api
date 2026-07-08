@@ -7,10 +7,12 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRenewalStatusResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
+import com.seaman.model.response.DocumentRenewalResubmitResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
+import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +44,7 @@ public class DocumentRenewalController extends BaseController {
     private final MessageCodeService messageCodeService;
     private final DocumentRenewalCreateService createService;
     private final DocumentRenewalItemFileService itemFileService;
+    private final DocumentRenewalResubmitService resubmitService;
 
     @Operation(summary = "Create unpaid document renewal draft")
     @PostMapping(Routes.DOCUMENT_RENEWALS)
@@ -62,6 +65,13 @@ public class DocumentRenewalController extends BaseController {
             @RequestPart("file") MultipartFile file) {
         return ok(success(request, itemFileService.upload(
                 requestNo, documentRequestItemCode, documentType, slotCode, file)));
+    }
+
+    @Operation(summary = "Resubmit corrected renewal documents")
+    @PostMapping(Routes.DOCUMENT_RENEWAL_RESUBMIT)
+    public ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> resubmit(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, resubmitService.resubmit(requestNo)));
     }
 
     @Operation(summary = "Get active renewal statuses")
