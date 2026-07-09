@@ -7,6 +7,7 @@ import com.seaman.constant.AppSys;
 import com.seaman.exception.CommonException;
 import com.seaman.model.response.ExceptionResponse;
 import com.seaman.service.TransactionLogsService;
+import com.seaman.utils.RedactionUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,13 +82,13 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
         ExceptionResponse response = new ExceptionResponse();
         response.setCode(errorCode);
         response.setDescription(errorMessage);
-        response.setData(data);
+        response.setData(redactResponseData(status, data));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         // Convert Object to JSON for print logs.
         Gson gsonConvert = new Gson();
-        String jsonResponse =  gsonConvert.toJson(response, ExceptionResponse.class);
+        String jsonResponse = RedactionUtils.redactJsonString(gsonConvert.toJson(response, ExceptionResponse.class));
         log.error("Response exception : {}", jsonResponse);
 
         // Update Transaction logs
@@ -95,6 +96,16 @@ public class ExceptionAdvice  extends ResponseEntityExceptionHandler {
         transactionLogsService.updateStatusMessage(transId, jsonResponse, errorCode, errorMessage);
 
         return ResponseEntity.status(status).headers(headers).body(response);
+    }
+
+    private Object redactResponseData(HttpStatus status, Object data) {
+        if (data == null) {
+            return null;
+        }
+        if (status == null || status.is5xxServerError()) {
+            return null;
+        }
+        return data;
     }
 
     @Override

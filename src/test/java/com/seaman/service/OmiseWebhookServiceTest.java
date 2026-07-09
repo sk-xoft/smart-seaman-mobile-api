@@ -11,7 +11,9 @@ import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRenewalPaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 class OmiseWebhookServiceTest {
@@ -22,10 +24,12 @@ class OmiseWebhookServiceTest {
         DocumentRenewalPaymentRepository payments = mock(DocumentRenewalPaymentRepository.class);
         DocumentRenewalFoundationRepository foundation = mock(DocumentRenewalFoundationRepository.class);
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[0]);
         DocumentRenewalPaymentService paymentService =
                 new DocumentRenewalPaymentService(null, null, null, null);
         OmiseWebhookService service = new OmiseWebhookService(
-                new ObjectMapper(), omise, paymentService, payments, foundation, publisher);
+                new ObjectMapper(), omise, paymentService, payments, foundation, publisher, environment);
         OmiseChargeResponse charge = new OmiseChargeResponse();
         charge.setId("chrg_test_1");
         charge.setStatus("successful");
@@ -64,10 +68,12 @@ class OmiseWebhookServiceTest {
         DocumentRenewalPaymentRepository payments = mock(DocumentRenewalPaymentRepository.class);
         DocumentRenewalFoundationRepository foundation = mock(DocumentRenewalFoundationRepository.class);
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[0]);
         DocumentRenewalPaymentService paymentService =
                 new DocumentRenewalPaymentService(null, null, null, null);
         OmiseWebhookService service = new OmiseWebhookService(
-                new ObjectMapper(), omise, paymentService, payments, foundation, publisher);
+                new ObjectMapper(), omise, paymentService, payments, foundation, publisher, environment);
         OmiseChargeResponse charge = new OmiseChargeResponse();
         charge.setId("chrg_test_1");
         charge.setStatus("successful");
@@ -91,5 +97,25 @@ class OmiseWebhookServiceTest {
         verify(foundation, never()).updateStatus(anyString(), anyString(), anyString());
         verify(foundation, never()).appendTransaction(anyString(), any(), any(), any(), anyString(), any());
         verifyNoInteractions(publisher);
+    }
+
+    @Test
+    void missingWebhookSecretFailsClosedInProd() {
+        OmisePaymentClient omise = mock(OmisePaymentClient.class);
+        DocumentRenewalPaymentRepository payments = mock(DocumentRenewalPaymentRepository.class);
+        DocumentRenewalFoundationRepository foundation = mock(DocumentRenewalFoundationRepository.class);
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        DocumentRenewalPaymentService paymentService =
+                new DocumentRenewalPaymentService(null, null, null, null);
+        OmiseWebhookService service = new OmiseWebhookService(
+                new ObjectMapper(), omise, paymentService, payments, foundation, publisher, environment);
+
+        assertThrows(RuntimeException.class, () -> service.handle(
+                "{\"key\":\"charge.complete\",\"data\":{\"id\":\"chrg_test_1\"}}",
+                null, null));
+
+        verifyNoInteractions(omise, payments, foundation, publisher);
     }
 }

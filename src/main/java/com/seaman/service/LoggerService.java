@@ -1,8 +1,7 @@
 package com.seaman.service;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.seaman.constant.AppSys;
+import com.seaman.utils.RedactionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,50 +32,11 @@ public class LoggerService {
         }
 
         if(!parameters.isEmpty()) {
-            reqMessage.append(" parameters = [").append(parameters).append("] ");
+            reqMessage.append(" parameters = [").append(RedactionUtils.redactMap(parameters)).append("] ");
         }
 
         if(!Objects.isNull(body)) {
-            Gson gson = new Gson();
-            String bodyJson = gson.toJson(body);
-
-            // Parse the JSON string into a JsonObject
-            JsonObject jsonObject = gson.fromJson(bodyJson, JsonObject.class);
-
-            // Remove the "password" field
-            if(jsonObject.has("password")) {
-                jsonObject.remove("password");
-                jsonObject.addProperty("password", "XXXXXXX");
-            }
-
-            if(jsonObject.has("oldPassword")){
-                jsonObject.remove("oldPassword");
-                jsonObject.addProperty("oldPassword", "XXXXXXX");
-            }
-
-            if(jsonObject.has("confirmPassword")){
-                jsonObject.remove("confirmPassword");
-                jsonObject.addProperty("confirmPassword", "XXXXXXX");
-            }
-
-            if(jsonObject.has("newPassword")){
-                jsonObject.remove("newPassword");
-                jsonObject.addProperty("newPassword", "XXXXXXX");
-            }
-
-            // Add Cert "fileCert"
-            if(jsonObject.has("fileCert")){
-                jsonObject.remove("fileCert");
-                jsonObject.addProperty("fileCert", "FileBase64");
-            }
-
-            if(jsonObject.has("imageProfile")){
-                jsonObject.remove("imageProfile");
-                jsonObject.addProperty("imageProfile", "FileBase64");
-            }
-
-            // Convert the modified JsonObject back to a JSON string
-            String modifiedJsonString = gson.toJson(jsonObject);
+            String modifiedJsonString = RedactionUtils.redactJsonObject(body);
 
             reqMessage.append(" ReqBody = [").append(modifiedJsonString).append("]");
 
@@ -95,7 +55,7 @@ public class LoggerService {
         if(!headers.isEmpty()) {
             respMessage.append(" ResHeaders = [").append(headers).append("]");
         }
-        respMessage.append(" ResBody = [").append(body).append("]");
+        respMessage.append(" ResBody = [").append(RedactionUtils.redactJsonObject(body)).append("]");
 
         logger.info("TraceId={}, -> {}", request.getAttribute(AppSys.TRACE_ID), respMessage);
     }

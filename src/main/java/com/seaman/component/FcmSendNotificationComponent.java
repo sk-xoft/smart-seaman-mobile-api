@@ -2,6 +2,7 @@ package com.seaman.component;
 
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import java.util.List;
 import com.google.firebase.messaging.*;
@@ -17,11 +18,16 @@ import java.util.Map;
 public class FcmSendNotificationComponent {
 
     private static final Logger log = LoggerFactory.getLogger(FcmSendNotificationComponent.class);
-    private final FirebaseMessaging firebaseMessaging;
+    private final ObjectProvider<FirebaseMessaging> firebaseMessagingProvider;
 
     public void senderNotification(List<String> deviceTokens, FcmMessageRequest item) {
 
         try {
+            FirebaseMessaging firebaseMessaging = firebaseMessagingProvider.getIfAvailable();
+            if (firebaseMessaging == null) {
+                log.warn("FCM is disabled or Firebase credentials are not configured; notification was not sent.");
+                return;
+            }
 
             final String title = item.getData().getTitle();
             final String body = item.getData().getBody();

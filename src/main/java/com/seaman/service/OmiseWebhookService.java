@@ -3,6 +3,7 @@ package com.seaman.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.AppSys;
 import com.seaman.constant.DocumentRenewalAction;
 import com.seaman.constant.DocumentRenewalStatus;
 import com.seaman.entity.DocumentRenewalRequestEntity;
@@ -15,6 +16,7 @@ import com.seaman.repository.DocumentRenewalPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class OmiseWebhookService {
     private final DocumentRenewalPaymentRepository paymentRepository;
     private final DocumentRenewalFoundationRepository foundationRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final Environment environment;
 
     @Value("${omise.webhook-secret:}")
     private String webhookSecret;
@@ -95,6 +98,9 @@ public class OmiseWebhookService {
 
     private void verifySignature(String rawBody, String signature, String timestamp) {
         if (webhookSecret == null || webhookSecret.trim().isEmpty()) {
+            if (isProdProfile()) {
+                throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
+            }
             return;
         }
         if (signature == null || timestamp == null) {
@@ -117,6 +123,15 @@ public class OmiseWebhookService {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
         }
         throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
+    }
+
+    private boolean isProdProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if (AppSys.PROFILE_PROD.equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JsonNode parse(String rawBody) {

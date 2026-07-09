@@ -8,6 +8,7 @@ import com.seaman.exception.BusinessException;
 import com.seaman.repository.UserRepository;
 import com.seaman.service.SessionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
@@ -28,32 +29,32 @@ public class AuthInterceptor  implements HandlerInterceptor {
 
         String authorization = request.getHeader("Authorization");
         if (ObjectUtils.isEmpty(authorization)) {
-           throw new BusinessException(AppStatus.ATTRIBUTE_IS_REQUIRE, "Authorization");
+           throw new BusinessException(HttpStatus.UNAUTHORIZED, AppStatus.ATTRIBUTE_IS_REQUIRE, "Authorization");
         }
 
         if (!authorization.startsWith("Bearer ")) {
-            throw new BusinessException(AppStatus.AUTH_TYPE_HEADER, null);
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, AppStatus.AUTH_TYPE_HEADER, null);
         }
 
         String clientSessionId = (String) request.getAttribute(AppSys.JWT_JTI);
 
         if (clientSessionId == null) {
-            throw new BusinessException(AppStatus.MISSING_PARAMETER, "Authorization.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, AppStatus.MISSING_PARAMETER, "Authorization.");
         }
 
         SessionEntity sessionEntity = sessionService.findById(clientSessionId);
         if(null == sessionEntity) {
-            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "session id.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, AppStatus.DATA_NOT_FOUND, "session id.");
         }
 
 //        if(sessionEntity.getToken().equals(token) && sessionEntity.getIsOnline().equals("YES")) {
         if(sessionEntity.getClientSessionId().equals(clientSessionId) && sessionEntity.getIsOnline().equals("YES")) {
         } else {
-            throw new BusinessException("MA00026", "Incorrect client session id.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "MA00026", "Incorrect client session id.");
         }
 
         if(null == sessionEntity) {
-            throw new BusinessException("MA00026", "Incorrect client session id.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "MA00026", "Incorrect client session id.");
         }
 
         // Set Session Object for request
@@ -63,7 +64,7 @@ public class AuthInterceptor  implements HandlerInterceptor {
         UsersEntity usersEntity = userRepository.findByUserUID(sessionEntity.getUserId());
 
         if(usersEntity == null) {
-            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "Email is not found.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, AppStatus.DATA_NOT_FOUND, "Email is not found.");
         }
 
         request.setAttribute("userObject", usersEntity);

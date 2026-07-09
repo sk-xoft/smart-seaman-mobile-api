@@ -30,6 +30,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/v1/reset-password",
                         "/v1/activate-forgot-password",
                         "/v1/profile/active",
+                        "/v1/payments/omise/webhook",
                         "/forgot-password/**",
                         "/confirm-register/**",
 

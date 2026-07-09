@@ -89,30 +89,30 @@ public class TokenFilter extends GenericFilterBean {
             ExceptionResponse exceptionResponse = new ExceptionResponse();
             exceptionResponse.setCode(code);
             exceptionResponse.setDescription(message);
-            exceptionResponse.setData(cx.getMessage());
+            exceptionResponse.setData(null);
 
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
             Gson gson = new Gson();
             String json = gson.toJson(exceptionResponse);
-            log.info("{}", json);
+            log.warn("JWT authentication failed: {}", code);
             response.getWriter().write(json);
 
         } catch (Exception ex) {
-            String message = messageCodeService.getMessageDescription(AppStatus.EXCEPTION_GLOBAL, AppSys.LANG_TH);
+            String message = messageCodeService.getMessageDescription(AppStatus.JWT_SIGNATURE_INVALID, AppSys.LANG_TH);
 
             ExceptionResponse exceptionResponse = new ExceptionResponse();
-            exceptionResponse.setCode(AppStatus.EXCEPTION_GLOBAL);
+            exceptionResponse.setCode(AppStatus.JWT_SIGNATURE_INVALID);
             exceptionResponse.setDescription(message);
-            exceptionResponse.setData(ex.getMessage());
+            exceptionResponse.setData(null);
 
-            response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
             Gson gson = new Gson();
             String json = gson.toJson(exceptionResponse);
-            log.info("{}", json);
+            log.warn("JWT authentication failed");
             response.getWriter().write(json);
 
         }

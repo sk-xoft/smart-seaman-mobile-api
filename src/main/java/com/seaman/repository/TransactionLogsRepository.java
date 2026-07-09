@@ -3,6 +3,7 @@ package com.seaman.repository;
 import com.seaman.constant.AppStatus;
 import com.seaman.entity.TransactionLogsEntity;
 import com.seaman.exception.BusinessException;
+import com.seaman.utils.RedactionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,8 +35,8 @@ public class TransactionLogsRepository extends CommonRepository{
                     .addValue("LANGUAGE", entity.getLanguage())
                     .addValue("DEVICE_MODEL", entity.getDeviceModel())
                     .addValue("DEVICE_INFO", entity.getDeviceInfo())
-                    .addValue("TOKEN", entity.getToken())
-                    .addValue("REQUEST_DATA", entity.getRequestData())
+                    .addValue("TOKEN", entity.getToken() == null || entity.getToken().isEmpty() ? "" : "(protected)")
+                    .addValue("REQUEST_DATA", RedactionUtils.redactJsonString(entity.getRequestData()))
                     .addValue("REQUEST_DATE_TIME", entity.getRequestDateTime())
                     .addValue("CREATE_DATE", entity.getCreateDate())
                     .addValue("CREATE_BY", entity.getCreateBy());
@@ -60,7 +61,7 @@ public class TransactionLogsRepository extends CommonRepository{
 
             MapSqlParameterSource namedParameters = new MapSqlParameterSource()
                     .addValue("RESPONSE_STATUS_CODE", entity.getResponseStatusCode())
-                    .addValue("RESPONSE_DATA", entity.getResponseData())
+                    .addValue("RESPONSE_DATA", RedactionUtils.redactJsonString(entity.getResponseData()))
                     .addValue("RESPONSE_DATE_TIME", entity.getResponseDateTime())
                     .addValue("UPDATE_DATE", entity.getUpdateDate())
                     .addValue("UPDATE_BY", entity.getUpdateBy())
@@ -84,7 +85,7 @@ public class TransactionLogsRepository extends CommonRepository{
         try {
 
             MapSqlParameterSource namedParameters = new MapSqlParameterSource()
-                    .addValue("RESPONSE_DATA", entity.getResponseData())
+                    .addValue("RESPONSE_DATA", RedactionUtils.redactJsonString(entity.getResponseData()))
                     .addValue("RESPONSE_STATUS_MESSAGE", entity.getResponseStatusMessage())
                     .addValue("RESPONSE_DATE_TIME", entity.getResponseDateTime())
                     .addValue("UPDATE_DATE", entity.getUpdateDate())

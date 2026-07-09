@@ -4,6 +4,7 @@ import com.seaman.constant.AppSys;
 import com.seaman.entity.SessionEntity;
 import com.seaman.event.TransactionLogInsertEvent;
 import com.seaman.event.TransactionLogUpdateEvent;
+import com.seaman.utils.RedactionUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +30,7 @@ public class TransactionLogsService {
             String deviceInfo = httpServletRequest.getHeader(AppSys.HEADER_DEVICE_INFO);
             String correlationId = httpServletRequest.getHeader(AppSys.HEADER_CORRELATION_ID);
             String authorization = httpServletRequest.getHeader(AppSys.HEADER_AUTHORIZATION);
-            String token = authorization != null ? authorization.substring(7) : "";
+            String token = authorization != null ? "(protected)" : "";
 
             SessionEntity sessionEntity = (SessionEntity) httpServletRequest.getAttribute("sessionObject");
             String clientSessionId = null;
@@ -40,7 +41,7 @@ public class TransactionLogsService {
             }
 
             eventPublisher.publishEvent(new TransactionLogInsertEvent(
-                    this, transId, serviceName, bodyReqJson, createBy,
+                    this, transId, serviceName, RedactionUtils.redactJsonString(bodyReqJson), createBy,
                     language, deviceModel, deviceInfo, correlationId, token, clientSessionId
             ));
         } catch (Exception ex) {
@@ -51,7 +52,7 @@ public class TransactionLogsService {
     public void update(String transId, String resJson, String statusCode, String updateBy) {
         try {
             eventPublisher.publishEvent(new TransactionLogUpdateEvent(
-                    this, transId, resJson, statusCode, null, updateBy
+                    this, transId, RedactionUtils.redactJsonString(resJson), statusCode, null, updateBy
             ));
         } catch (Exception ex) {
             log.error("TransactionLog update publish error -> {}", ex.getMessage());
@@ -61,7 +62,7 @@ public class TransactionLogsService {
     public void updateStatusMessage(String transId, String resJson, String statusCode, String statusMessage) {
         try {
             eventPublisher.publishEvent(new TransactionLogUpdateEvent(
-                    this, transId, resJson, statusCode, statusMessage, null
+                    this, transId, RedactionUtils.redactJsonString(resJson), statusCode, statusMessage, null
             ));
         } catch (Exception ex) {
             log.error("TransactionLog updateStatusMessage publish error -> {}", ex.getMessage());

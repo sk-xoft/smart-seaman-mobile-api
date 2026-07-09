@@ -6,6 +6,7 @@ import com.seaman.model.request.ProfileRequest;
 import com.seaman.repository.CompanyRepository;
 import com.seaman.repository.PositionRepository;
 import com.seaman.repository.UserRepository;
+import com.seaman.utils.Base64FileValidator;
 import com.seaman.utils.DateUtil;
 import com.seaman.utils.FrameworkUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ class ProfileMobileNumberUpdateTest {
     @Mock FrameworkUtils frameworkUtils;
     @Mock AmazonS3 amazonS3;
     @Mock PositionRepository positionRepository;
+    @Mock Base64FileValidator base64FileValidator;
 
     private ProfileService service;
     private UsersEntity authenticatedUser;
@@ -41,7 +43,7 @@ class ProfileMobileNumberUpdateTest {
     void setUp() {
         service = new ProfileService(userRepository, companyRepository, dateUtil,
                 httpServletRequest, transactionLogsService, frameworkUtils, amazonS3,
-                positionRepository);
+                positionRepository, base64FileValidator);
         authenticatedUser = new UsersEntity();
         authenticatedUser.setMobileUuid("mobile-user-uuid");
         authenticatedUser.setUsername("current@example.com");

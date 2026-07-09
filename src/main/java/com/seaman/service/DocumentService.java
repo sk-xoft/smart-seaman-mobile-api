@@ -20,6 +20,7 @@ import com.seaman.repository.CertificateRepository;
 import com.seaman.repository.DocumentRepository;
 import com.seaman.repository.DocumentRequestItemFileRepository;
 import com.seaman.utils.DateUtil;
+import com.seaman.utils.Base64FileValidator;
 import com.seaman.utils.FrameworkUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ public class DocumentService {
     private final DateUtil dateUtil;
     private final AmazonS3 getS3;
     private final FrameworkUtils frameworkUtils;
+    private final Base64FileValidator base64FileValidator;
 
     private final TransactionLogsService transactionLogsService;
 
@@ -242,6 +244,8 @@ public class DocumentService {
                 throw new BusinessException(AppStatus.DATA_IS_EXISTING, request.getDocumentCode());
             }
 
+            base64FileValidator.validateDocument(request.getFileCert(), "fileCert");
+
             // Insert table
             CertificateEntity entity  = new CertificateEntity();
             entity.setCertMobileUuid(usersEntity.getMobileUuid());
@@ -260,13 +264,9 @@ public class DocumentService {
             if(certificateRepository.insert(entity)) {
 
                 // Upload file to S3.
-                if(!"".equals(request.getFileCert()) || null != request.getFileCert()) {
-                    String keyName = String.format(storePathTemplate, usersEntity.getMobileUuid(), newFileName);
-                    getS3.putObject(bucketName, keyName, request.getFileCert());
-                    log.info("put object {} is success.", keyName);
-                } else {
-                    log.info("Not have send file 'Cert'.");
-                }
+                String keyName = String.format(storePathTemplate, usersEntity.getMobileUuid(), newFileName);
+                getS3.putObject(bucketName, keyName, request.getFileCert());
+                log.info("put object {} is success.", keyName);
 
                 // Set response
                 response.setDocumentCode(request.getDocumentCode());
@@ -334,6 +334,8 @@ public class DocumentService {
             if(request.getIsChangeFile().equals("N")){
                 isStatusUpdate  = certificateRepository.updateNoChangeFile(entity);
             } else {
+                base64FileValidator.validateDocument(request.getFileCert(), "fileCert");
+
                 // is update file cert.
                 entity.setCertFile(newFileName);
                 entity.setOriginalFileName(request.getFileCertName());

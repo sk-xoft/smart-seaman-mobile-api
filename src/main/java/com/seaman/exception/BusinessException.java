@@ -17,4 +17,12 @@ public class BusinessException extends CommonException{
     public BusinessException(String code, String message, Object data){
         super(HttpStatus.OK, code, message, data);
     }
+
+    public BusinessException(HttpStatus status, String code, String message) {
+        super(status, code, message);
+    }
+
+    public BusinessException(HttpStatus status, String code, Object data) {
+        super(status, code, data);
+    }
 }

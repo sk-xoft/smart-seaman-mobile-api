@@ -18,17 +18,17 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, org.springframework.security.core.AuthenticationException authException) throws IOException, ServletException {
         response.setContentType("application/json;charset=UTF-8");
-        response.setStatus(403);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
         ExceptionResponse exceptionResponse = new ExceptionResponse();
         exceptionResponse.setCode(AppStatus.JWT_SIGNATURE_INVALID);
-        exceptionResponse.setDescription("Access denied");
-        exceptionResponse.setData("ขออภัยระบบกดยืนยันมีปัญหาอาจจะขึ้นอยู่กับปัจจัยบางอย่าง โปรดติดต่อทีมพัฒนาเพื่อทำการแก้ไข Line id: @smartseaman (มี @ ข้างหน้า)");
+        exceptionResponse.setDescription("Unauthorized");
+        exceptionResponse.setData(null);
 
         Gson gson = new Gson();
         String json = gson.toJson(exceptionResponse);
 
-        log.error("{} -> {}", authException.getMessage(), json);
+        log.warn("Unauthorized request [{} {}]", request.getMethod(), request.getRequestURI());
         response.getWriter().write(json);
     }
 }

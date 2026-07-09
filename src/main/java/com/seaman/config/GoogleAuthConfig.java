@@ -2,12 +2,15 @@ package com.seaman.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.util.StringUtils;
+
 import java.io.IOException;
 import java.util.List;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -16,6 +19,7 @@ import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 @Configuration
+@ConditionalOnProperty(prefix = "fcm.firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class GoogleAuthConfig {
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -29,9 +33,15 @@ public class GoogleAuthConfig {
 
     @Bean
     GoogleCredentials credentialFromFile() throws IOException {
+        if (!StringUtils.hasText(authFirebaseFileName)) {
+            throw new IOException("fcm.firebase.credential.file is required when FCM is enabled");
+        }
         Resource serviceAccount = authFirebaseFileName.startsWith("/")
                 ? new FileSystemResource(authFirebaseFileName)
                 : new ClassPathResource(authFirebaseFileName);
+        if (!serviceAccount.exists() || !serviceAccount.isReadable()) {
+            throw new IOException("Firebase credential file is not readable: " + authFirebaseFileName);
+        }
         return GoogleCredentials.fromStream(serviceAccount.getInputStream())
                 .createScoped(SCOPES);
     }

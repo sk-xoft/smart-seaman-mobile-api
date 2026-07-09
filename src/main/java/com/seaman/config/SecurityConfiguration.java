@@ -25,7 +25,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import java.util.Collections;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -38,14 +41,9 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     private final MessageCodeService messageCodeService;
 
-    private final String[] PUBLIC = {
-            "/actuator/**",
-            "/swagger-ui.html",
-            "/swagger-ui.html/**",
-            "/swagger-ui/**",
-            "/smart-seaman-swagger",
-            "/smart-seaman-swagger/**",
-            "/v3/api-docs/**",
+    private final SecurityProperties securityProperties;
+
+    private static final String[] PUBLIC_API = {
             "/v1/login",
             "/v1/register",
             "/v1/refresh-token",
@@ -61,13 +59,31 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
             "/.well-known/apple-app-site-association"
     };
 
+    private static final String[] PUBLIC_DOCS = {
+            "/swagger-ui.html",
+            "/swagger-ui.html/**",
+            "/swagger-ui/**",
+            "/smart-seaman-swagger",
+            "/smart-seaman-swagger/**",
+            "/v3/api-docs/**"
+    };
+
+    private static final String[] PUBLIC_ACTUATOR = {
+            "/actuator/**"
+    };
+
+    private static final String[] PUBLIC_HEALTH = {
+            "/actuator/health",
+            "/actuator/health/**"
+    };
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
 
         http.cors(config -> {
             CorsConfiguration cors = new CorsConfiguration();
             cors.setAllowCredentials(true);
-            cors.setAllowedOriginPatterns(Collections.singletonList("http://*"));
+            cors.setAllowedOriginPatterns(allowedOriginPatterns());
             cors.addAllowedHeader("*");
             cors.addAllowedMethod("GET");
             cors.addAllowedMethod("POST");
@@ -81,7 +97,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
             config.configurationSource(source);
         }).csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                .and().authorizeRequests().antMatchers(PUBLIC).permitAll()
+                .and().authorizeRequests().antMatchers(publicPaths()).permitAll()
                 .anyRequest().authenticated()
                 .and().apply(new TokenFilterConfiguerer(jwtTokenService, messageCodeService));
 
@@ -141,5 +157,29 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     private static String sanitizeRequestRejectedMessage(RequestRejectedException ex) {
         return ex.getMessage().replaceAll("[\\r\\n]", " ");
+    }
+
+    private List<String> allowedOriginPatterns() {
+        List<String> configured = securityProperties.getCors().getAllowedOriginPatterns();
+        if (configured == null || configured.isEmpty()) {
+            return Arrays.asList(
+                    "https://mobile.smartseaman.com",
+                    "https://admin.smartseaman.com"
+            );
+        }
+        return configured;
+    }
+
+    private String[] publicPaths() {
+        List<String> paths = new ArrayList<>(Arrays.asList(PUBLIC_API));
+        if (securityProperties.getPublicPaths().isExposeActuator()) {
+            paths.addAll(Arrays.asList(PUBLIC_ACTUATOR));
+        } else {
+            paths.addAll(Arrays.asList(PUBLIC_HEALTH));
+        }
+        if (securityProperties.getPublicPaths().isExposeDocs()) {
+            paths.addAll(Arrays.asList(PUBLIC_DOCS));
+        }
+        return paths.toArray(new String[0]);
     }
 }

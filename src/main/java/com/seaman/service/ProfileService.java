@@ -15,6 +15,7 @@ import com.seaman.model.response.RegisterResponse;
 import com.seaman.repository.CompanyRepository;
 import com.seaman.repository.PositionRepository;
 import com.seaman.repository.UserRepository;
+import com.seaman.utils.Base64FileValidator;
 import com.seaman.utils.DateUtil;
 import com.seaman.utils.FrameworkUtils;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class ProfileService {
     private final FrameworkUtils frameworkUtils;
     private final AmazonS3 getS3;
     private final PositionRepository positionRepository;
+    private final Base64FileValidator base64FileValidator;
 
     @Value("${object.store.bucket}")
     private String bucketName;
@@ -163,23 +165,20 @@ public class ProfileService {
                 isStatusUpdate = userRepository.update(entity);
             } else {
 
-                if (!"".equals(request.getImageProfile()) || null != request.getImageProfile()) {
-                    String fileNameProfilePic = frameworkUtils.generateUUID();
+                base64FileValidator.validateImage(request.getImageProfile(), "imageProfile");
+                String fileNameProfilePic = frameworkUtils.generateUUID();
 
-                    String keyName = pathImageProfiles + "/" + fileNameProfilePic;
-                    getS3.putObject(bucketName, keyName, request.getImageProfile());
+                String keyName = pathImageProfiles + "/" + fileNameProfilePic;
+                getS3.putObject(bucketName, keyName, request.getImageProfile());
 
-                    // Update data info
-                    isStatusUpdate = userRepository.update(entity);
+                // Update data info
+                isStatusUpdate = userRepository.update(entity);
 
-                    // Update profile image
-                    entity.setProfilePicture(fileNameProfilePic);
-                    isStatusUpdate = userRepository.updateProfilePicture(entity);
+                // Update profile image
+                entity.setProfilePicture(fileNameProfilePic);
+                isStatusUpdate = userRepository.updateProfilePicture(entity);
 
-                    log.info("put object profile pic. {} is success.", keyName);
-                } else {
-                    log.info("Not have send file 'profile pic'.");
-                }
+                log.info("put object profile pic. {} is success.", keyName);
             }
 
             if (!isStatusUpdate) {

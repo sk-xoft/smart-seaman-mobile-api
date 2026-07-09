@@ -242,9 +242,6 @@ public class DocumentRepository extends CommonRepository {
 
         try {
 
-
-            System.out.println(sql.toString().replace(":mobileUserUuid", "'" + mobileUserUuid+ "'").replace(":documentCode", "'" + documentCode+ "'"));
-
             MapSqlParameterSource namedParameters = new MapSqlParameterSource()
                     .addValue("documentCode", documentCode)
                     .addValue("mobileUserUuid", mobileUserUuid);
