@@ -53,6 +53,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
             "/v1/reset-password",
             "/v1/activate-forgot-password",
             "/v1/profile/active",
+            "/v1/payments/omise/webhook",
 
             // Master data
             "/v1/master",

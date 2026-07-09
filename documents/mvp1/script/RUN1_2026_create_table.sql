@@ -103,7 +103,7 @@ CREATE TABLE m_payment_transaction (
     transaction_type        VARCHAR(10)     NOT NULL DEFAULT 'CHARGE',
                                             -- CHARGE | REFUND
     channel                 VARCHAR(30)     NOT NULL,
-                                            -- PROMPTPAY | CREDIT_CARD | INTERNET_BANKING
+                                            -- PROMPTPAY | CREDIT_CARD | MOBILE_BANKING
     payment_method          VARCHAR(50)     NOT NULL,
                                             -- promptpay | card | internet_banking_scb | ...
 
@@ -159,7 +159,7 @@ CREATE TABLE m_payment_transaction (
     CONSTRAINT chk_payment_type
         CHECK (transaction_type IN ('CHARGE', 'REFUND')),
     CONSTRAINT chk_payment_channel
-        CHECK (channel IN ('PROMPTPAY', 'CREDIT_CARD', 'INTERNET_BANKING')),
+        CHECK (channel IN ('PROMPTPAY', 'CREDIT_CARD', 'MOBILE_BANKING')),
     CONSTRAINT chk_payment_status
         CHECK (status IN (
             'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED',
@@ -306,7 +306,7 @@ CREATE TABLE m_document_transaction (
     KEY idx_doctx_action (action),
     CONSTRAINT chk_doctx_action
         CHECK (action IN (
-            'CREATE', 'SEND_BACK', 'RESUBMIT', 'CHECK_DOCS',
+            'CREATE', 'PAYMENT_SUCCESS', 'SEND_BACK', 'RESUBMIT', 'CHECK_DOCS',
             'SUBMIT_TO_DEPT', 'RECORD_DEPT_RESULT', 'RECEIVE_FROM_DEPT',
             'RECORD_DELIVERY', 'DELIVERY_COMPLETE', 'CANCEL'
         )),

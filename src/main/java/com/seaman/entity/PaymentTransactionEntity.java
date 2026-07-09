@@ -21,9 +21,25 @@ public class PaymentTransactionEntity {
     private String status;
     private String provider;
     private String providerChargeId;
+    private String providerSourceId;
+    private String providerRefundId;
+    private String providerTransactionId;
+    private String providerStatus;
+    private String providerResponse;
     private String idempotencyKey;
+    private String description;
+    private String returnUri;
+    private String authorizeUri;
+    private String bankCode;
+    private String cardBrand;
+    private String cardLastDigits;
+    private String failureCode;
+    private String failureMessage;
+    private Boolean isLivemode;
     private Date expiresAt;
     private Date paidAt;
+    private Date failedAt;
+    private Date refundedAt;
     private Date createdAt;
     private Date updatedAt;
 }

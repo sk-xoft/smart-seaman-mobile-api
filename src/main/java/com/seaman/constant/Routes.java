@@ -71,5 +71,11 @@ public class Routes {
             "/document-renewals/{requestNo}/items/{documentRequestItemCode}/file";
     public static final String DOCUMENT_RENEWAL_RESUBMIT =
             "/document-renewals/{requestNo}/resubmit";
+    public static final String DOCUMENT_RENEWAL_PAYMENTS =
+            "/document-renewals/{requestId}/payments";
+    public static final String DOCUMENT_RENEWAL_PAYMENT =
+            "/document-renewals/{requestId}/payments/{transactionId}";
+    public static final String OMISE_WEBHOOK =
+            "/payments/omise/webhook";
     public static final String DOCUMENT_REQUEST_ITEM_FILES = "/documents/request-items/{itemCode}/files";
 }

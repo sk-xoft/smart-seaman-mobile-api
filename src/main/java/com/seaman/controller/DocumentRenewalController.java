@@ -12,13 +12,16 @@ import com.seaman.model.response.PageDocumentRenewalResponse;
 import com.seaman.model.response.DocumentRenewalTimelineResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
+import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
+import com.seaman.model.response.DocumentRenewalPaymentResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
 import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalListService;
 import com.seaman.service.DocumentRenewalTimelineService;
 import com.seaman.service.DocumentRenewalDetailService;
+import com.seaman.service.DocumentRenewalPaymentService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +57,7 @@ public class DocumentRenewalController extends BaseController {
     private final DocumentRenewalListService listService;
     private final DocumentRenewalTimelineService timelineService;
     private final DocumentRenewalDetailService detailService;
+    private final DocumentRenewalPaymentService paymentService;
 
     @Operation(summary = "Create unpaid document renewal draft")
     @PostMapping(Routes.DOCUMENT_RENEWALS)
@@ -81,6 +85,24 @@ public class DocumentRenewalController extends BaseController {
     public ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> resubmit(
             HttpServletRequest request, @PathVariable String requestNo) {
         return ok(success(request, resubmitService.resubmit(requestNo)));
+    }
+
+    @Operation(summary = "Create an Omise payment attempt for a renewal request")
+    @PostMapping(Routes.DOCUMENT_RENEWAL_PAYMENTS)
+    public ResponseEntity<SuccessResponse<DocumentRenewalPaymentResponse>> createPayment(
+            HttpServletRequest request,
+            @PathVariable String requestId,
+            @Valid @RequestBody DocumentRenewalPaymentRequest input) {
+        return ok(success(request, paymentService.create(requestId, input)));
+    }
+
+    @Operation(summary = "Get a renewal payment status")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_PAYMENT)
+    public ResponseEntity<SuccessResponse<DocumentRenewalPaymentResponse>> paymentStatus(
+            HttpServletRequest request,
+            @PathVariable String requestId,
+            @PathVariable String transactionId) {
+        return ok(success(request, paymentService.status(requestId, transactionId)));
     }
 
     @Operation(summary = "List the current user's document renewal requests")

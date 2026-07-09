@@ -3,6 +3,7 @@ package com.seaman.service;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.FcmNotificationEntity;
 import com.seaman.entity.SendNotificationEntity;
+import com.seaman.event.DocumentRenewalPaymentSucceededEvent;
 import com.seaman.event.DocumentRenewalResubmittedEvent;
 import com.seaman.event.SendNotificationFcmEvent;
 import com.seaman.model.external.request.FcmMessageData;
@@ -37,8 +38,26 @@ public class DocumentRenewalNotificationService {
     public void onResubmitted(DocumentRenewalResubmittedEvent event) {
         try {
             String body = "ส่งเอกสารคำขอ " + event.getRequestNo() + " เพื่อตรวจสอบอีกครั้งแล้ว";
+            notifyUser(event.getMobileUserUuid(), event.getRequestNo(), body);
+        } catch (Exception ex) {
+            log.error("Cannot create document renewal resubmit notification", ex);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onPaymentSucceeded(DocumentRenewalPaymentSucceededEvent event) {
+        try {
+            String body = "ชำระเงินคำขอ " + event.getRequestNo() + " สำเร็จ ส่งเอกสารเข้าสู่ขั้นตอนตรวจสอบแล้ว";
+            notifyUser(event.getMobileUserUuid(), event.getRequestNo(), body);
+        } catch (Exception ex) {
+            log.error("Cannot create document renewal payment notification", ex);
+        }
+    }
+
+    private void notifyUser(String mobileUserUuid, String requestNo, String body) {
             SendNotificationEntity notification = new SendNotificationEntity();
-            notification.setMobileUserUUID(event.getMobileUserUuid());
+            notification.setMobileUserUUID(mobileUserUuid);
             notification.setTerm("-");
             notification.setTitleMessage(TITLE);
             notification.setBodyMessage(body);
@@ -48,18 +67,18 @@ public class DocumentRenewalNotificationService {
             notification.setReadStatus("NO");
             int notificationId = notificationRepository.insert(notification);
 
-            FcmNotificationEntity fcm = fcmRepository.findByUserUUID(event.getMobileUserUuid());
+            FcmNotificationEntity fcm = fcmRepository.findByUserUUID(mobileUserUuid);
             if (fcm == null || fcm.getTokenFcm() == null || fcm.getTokenFcm().trim().isEmpty()) {
                 return;
             }
-            int count = notificationRepository.countNotificationByMUUID(event.getMobileUserUuid());
+            int count = notificationRepository.countNotificationByMUUID(mobileUserUuid);
             FcmMessageData data = new FcmMessageData();
             data.setTitle(TITLE);
             data.setBody(body);
             data.setNotiType(AppSys.NOTI_TYPE_DOCUMENT_RENEWAL);
             data.setCountNoti(String.valueOf(count));
             data.setNotiId(String.valueOf(notificationId));
-            data.setValueId(event.getRequestNo());
+            data.setValueId(requestNo);
 
             NotificationModel notificationModel = new NotificationModel();
             notificationModel.setTitle(TITLE);
@@ -75,8 +94,5 @@ public class DocumentRenewalNotificationService {
             request.setNotification(notificationModel);
             eventPublisher.publishEvent(new SendNotificationFcmEvent(
                     this, List.of(fcm.getTokenFcm()), request));
-        } catch (Exception ex) {
-            log.error("Cannot create document renewal resubmit notification", ex);
-        }
     }
 }

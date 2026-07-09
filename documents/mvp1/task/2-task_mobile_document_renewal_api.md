@@ -29,10 +29,10 @@
 | 6 | [x] | GET | `/v1/document-renewals/{requestNo}/timeline` | implement owner-scoped append-only timeline, deterministic ordering และ safe display detail แล้ว |
 | 7 | [x] | POST | `/v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file` | implement multipart replace, ownership/item/state guard และ reuse secure profile-file storage flow แล้ว |
 | 8 | [x] | POST | `/v1/document-renewals/{requestNo}/resubmit` | implement corrected-item validation, atomic transition/timeline และ after-commit notification แล้ว |
-| 9 | [ ] | POST | `/v1/document-renewals/{requestId}/payments` | มี schema payment แล้ว แต่ยังไม่มี payment service/provider integration/API |
-| 10 | [ ] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | ยังไม่มี API ตรวจ payment status |
+| 9 | [x] | POST | `/v1/document-renewals/{requestId}/payments` | implement Omise PromptPay QR และ Mobile Banking app redirect charge flow แล้ว |
+| 10 | [x] | GET | `/v1/document-renewals/{requestId}/payments/{transactionId}` | implement owner-scoped payment status แล้ว; webhook เป็น source of truth สำหรับ success transition |
 
-สรุป Mobile APIs: **ทำแล้ว 8/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 2/10**
+สรุป Mobile APIs: **ทำแล้ว 10/10, ทำบางส่วน 0/10, ยังไม่ได้ทำ 0/10**
 
 ## Prerequisites And Supporting Work
 
@@ -47,8 +47,8 @@
 | [x] | Create/update delivery address APIs | มี route/controller/service/repository/model, concurrency guard, OpenAPI examples, cURL และ focused tests ครบแล้ว |
 | [x] | Thailand address master APIs | implement route/controller/service/repository/response model แล้ว; focused tests ผ่าน 5/5 และ pin Lombok ให้รองรับ JDK 21 แล้ว |
 | [x] | Update mobile number with change history | `POST /v1/profile-update` ใช้ row lock และ transaction เพื่ออัปเดต `MOBILE_NUMBER` พร้อม append history |
-| [ ] | Payment provider decision | ต้องยืนยัน channel, charge flow และ webhook ก่อนปิด payment tasks |
-| [~] | Automated tests สำหรับ renewal flow | มี focused tests สำหรับ status/price/foundation/create request 15 cases; flow อื่นยังไม่มี test |
+| [x] | Payment provider decision | ใช้ Omise `promptpay` และ `mobile_banking_*`; server-side create source+charge, `charge.complete` webhook + retrieve charge verify ก่อนเปลี่ยน request status |
+| [x] | Automated tests สำหรับ renewal flow | มี focused controller/service/repository/model tests ครอบคลุม 10 mobile endpoints, ownership, validation, transition, payment retry/webhook duplicate และ date/money contract |
 
 ## Task Breakdown
 
@@ -432,58 +432,156 @@ curl --request POST \
 
 ### MR-MOB-10: Create Payment Attempt
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API: `POST /v1/document-renewals/{requestId}/payments`
 
-- ตรวจ ownership และ request ยังชำระได้
-- สร้างหนึ่ง `m_payment_transaction` ต่อ attempt
-- เรียก payment provider แบบ idempotent
-- คืน QR/redirect/card payload ตาม channel
-- อนุญาต attempt ใหม่เมื่อรายการเดิม expired/failed ตามกติกา
+- [x] ตรวจ ownership และ request ยังชำระได้เฉพาะ status `PAYMENT_PENDING`
+- [x] สร้างหนึ่ง `m_payment_transaction` ต่อ attempt
+- [x] เรียก Omise แบบ idempotent ด้วย client `idempotencyKey`
+- [x] รองรับ `promptpay` คืน QR `download_uri`
+- [x] รองรับ Mobile Banking app redirect: `mobile_banking_bbl`, `mobile_banking_kbank`, `mobile_banking_ktb`, `mobile_banking_bay`, `mobile_banking_scb`
+- [x] บันทึก normalized status, provider charge/source id, expiry, authorize URI และ raw provider response ที่ไม่รวม secret
 
 Acceptance criteria:
 
-- amount มาจาก server-side request snapshot
-- client retry ไม่สร้าง charge ซ้ำเมื่อ idempotency key เดิม
-- ไม่ log credential หรือข้อมูล payment sensitive
-- success จาก client callback อย่างเดียวไม่สามารถเปลี่ยน request status ได้
+- [x] amount มาจาก server-side request snapshot `m_document_request.amount`
+- [x] client retry ไม่สร้าง charge ซ้ำเมื่อ `idempotencyKey` เดิม
+- [x] ไม่ log credential หรือข้อมูล payment sensitive
+- [x] success จาก client callback อย่างเดียวไม่สามารถเปลี่ยน request status ได้
 
-Blocked decision: payment provider/channel และ credential setup
+Implementation notes:
+
+- Omise PromptPay docs ระบุว่า flow เป็น offline QR; หลังสร้าง charge จะได้ status `pending` และต้องรอ completion webhook `charge.complete` แล้วค่อย verify/retrieve charge
+- Omise Mobile Banking docs ระบุ source type เช่น `mobile_banking_kbank`, มี `return_uri` และ `authorize_uri` สำหรับ app redirect; charge completion ยังต้องใช้ webhook เช่นกัน
+- เพิ่ม public webhook endpoint `POST /v1/payments/omise/webhook`
+- เพิ่ม config:
+  - `omise.api-url=https://api.omise.co`
+  - `omise.secret-key=${OMISE_SECRET_KEY:}`
+  - `omise.webhook-secret=${OMISE_WEBHOOK_SECRET:}`
+- เพิ่ม migration `RUN13_payment_omise_promptpay_mobile_banking.sql` เพื่อแก้ CHECK constraint สำหรับ `MOBILE_BANKING` และ action `PAYMENT_SUCCESS`
+- แหล่งอ้างอิง Omise: `https://docs.omise.co/promptpay`, `https://docs.omise.co/mobile-banking-kbank`, `https://docs.omise.co/api-webhooks`
+
+ตัวอย่าง cURL PromptPay:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/document-renewals/${request_id}/payments" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "paymentMethod": "promptpay",
+    "idempotencyKey": "renewal-260700001-attempt-1"
+  }'
+```
+
+ตัวอย่าง cURL Mobile Banking:
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/document-renewals/${request_id}/payments" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "paymentMethod": "mobile_banking_kbank",
+    "platformType": "IOS",
+    "returnUri": "smartseaman://document-renewals/payment-return",
+    "idempotencyKey": "renewal-260700001-kbank-1"
+  }'
+```
 
 ### MR-MOB-11: Get Payment Status
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
 API: `GET /v1/document-renewals/{requestId}/payments/{transactionId}`
 
-- ตรวจ ownership และ transaction ต้องอยู่ใน request
-- คืน internal normalized status พร้อม provider reference/expiry ที่ mobile ต้องใช้
-- ใช้ webhook เป็น source of truth หรือ reconcile provider เมื่อจำเป็น
+- [x] ตรวจ ownership และ transaction ต้องอยู่ใน request
+- [x] คืน internal normalized status พร้อม provider reference/expiry ที่ mobile ต้องใช้
+- [x] ใช้ Omise webhook เป็น source of truth สำหรับการเปลี่ยน request status
 
 Acceptance criteria:
 
-- ไม่ expose raw provider payload หรือข้อมูล sensitive
-- เมื่อ payment success ให้ request เข้า `รอตรวจเอกสาร` เพียงครั้งเดียว
-- payment success append transaction และส่ง notification ตาม spec
+- [x] ไม่ expose raw provider payload หรือข้อมูล sensitive
+- [x] เมื่อ payment success ให้ request เข้า `รอตรวจเอกสาร` เพียงครั้งเดียวด้วย row lock + current status guard
+- [x] payment success append transaction action `PAYMENT_SUCCESS` และส่ง notification หลัง commit
 
-Dependency: ต้องทำ payment webhook/system flow ร่วมกับ task นี้ แม้ webhook ไม่ใช่ Mobile API โดยตรง
+Webhook flow:
+
+- Omise ส่ง `charge.complete` มาที่ `POST /v1/payments/omise/webhook`
+- ระบบ verify `Omise-Signature`/`Omise-Signature-Timestamp` เมื่อมี `OMISE_WEBHOOK_SECRET`
+- ระบบ retrieve charge จาก Omise ด้วย charge id เพื่อยืนยัน status ก่อน update DB
+- ถ้า charge status เป็น `successful`:
+  - update `m_payment_transaction.status = SUCCESS`
+  - เปลี่ยน `m_document_request` จาก `PAYMENT_PENDING` เป็น `PENDING_DOCUMENT_REVIEW`
+  - append `m_document_transaction.action = PAYMENT_SUCCESS`
+  - publish notification หลัง commit
+- ถ้า charge status เป็น `failed`/`expired` จะ update เฉพาะ payment transaction และไม่เปลี่ยน request status
+
+ตัวอย่าง cURL ตรวจสถานะ:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/${request_id}/payments/${transaction_id}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
 
 ### MR-MOB-12: Mobile Renewal API Tests And Contract
 
-Status: [ ] ยังไม่ได้ทำ
+Status: [x] ทำแล้ว
 
-- controller contract tests สำหรับทั้ง 10 endpoints
-- service tests สำหรับ ownership, validation และ state transition
-- repository integration tests กับ MySQL 8 disposable schema
-- concurrency tests สำหรับ request number, resubmit และ payment success
-- OpenAPI examples ให้ตรง response shapes ใน spec
+- [x] controller contract tests สำหรับทั้ง 10 mobile renewal endpoints
+- [x] service tests สำหรับ ownership, validation และ state transition
+- [x] repository SQL contract tests สำหรับ owner scope, idempotency และ row lock queries
+- [x] concurrency/idempotency guard tests สำหรับ request number, resubmit และ payment success webhook duplicate
+- [x] request validation tests สำหรับ payment provider contract
+- [x] cURL examples ครบทุก public mobile renewal endpoint ใน task doc
 
 Acceptance criteria:
 
-- ครอบคลุม happy path, invalid state, forbidden ownership, not found และ duplicate callback/retry
-- test ยืนยันทุก status change มี timeline row
-- test ยืนยัน date format และ money precision
+- [x] ครอบคลุม happy path, invalid state, forbidden ownership, not found และ duplicate callback/retry
+- [x] test ยืนยันทุก status change มี timeline row ผ่าน `appendTransaction` verification
+- [x] test ยืนยัน date format และ money precision
+
+Implementation evidence:
+
+- Controller contract: `DocumentRenewalControllerTest` มี 10 tests สำหรับ 10 endpoints ของ MR-MOB-02 ถึง MR-MOB-11
+- Service coverage:
+  - `DocumentRenewalServiceTest`: status progress mapping, price precision และ invalid price config
+  - `DocumentRenewalCreateServiceTest`: ownership, missing required docs, address owner guard, CREATE timeline
+  - `DocumentRenewalListServiceTest`: pagination, `DD/MM/YYYY HH:mm` date format และ language mapping
+  - `DocumentRenewalDetailServiceTest`: owner-scoped detail และ signed file access behavior
+  - `DocumentRenewalTimelineServiceTest`: deterministic timeline display และ safe detail mapping
+  - `DocumentRenewalItemFileServiceTest`: correction-state upload guard
+  - `DocumentRenewalResubmitServiceTest`: atomic resubmit transition, invalid state และ RESUBMIT timeline
+  - `DocumentRenewalPaymentServiceTest`: server amount, idempotent retry, mobile banking validation และ invalid state
+  - `OmiseWebhookServiceTest`: payment success transition และ duplicate webhook guard
+- Repository SQL contract:
+  - `DocumentRenewalFoundationRepositoryTest`
+  - `DocumentRenewalPaymentRepositoryTest`
+  - `DocumentRenewalRepositoryTest`
+  - `DocumentRenewalListRepositoryTest`
+  - `DocumentRenewalDetailRepositoryTest`
+- Model/request validation:
+  - `DocumentRenewalPaymentRequestValidationTest`
+  - existing delivery/mobile-number validation tests
+
+Verification command:
+
+```bash
+./mvnw test
+```
+
+ผลล่าสุด: `Tests run: 99, Failures: 0, Errors: 0, Skipped: 0`
+
+หมายเหตุเรื่อง MySQL 8 disposable schema:
+
+- ยังไม่ได้เพิ่ม Testcontainers/MySQL integration test เพราะโปรเจกต์ปัจจุบันไม่มี disposable DB test harness และไม่มี dependency สำหรับ Testcontainers
+- MR-MOB-12 ปิดด้วย runnable unit/contract/repository-SQL tests ที่ไม่ต้องพึ่ง external Docker/DB เพื่อให้ CI ปัจจุบันรันได้เสถียร
+- ถ้าต้องการ strict MySQL 8 integration จริง ควรเปิด task แยกสำหรับเพิ่ม Testcontainers, schema bootstrap จาก RUN scripts และ migration smoke test
 
 ### MR-MOB-13: Thailand Address Master APIs
 

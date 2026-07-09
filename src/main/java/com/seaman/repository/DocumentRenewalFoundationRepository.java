@@ -28,6 +28,20 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         return findOwned(requestId, mobileUserUuid, true);
     }
 
+    public DocumentRenewalRequestEntity lockRequest(String requestId) {
+        List<DocumentRenewalRequestEntity> rows = template.query(
+                "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                        + "s.css_color AS status_css_color FROM m_document_request r "
+                        + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
+                        + "WHERE r.id = :requestId FOR UPDATE",
+                new MapSqlParameterSource("requestId", requestId),
+                new BeanPropertyRowMapper<>(DocumentRenewalRequestEntity.class));
+        if (rows.isEmpty()) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "documentRenewalRequest");
+        }
+        return rows.get(0);
+    }
+
     public DocumentRenewalRequestEntity lockOwnedRequestByNo(
             String requestNo, String mobileUserUuid) {
         return findOwnedRequestByNo(requestNo, mobileUserUuid, true);
