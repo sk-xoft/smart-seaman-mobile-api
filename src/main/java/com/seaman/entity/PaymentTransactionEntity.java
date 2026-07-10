@@ -10,6 +10,7 @@ import java.util.Date;
 public class PaymentTransactionEntity {
     private String id;
     private String requestId;
+    private String requestNo;
     private String parentTransactionId;
     private String transactionNo;
     private String transactionType;

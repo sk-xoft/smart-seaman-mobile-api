@@ -11,6 +11,7 @@ import java.util.Date;
 @Setter
 public class DocumentRenewalPaymentResponse {
     private String requestId;
+    private String requestNo;
     private String transactionId;
     private String transactionNo;
     private String status;

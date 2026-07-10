@@ -59,11 +59,13 @@ class DocumentRenewalPaymentServiceTest {
         DocumentRenewalPaymentResponse response =
                 service.create("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input);
 
+        assertEquals("260700001", response.getRequestNo());
         assertEquals("PENDING", response.getStatus());
         assertEquals("PROMPTPAY", response.getChannel());
         assertEquals("https://api.omise.co/qr.svg", response.getQrCodeDownloadUri());
         verify(payments).insert(argThat(entity ->
                 new BigDecimal("1500.00").compareTo(entity.getAmount()) == 0
+                        && "260700001".equals(entity.getRequestNo())
                         && "chrg_test_1".equals(entity.getProviderChargeId())
                         && "src_test_1".equals(entity.getProviderSourceId())));
     }
@@ -87,6 +89,7 @@ class DocumentRenewalPaymentServiceTest {
         PaymentTransactionEntity existing = new PaymentTransactionEntity();
         existing.setId("11111111-1111-1111-1111-111111111111");
         existing.setRequestId("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        existing.setRequestNo("260700001");
         existing.setStatus("PENDING");
         existing.setChannel("PROMPTPAY");
         existing.setPaymentMethod("promptpay");
@@ -105,6 +108,7 @@ class DocumentRenewalPaymentServiceTest {
                 service.create("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input);
 
         assertEquals("11111111-1111-1111-1111-111111111111", response.getTransactionId());
+        assertEquals("260700001", response.getRequestNo());
         verify(omise).qrCodeDownloadUri(null);
         verifyNoMoreInteractions(omise);
         verify(payments, never()).insert(any());

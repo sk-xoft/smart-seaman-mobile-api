@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import javax.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -86,6 +87,29 @@ class DocumentRenewalCreateServiceTest {
     }
 
     @Test
+    void ignoresCompleteRequiredItemsWhenCreatingRequest() {
+        DocumentRenewalPriceResponse price = price();
+        when(renewalService.price("DOC001")).thenReturn(price);
+        when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(2);
+        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
+                .thenReturn(Arrays.asList(requiredItem("COMPLETE"), requiredItem("COMPLETE")));
+        when(deliveryAddressRepository.findActiveOwned(input.getDeliveryAddressId(), "mobile-user-uuid"))
+                .thenReturn(address);
+        when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
+        when(foundationRepository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING))
+                .thenReturn("payment-status-id");
+        when(createRepository.insertRequestItems(anyString(), eq("DOC001"))).thenReturn(2);
+
+        DocumentRenewalCreateResponse response = service.create(input);
+
+        assertEquals("260700001", response.getRequestNo());
+        verify(createRepository).insertRequest(anyString(), eq("260700001"),
+                eq("mobile-user-uuid"), eq("DOC001"), eq("payment-status-id"),
+                eq("price-setting-id"), eq(input.getDeliveryAddressId()),
+                eq(new BigDecimal("1500.00")));
+    }
+
+    @Test
     void rejectsMissingRequiredUploadsBeforeCreatingRequest() {
         when(renewalService.price("DOC001")).thenReturn(price());
         when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(4);
@@ -130,5 +154,11 @@ class DocumentRenewalCreateServiceTest {
         price.setTotal(new BigDecimal("1500.00"));
         price.setEffectiveFrom(LocalDate.of(2026, 7, 5));
         return price;
+    }
+
+    private DocumentRequestItemEntity requiredItem(String status) {
+        DocumentRequestItemEntity item = new DocumentRequestItemEntity();
+        item.setDocumentStatus(status);
+        return item;
     }
 }

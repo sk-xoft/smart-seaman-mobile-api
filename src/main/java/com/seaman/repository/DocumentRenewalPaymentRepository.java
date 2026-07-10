@@ -15,7 +15,7 @@ public class DocumentRenewalPaymentRepository extends CommonRepository {
     public PaymentTransactionEntity findOwnedPayment(
             String requestId, String transactionId, String mobileUserUuid) {
         List<PaymentTransactionEntity> rows = template.query(
-                "SELECT p.* FROM m_payment_transaction p "
+                "SELECT p.*, r.request_no FROM m_payment_transaction p "
                         + "INNER JOIN m_document_request r ON r.id = p.request_id "
                         + "WHERE p.request_id = :requestId AND p.id = :transactionId "
                         + "AND r.mobile_user_uuid = :mobileUserUuid",
@@ -32,7 +32,7 @@ public class DocumentRenewalPaymentRepository extends CommonRepository {
     public PaymentTransactionEntity findByIdempotencyKey(
             String requestId, String idempotencyKey, String mobileUserUuid) {
         List<PaymentTransactionEntity> rows = template.query(
-                "SELECT p.* FROM m_payment_transaction p "
+                "SELECT p.*, r.request_no FROM m_payment_transaction p "
                         + "INNER JOIN m_document_request r ON r.id = p.request_id "
                         + "WHERE p.request_id = :requestId AND p.idempotency_key = :idempotencyKey "
                         + "AND r.mobile_user_uuid = :mobileUserUuid",

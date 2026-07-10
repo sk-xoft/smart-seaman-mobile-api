@@ -7,6 +7,8 @@ import com.seaman.exception.BusinessException;
 import com.seaman.model.external.response.OmiseChargeResponse;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +16,9 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -26,6 +31,8 @@ import java.util.Date;
 @RequiredArgsConstructor
 public class OmisePaymentClient {
     private static final String CURRENCY = "THB";
+    private static final int MAX_PROVIDER_MESSAGE_LENGTH = 200;
+    private static final Logger log = LoggerFactory.getLogger(OmisePaymentClient.class);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -54,9 +61,25 @@ public class OmisePaymentClient {
         }
         HttpHeaders headers = headers();
         headers.set("Idempotency-Key", request.getIdempotencyKey());
-        JsonNode response = restTemplate.postForObject(
-                apiUrl + "/charges", new HttpEntity<>(form, headers), JsonNode.class);
-        return mapCharge(response);
+        try {
+            JsonNode response = restTemplate.postForObject(
+                    apiUrl + "/charges", new HttpEntity<>(form, headers), JsonNode.class);
+            return mapCharge(response);
+        } catch (HttpStatusCodeException ex) {
+            String errorCode = omiseErrorCode(ex);
+            log.warn("Omise create charge failed: status={}, code={}",
+                    ex.getRawStatusCode(), errorCode);
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    omiseHttpErrorMessage("createCharge", ex, errorCode));
+        } catch (ResourceAccessException ex) {
+            log.warn("Omise create charge connection failed: {}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    "omise.createCharge.connection");
+        } catch (RestClientException ex) {
+            log.warn("Omise create charge request failed: {}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    "omise.createCharge");
+        }
     }
 
     public OmiseChargeResponse retrieveCharge(String chargeId) {
@@ -127,6 +150,51 @@ public class OmisePaymentClient {
     private void requireSecretKey() {
         if (secretKey == null || secretKey.trim().isEmpty()) {
             throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL, "omise.secret-key");
+        }
+    }
+
+    private String omiseHttpErrorMessage(String operation, HttpStatusCodeException ex, String errorCode) {
+        StringBuilder message = new StringBuilder("omise.")
+                .append(operation)
+                .append(":")
+                .append(ex.getRawStatusCode());
+        if (errorCode != null) {
+            message.append(":").append(errorCode);
+        }
+        String providerMessage = omiseErrorMessage(ex);
+        if (providerMessage != null) {
+            message.append(":").append(providerMessage);
+        }
+        return message.toString();
+    }
+
+    private String omiseErrorCode(HttpStatusCodeException ex) {
+        JsonNode body = omiseErrorBody(ex);
+        return text(body, "code");
+    }
+
+    private String omiseErrorMessage(HttpStatusCodeException ex) {
+        JsonNode body = omiseErrorBody(ex);
+        String message = text(body, "message");
+        if (message == null) {
+            return null;
+        }
+        message = message.replaceAll("[\\r\\n]", " ").trim();
+        if (message.length() > MAX_PROVIDER_MESSAGE_LENGTH) {
+            return message.substring(0, MAX_PROVIDER_MESSAGE_LENGTH);
+        }
+        return message;
+    }
+
+    private JsonNode omiseErrorBody(HttpStatusCodeException ex) {
+        String body = ex.getResponseBodyAsString();
+        if (body == null || body.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(body);
+        } catch (Exception parseException) {
+            return null;
         }
     }
 

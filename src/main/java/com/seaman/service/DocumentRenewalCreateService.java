@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -49,8 +50,11 @@ public class DocumentRenewalCreateService {
         if (requiredCount == 0) {
             throw new BusinessException(AppStatus.DATA_NOT_FOUND, "requiredDocumentItems");
         }
-        List<DocumentRequestItemEntity> missing = documentRepository
+        List<DocumentRequestItemEntity> requiredItems = documentRepository
                 .findMissingItemsByUserAndDocumentCode(user.getMobileUuid(), documentCode);
+        List<DocumentRequestItemEntity> missing = requiredItems == null ? null : requiredItems.stream()
+                .filter(item -> !"COMPLETE".equalsIgnoreCase(item.getDocumentStatus()))
+                .collect(Collectors.toList());
         if (missing != null && !missing.isEmpty()) {
             throw new BusinessException(AppStatus.MISSING_PARAMETER, "requiredDocumentItems", missing);
         }

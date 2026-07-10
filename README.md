@@ -135,11 +135,11 @@ mvn clean package -DskipTests && docker build -t smart-seaman-mobile-api:latest 
 ```bash
 
 docker run --name smart-seaman-mobile-api -d \
-  --env-file /Users/sarunyook/workspaces/xoftspace/smart-seaman/source_code/config/mobile/prod/.env \
-  -v /Users/sarunyook/workspaces/xoftspace/smart-seaman/source_code/config/mobile/prod/smart-seaman-firebase.json:/app/firebase.json \
+  --env-file /Users/sk/works/products/smartseaman.com/source-code/config/mobile-api/non-prod/.env \
+  -v /Users/sk/works/products/smartseaman.com/source-code/config/mobile-api/non-prod/smart-seaman-firebase.json:/app/firebase.json \
   -e FCM_CREDENTIAL_FILE=/app/firebase.json \
   -it -p 30000:8080/tcp \
-  xoftspace/smart-seaman-mobile-api:0.4
+  smart-seaman-mobile-api
   
 
 ```
@@ -207,3 +207,38 @@ docker rm smart-seaman-mobile-api
 # รัน test class เฉพาะ
 ./mvnw test -Dtest=ClassName
 ```
+
+
+## Update JAVA VERSION
+
+### ติดตั้ง Java
+```bash
+
+sudo apt update
+sudo apt install -y openjdk-17-jdk
+
+```
+
+ตรวจสอบ Java ที่ติดตั้ง:
+```bash
+ls -la /usr/lib/jvm/
+```
+
+จากนั้นเลือก Java 17 เป็นค่าเริ่มต้น:
+```bash
+sudo update-alternatives --config java
+sudo update-alternatives --config javac
+```
+
+ตรวจสอบ Java ที่ติดตั้ง:
+```bash
+ls -la /usr/lib/jvm/
+```
+
+เพิ่มลงใน ~/.bashrc:
+```bash
+echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> ~/.bashrc
+echo 'export PATH=$JAVA_HOME/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+

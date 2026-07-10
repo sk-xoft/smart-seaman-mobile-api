@@ -51,6 +51,7 @@ public class DocumentRenewalPaymentService {
         PaymentTransactionEntity entity = new PaymentTransactionEntity();
         entity.setId(UUID.randomUUID().toString());
         entity.setRequestId(requestId);
+        entity.setRequestNo(request.getRequestNo());
         entity.setTransactionNo("PAY" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase(Locale.ROOT));
         entity.setChannel(channel(input.getPaymentMethod()));
         entity.setPaymentMethod(input.getPaymentMethod());
@@ -127,6 +128,7 @@ public class DocumentRenewalPaymentService {
     private DocumentRenewalPaymentResponse map(PaymentTransactionEntity entity, String qrCodeDownloadUri) {
         DocumentRenewalPaymentResponse response = new DocumentRenewalPaymentResponse();
         response.setRequestId(entity.getRequestId());
+        response.setRequestNo(entity.getRequestNo());
         response.setTransactionId(entity.getId());
         response.setTransactionNo(entity.getTransactionNo());
         response.setStatus(entity.getStatus());
