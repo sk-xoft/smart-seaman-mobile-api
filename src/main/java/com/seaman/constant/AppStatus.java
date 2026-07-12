@@ -7,7 +7,7 @@ public class AppStatus {
     /** this auth **/
     public static final String EMAIL_IS_EXISTING = "MA00001";
     public static final String SECURITY_NOT_FOUND_USERNAME = "MA00002";
-    public static final String EXCEPTION_USERNAME_PASSWORD_INCORRECT = "MA00003";
+    public static final String EXCEPTION_USER_HERO_INCORRECT = "MA00003";
     public static final String ATTRIBUTE_IS_REQUIRE = "MA00004";
     public static final String INVALID_FORMAT =  "MA00005";
     public static final String EMAIL_IS_REGISTER =  "MA00006";
@@ -22,7 +22,7 @@ public class AppStatus {
     public static final String DATA_NOT_FOUND  = "MA00016";
     public static final String DATA_IS_EXISTING = "MA00017";
     public static final String MISSING_PARAMETER  = "MA00018";
-    public static final String PASSWORD_IS_MATCH  = "MA00020";
+    public static final String HERO_IS_MATCH  = "MA00020";
     public static final String CANNOT_REGISTER  = "MA00021";
     public static final String USER_IS_ACTIVATED  = "MA00022";
     public static final String USER_IS_INACTIVATED  = "MA00023";

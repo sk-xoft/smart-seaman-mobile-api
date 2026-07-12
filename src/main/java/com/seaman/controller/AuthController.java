@@ -59,7 +59,7 @@ public class AuthController extends BaseController {
     }
 
     @Operation(summary = "เปลี่ยนรหัสผ่าน", description = "เปลี่ยนรหัสผ่านของผู้ใช้ที่ login อยู่")
-    @PostMapping(Routes.CHANGE_PASSWORD)
+    @PostMapping(Routes.CHANGE_HERO)
     public ResponseEntity<SuccessResponse<RegisterResponse>> changePassword(
             HttpServletRequest httpServletRequest,
             @Valid @RequestBody ChangePasswordRequest request) {
@@ -116,7 +116,7 @@ public class AuthController extends BaseController {
     }
 
     @Operation(summary = "ขอรีเซ็ตรหัสผ่าน", description = "ส่งอีเมลพร้อมลิงก์รีเซ็ตรหัสผ่านไปยัง email ที่ระบุ")
-    @PostMapping(Routes.FORGOT_PASSWORD)
+    @PostMapping(Routes.FORGOT_HERO)
     public ResponseEntity<SuccessResponse<RegisterResponse>> forgotPassword(
             HttpServletRequest httpServletRequest,
             @Valid @RequestBody ForgotPasswordRequest request) {

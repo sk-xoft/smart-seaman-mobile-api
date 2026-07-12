@@ -3,9 +3,14 @@ package com.seaman.utils;
 import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 public class ObjectValidatorUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(ObjectValidatorUtils.class);
 
     public static final String APPLICATION_VALUE_TYPE_INTEGER = "Integer";
     public static final String APPLICATION_VALUE_TYPE_FLOAT = "Float";
@@ -46,7 +51,7 @@ public class ObjectValidatorUtils {
                     return ret;
                 }
             } catch (ParseException e) {
-                e.printStackTrace();
+                log.debug("Invalid date value for expected format {}: {}", DATE_FORMAT_YYYY_MM_DD, input, e);
             }
         }
         return null;
@@ -61,7 +66,7 @@ public class ObjectValidatorUtils {
                     return true;
                 }
             } catch (ParseException e) {
-                e.printStackTrace();
+                log.debug("Invalid date value for expected format {}: {}", DATE_FORMAT_YYYY_MM_DD, input, e);
             }
         }
         return false;

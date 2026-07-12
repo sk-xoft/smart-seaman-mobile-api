@@ -25,11 +25,11 @@ public class EmailService {
     public String sendEmailForgotPassword(String fullName, String toEmail, String  linkForgotPassword, String uid) {
 
         EmailDetails model = new EmailDetails();
-        model.setSubject(AppSys.TITLE_EMAIL_FORGOT_PASSWORD);
+        model.setSubject(AppSys.TITLE_EMAIL_FORGOT_HERO);
 
         StringBuilder body =  new StringBuilder();
-        body.append(AppSys.FORGOT_PASSWORD_BODY_ROW_1.replace("{full_name}", fullName));
-        body.append(AppSys.FORGOT_PASSWORD_BODY_ROW_2);
+        body.append(AppSys.FORGOT_HERO_BODY_ROW_1.replace("{full_name}", fullName));
+        body.append(AppSys.FORGOT_HERO_BODY_ROW_2);
 
         // Set user mobile uuid
         String fullLink = linkForgotPassword + "/?uid=" + uid;

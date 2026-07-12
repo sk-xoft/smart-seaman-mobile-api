@@ -84,7 +84,7 @@ public class AuthService {
 
             UsersEntity usersEntity = usersEntityOptional.get();
             if (!this.matchPassword(loginRequest.getPassword(), usersEntity.getPassword())) {
-                throw new BusinessException(AppStatus.EXCEPTION_USERNAME_PASSWORD_INCORRECT, "");
+                throw new BusinessException(AppStatus.EXCEPTION_USER_HERO_INCORRECT, "");
             }
 
             log.info("User is status -> {}.", usersEntity.getUserStatus());
@@ -350,12 +350,12 @@ public class AuthService {
                 Optional<UsersEntity> usersEntityOptional = Optional.ofNullable(userRepository.findByUsername(username));
 
                 if (usersEntityOptional.isEmpty()) {
-                    throw new BusinessException(AppStatus.EXCEPTION_USERNAME_PASSWORD_INCORRECT, "");
+                    throw new BusinessException(AppStatus.EXCEPTION_USER_HERO_INCORRECT, "");
                 }
 
                 UsersEntity usersEntityDB = usersEntityOptional.get();
                 if (!this.matchPassword(request.getOldPassword(), usersEntityDB.getPassword())) {
-                    throw new BusinessException(AppStatus.EXCEPTION_USERNAME_PASSWORD_INCORRECT, "");
+                    throw new BusinessException(AppStatus.EXCEPTION_USER_HERO_INCORRECT, "");
                 }
 
                 usersEntityDB.setPassword(passwordEncoder.encode(request.getConfirmPassword()));
@@ -367,7 +367,7 @@ public class AuthService {
                 response.setEmail(usersEntityDB.getEmail());
 
             } else {
-                throw new BusinessException(AppStatus.PASSWORD_IS_MATCH, "");
+                throw new BusinessException(AppStatus.HERO_IS_MATCH, "");
             }
 
 
@@ -516,7 +516,7 @@ public class AuthService {
                 Optional<UsersEntity> usersEntityOptional = Optional.ofNullable(userRepository.findByUsername(username));
 
                 if (usersEntityOptional.isEmpty()) {
-                    throw new BusinessException(AppStatus.EXCEPTION_USERNAME_PASSWORD_INCORRECT, "");
+                    throw new BusinessException(AppStatus.EXCEPTION_USER_HERO_INCORRECT, "");
                 }
 
                 usersEntity.setPassword(passwordEncoder.encode(request.getConfirmPassword()));
@@ -527,7 +527,7 @@ public class AuthService {
                 response.setEmail(usersEntity.getEmail());
 
             } else {
-                throw new BusinessException(AppStatus.PASSWORD_IS_MATCH, "");
+                throw new BusinessException(AppStatus.HERO_IS_MATCH, "");
             }
 
         } catch (CommonException ce){

@@ -7,8 +7,8 @@ public class Routes {
     public static final String LOGIN = "/login";
     public static final String REFRESH_TOKEN = "/refresh-token";
     public static final String REGISTER = "/register";
-    public static final String CHANGE_PASSWORD = "/change-password";
-    public static final String FORGOT_PASSWORD = "/activate-forgot-password";
+    public static final String CHANGE_HERO = "/change-password";
+    public static final String FORGOT_HERO = "/activate-forgot-password";
     public static final String PROFILE = "/profile";
     public static final String PROFILE_UPDATE = "/profile-update";
     public static final String PROFILE_IMAGE = "/profile-image";

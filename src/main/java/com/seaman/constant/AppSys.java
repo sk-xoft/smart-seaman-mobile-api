@@ -56,9 +56,9 @@ public class AppSys {
 
 
     /** For mobile forget password **/
-    public static final String TITLE_EMAIL_FORGOT_PASSWORD = "ขอตั้งรหัสผ่านใหม่";
-    public static final String FORGOT_PASSWORD_BODY_ROW_1 = "เรียนคุณ {full_name}";
-    public static final String FORGOT_PASSWORD_BODY_ROW_2 = "<br/>คุณได้ส่งคำขอเพื่อตั้งรหัสผ่านใหม่ กรุณาคลิกลิงก์เพื่อดำเนินการ";
+    public static final String TITLE_EMAIL_FORGOT_HERO = "ขอตั้งรหัสผ่านใหม่";
+    public static final String FORGOT_HERO_BODY_ROW_1 = "เรียนคุณ {full_name}";
+    public static final String FORGOT_HERO_BODY_ROW_2 = "<br/>คุณได้ส่งคำขอเพื่อตั้งรหัสผ่านใหม่ กรุณาคลิกลิงก์เพื่อดำเนินการ";
     public static final String SENDER_NAME = "SmartSeaman";
     public static final String SENDER_NAME_SPACE = "Smart Seaman";
 
