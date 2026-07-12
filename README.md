@@ -116,7 +116,7 @@ Swagger UI: `http://localhost:8080/smart-seaman-swagger`
 ### 2. Build Docker Image
 
 ```bash
-docker build -t xoftspace/smart-seaman-mobile-api:latest .
+docker build -t smart-seaman-mobile-api:latest .
 ```
 
 ### 3. Run Container

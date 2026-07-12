@@ -12,7 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -46,6 +48,7 @@ public class OmisePaymentClient {
     public OmiseChargeResponse createCharge(BigDecimal amount, String requestNo,
                                             DocumentRenewalPaymentRequest request) {
         requireSecretKey();
+        String url = apiUrl + "/charges";
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("amount", toSubunit(amount));
         form.add("currency", CURRENCY);
@@ -62,13 +65,19 @@ public class OmisePaymentClient {
         HttpHeaders headers = headers();
         headers.set("Idempotency-Key", request.getIdempotencyKey());
         try {
+            log.info("Omise create charge request: url={}, headers={}, body={}, secretKeyType={}, secretKeyLength={}",
+                    url, safeHeaders(headers), form, secretKeyType(), secretKey.trim().length());
             JsonNode response = restTemplate.postForObject(
-                    apiUrl + "/charges", new HttpEntity<>(form, headers), JsonNode.class);
+                    url, new HttpEntity<>(form, headers), JsonNode.class);
+            log.info("Omise create charge response: requestNo={}, chargeId={}, status={}, livemode={}, body={}",
+                    requestNo, text(response, "id"), text(response, "status"), bool(response, "livemode"),
+                    safeJson(response));
             return mapCharge(response);
         } catch (HttpStatusCodeException ex) {
             String errorCode = omiseErrorCode(ex);
-            log.warn("Omise create charge failed: status={}, code={}",
-                    ex.getRawStatusCode(), errorCode);
+            log.warn("Omise create charge failed: url={}, requestNo={}, status={}, code={}, message={}, responseBody={}",
+                    url, requestNo, ex.getRawStatusCode(), errorCode, omiseErrorMessage(ex),
+                    safeResponseBody(ex));
             throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
                     omiseHttpErrorMessage("createCharge", ex, errorCode));
         } catch (ResourceAccessException ex) {
@@ -84,9 +93,39 @@ public class OmisePaymentClient {
 
     public OmiseChargeResponse retrieveCharge(String chargeId) {
         requireSecretKey();
-        JsonNode response = restTemplate.getForObject(
-                apiUrl + "/charges/" + chargeId, JsonNode.class);
-        return mapCharge(response);
+        String url = apiUrl + "/charges/" + chargeId;
+        HttpHeaders headers = headers();
+        try {
+            log.info("Omise retrieve charge request: url={}, headers={}, body=null, secretKeyType={}, secretKeyLength={}",
+                    url, safeHeaders(headers), secretKeyType(), secretKey.trim().length());
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    JsonNode.class);
+            JsonNode body = response.getBody();
+            log.info("Omise retrieve charge response: chargeId={}, httpStatus={}, status={}, livemode={}, body={}",
+                    chargeId, response.getStatusCodeValue(), text(body, "status"), bool(body, "livemode"),
+                    safeJson(body));
+            return mapCharge(body);
+        } catch (HttpStatusCodeException ex) {
+            String errorCode = omiseErrorCode(ex);
+            log.warn("Omise retrieve charge failed: url={}, chargeId={}, status={}, code={}, message={}, responseBody={}",
+                    url, chargeId, ex.getRawStatusCode(), errorCode, omiseErrorMessage(ex),
+                    safeResponseBody(ex));
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    omiseHttpErrorMessage("retrieveCharge", ex, errorCode));
+        } catch (ResourceAccessException ex) {
+            log.warn("Omise retrieve charge connection failed: url={}, chargeId={}, message={}",
+                    url, chargeId, ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    "omise.retrieveCharge.connection");
+        } catch (RestClientException ex) {
+            log.warn("Omise retrieve charge request failed: url={}, chargeId={}, message={}",
+                    url, chargeId, ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL,
+                    "omise.retrieveCharge");
+        }
     }
 
     public OmiseChargeResponse mapCharge(JsonNode charge) {
@@ -142,9 +181,29 @@ public class OmisePaymentClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         String token = Base64.getEncoder().encodeToString(
-                (secretKey + ":").getBytes(StandardCharsets.UTF_8));
+                (secretKey.trim() + ":").getBytes(StandardCharsets.UTF_8));
         headers.set(HttpHeaders.AUTHORIZATION, "Basic " + token);
         return headers;
+    }
+
+    private HttpHeaders safeHeaders(HttpHeaders headers) {
+        HttpHeaders safe = new HttpHeaders();
+        safe.putAll(headers);
+        // if (safe.containsKey(HttpHeaders.AUTHORIZATION)) {
+        //     safe.set(HttpHeaders.AUTHORIZATION, "Basic ***");
+        // }
+        return safe;
+    }
+
+    private String secretKeyType() {
+        String trimmed = secretKey == null ? "" : secretKey.trim();
+        if (trimmed.startsWith("skey_test_")) {
+            return "skey_test";
+        }
+        if (trimmed.startsWith("skey_live_")) {
+            return "skey_live";
+        }
+        return "unknown";
     }
 
     private void requireSecretKey() {
@@ -184,6 +243,33 @@ public class OmisePaymentClient {
             return message.substring(0, MAX_PROVIDER_MESSAGE_LENGTH);
         }
         return message;
+    }
+
+    private String safeResponseBody(HttpStatusCodeException ex) {
+        String body = ex.getResponseBodyAsString();
+        if (body == null) {
+            return null;
+        }
+        body = body.replaceAll("[\\r\\n]", " ").trim();
+        if (body.length() > MAX_PROVIDER_MESSAGE_LENGTH) {
+            return body.substring(0, MAX_PROVIDER_MESSAGE_LENGTH);
+        }
+        return body;
+    }
+
+    private String safeJson(JsonNode node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            String body = objectMapper.writeValueAsString(node);
+            if (body.length() > MAX_PROVIDER_MESSAGE_LENGTH) {
+                return body.substring(0, MAX_PROVIDER_MESSAGE_LENGTH);
+            }
+            return body;
+        } catch (Exception ex) {
+            return "unavailable";
+        }
     }
 
     private JsonNode omiseErrorBody(HttpStatusCodeException ex) {
