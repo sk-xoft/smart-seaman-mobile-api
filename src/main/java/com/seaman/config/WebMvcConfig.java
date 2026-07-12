@@ -46,7 +46,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/swagger-ui.html/**",
                                                 "/swagger-ui/**",
                                                 "/smart-seaman-swagger",
-                                                "/smart-seaman-swagger/**")
+                                                "/smart-seaman-swagger/**",
+                                                "/v1/payments/omise/webhook")
                                 .addPathPatterns("/v1/**")
                                 .order(1);
 
