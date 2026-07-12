@@ -11,11 +11,8 @@ FIREBASE_FILE="${FIREBASE_FILE:-/home/ssmuser/apps/config/mobile-api/non-prod/sm
 LOG_DIR="${LOG_DIR:-/home/ssmuser/apps-logs-service/smart-seaman-mobile-api/logs}"
 FCM_CREDENTIAL_FILE="${FCM_CREDENTIAL_FILE:-/app/firebase.json}"
 
-if [[ -x "./mvnw" ]]; then
-  MVN_CMD="${MVN_CMD:-./mvnw}"
-else
-  MVN_CMD="${MVN_CMD:-mvn}"
-fi
+MVN_CMD="${MVN_CMD:-mvn}"
+MVN_ARGS="${MVN_ARGS:-clean package}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -86,8 +83,9 @@ else
   done_step 3 "No existing image to remove"
 fi
 
-step 4 "Packaging application with Maven"
-"$MVN_CMD" clean package -DskipTests
+step 4 "Packaging application with Maven: ${MVN_CMD} ${MVN_ARGS}"
+# shellcheck disable=SC2086
+"$MVN_CMD" $MVN_ARGS
 done_step 4 "Maven package completed"
 
 step 5 "Building Docker image: ${IMAGE_NAME}"
