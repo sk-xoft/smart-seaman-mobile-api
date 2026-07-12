@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-     <property name="LOGS" value="/Users/sk/works/products/smartseaman.com/app-logs"/>
-<!--    <property name="LOGS" value="/apps-logs-service/smart-seaman-mobile-api/logs"/>-->
+    <springProperty scope="context" name="LOGS" source="logging.file.path" defaultValue="/apps-logs-service/smart-seaman-mobile-api/logs"/>
     <property name="APPS" value="smart-seaman-mobile-api" />
 
     <appender name="Console"

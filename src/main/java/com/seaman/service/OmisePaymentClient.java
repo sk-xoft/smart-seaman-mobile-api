@@ -189,9 +189,9 @@ public class OmisePaymentClient {
     private HttpHeaders safeHeaders(HttpHeaders headers) {
         HttpHeaders safe = new HttpHeaders();
         safe.putAll(headers);
-        // if (safe.containsKey(HttpHeaders.AUTHORIZATION)) {
-        //     safe.set(HttpHeaders.AUTHORIZATION, "Basic ***");
-        // }
+        if (safe.containsKey(HttpHeaders.AUTHORIZATION)) {
+            safe.set(HttpHeaders.AUTHORIZATION, "Basic ***");
+        }
         return safe;
     }
 
@@ -209,6 +209,9 @@ public class OmisePaymentClient {
     private void requireSecretKey() {
         if (secretKey == null || secretKey.trim().isEmpty()) {
             throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL, "omise.secret-key");
+        }
+        if ("unknown".equals(secretKeyType())) {
+            throw new BusinessException(AppStatus.EXCEPTION_TECHNICAL, "omise.secret-key.type");
         }
     }
 

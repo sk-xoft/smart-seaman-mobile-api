@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class OmisePaymentClientTest {
@@ -84,6 +85,19 @@ class OmisePaymentClientTest {
         String expectedToken = Base64.getEncoder().encodeToString(
                 "skey_test_123:".getBytes(StandardCharsets.UTF_8));
         assertEquals("Basic " + expectedToken, headers.getFirst(HttpHeaders.AUTHORIZATION));
+    }
+
+    @Test
+    void createChargeRejectsPublicKeyBeforeCallingOmise() {
+        ReflectionTestUtils.setField(client, "secretKey", "pkey_test_123");
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> client.createCharge(new BigDecimal("1500.00"),
+                        "260700001", promptPayRequest()));
+
+        assertEquals(AppStatus.EXCEPTION_TECHNICAL, exception.getCode());
+        assertTrue(exception.getMessage().contains("omise.secret-key.type"));
+        verifyNoInteractions(restTemplate);
     }
 
     private DocumentRenewalPaymentRequest promptPayRequest() {
