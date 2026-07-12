@@ -43,12 +43,12 @@ public class OmiseWebhookService {
 
     @Transactional
     public void handle(String rawBody, String signature, String timestamp) {
-        verifySignature(rawBody, signature, timestamp);
         JsonNode event = parse(rawBody);
         String key = text(event, "key");
         if (!"charge.complete".equals(key)) {
             return;
         }
+        verifySignature(rawBody, signature, timestamp);
         String chargeId = text(event.path("data"), "id");
         if (chargeId == null || chargeId.trim().isEmpty()) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseChargeId");

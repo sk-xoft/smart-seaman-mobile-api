@@ -118,4 +118,23 @@ class OmiseWebhookServiceTest {
 
         verifyNoInteractions(omise, payments, foundation, publisher);
     }
+
+    @Test
+    void ignoredWebhookEventDoesNotRequireHttpSignatureHeaders() {
+        OmisePaymentClient omise = mock(OmisePaymentClient.class);
+        DocumentRenewalPaymentRepository payments = mock(DocumentRenewalPaymentRepository.class);
+        DocumentRenewalFoundationRepository foundation = mock(DocumentRenewalFoundationRepository.class);
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        DocumentRenewalPaymentService paymentService =
+                new DocumentRenewalPaymentService(null, null, null, null);
+        OmiseWebhookService service = new OmiseWebhookService(
+                new ObjectMapper(), omise, paymentService, payments, foundation, publisher, environment);
+
+        service.handle("{\"key\":\"charge.create\",\"data\":{\"id\":\"chrg_test_1\"}}",
+                null, null);
+
+        verifyNoInteractions(omise, payments, foundation, publisher);
+    }
 }
