@@ -5,6 +5,7 @@ import com.seaman.constant.DocumentRenewalStatus;
 import com.seaman.entity.DocumentRenewalRequestEntity;
 import com.seaman.entity.PaymentTransactionEntity;
 import com.seaman.entity.UsersEntity;
+import com.seaman.exception.BusinessException;
 import com.seaman.model.external.response.OmiseChargeResponse;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalPaymentResponse;
@@ -138,6 +139,33 @@ class DocumentRenewalPaymentServiceTest {
                 () -> service.create("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input));
         verifyNoInteractions(omise);
         verify(payments, never()).insert(any());
+    }
+
+    @Test
+    void rejectsPaymentWhenRequestScopedFilesAreIncomplete() {
+        DocumentRenewalFoundationRepository foundation = mock(DocumentRenewalFoundationRepository.class);
+        DocumentRenewalPaymentRepository payments = mock(DocumentRenewalPaymentRepository.class);
+        OmisePaymentClient omise = mock(OmisePaymentClient.class);
+        HttpServletRequest http = mock(HttpServletRequest.class);
+        DocumentRenewalPaymentService service =
+                new DocumentRenewalPaymentService(foundation, payments, omise, http);
+        UsersEntity user = new UsersEntity();
+        user.setMobileUuid("mobile-user-uuid");
+        when(http.getAttribute("userObject")).thenReturn(user);
+        DocumentRenewalRequestEntity request = new DocumentRenewalRequestEntity();
+        request.setId("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        request.setStatusNameEn(DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn());
+        when(foundation.lockOwnedRequest("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "mobile-user-uuid"))
+                .thenReturn(request);
+        when(foundation.countIncompleteRequestScopedItems("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+                .thenReturn(1);
+        DocumentRenewalPaymentRequest input = new DocumentRenewalPaymentRequest();
+        input.setPaymentMethod("promptpay");
+        input.setIdempotencyKey("renewal-260700001-1");
+
+        assertThrows(BusinessException.class,
+                () -> service.create("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input));
+        verifyNoInteractions(payments, omise);
     }
 
     @Test

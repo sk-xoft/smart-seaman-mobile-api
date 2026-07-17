@@ -193,8 +193,10 @@ public class DocumentRepository extends CommonRepository {
         StringBuilder sql = new StringBuilder();
         sql.append(" SELECT");
         sql.append("   dri.id, dri.id AS profile_request_item_id, dri.mobile_user_uuid,");
-        sql.append("   dsr.document_master_request_item_code, dri.document_type, dmri.document_master_items_name AS document_name,");
+        sql.append("   dsr.document_master_request_item_code, dmri.storage_scope,");
+        sql.append("   dri.document_type, dmri.document_master_items_name AS document_name,");
         sql.append("   CASE");
+        sql.append("     WHEN dmri.storage_scope = 'REQUEST' THEN 'MISSING'");
         sql.append("     WHEN dsr.document_master_request_item_code = 'MRI001' AND (");
         sql.append("       (SELECT COUNT(DISTINCT p.slot_code) FROM m_document_profile_request_item p");
         sql.append("        WHERE p.mobile_user_uuid = :mobileUserUuid AND p.document_master_request_item_code = 'MRI001'");

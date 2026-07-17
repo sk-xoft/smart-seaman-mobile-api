@@ -110,6 +110,27 @@ class DocumentRenewalCreateServiceTest {
     }
 
     @Test
+    void allowsRequestScopedItemsToBeUploadedAfterDraftCreation() {
+        DocumentRenewalPriceResponse price = price();
+        when(renewalService.price("DOC001")).thenReturn(price);
+        when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(2);
+        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
+                .thenReturn(Arrays.asList(requiredItem("COMPLETE", "PROFILE"),
+                        requiredItem("MISSING", "REQUEST")));
+        when(deliveryAddressRepository.findActiveOwned(input.getDeliveryAddressId(), "mobile-user-uuid"))
+                .thenReturn(address);
+        when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
+        when(foundationRepository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING))
+                .thenReturn("payment-status-id");
+        when(createRepository.insertRequestItems(anyString(), eq("DOC001"))).thenReturn(2);
+
+        DocumentRenewalCreateResponse response = service.create(input);
+
+        assertEquals("260700001", response.getRequestNo());
+        verify(createRepository).insertRequestItems(anyString(), eq("DOC001"));
+    }
+
+    @Test
     void rejectsMissingRequiredUploadsBeforeCreatingRequest() {
         when(renewalService.price("DOC001")).thenReturn(price());
         when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(4);
@@ -157,8 +178,13 @@ class DocumentRenewalCreateServiceTest {
     }
 
     private DocumentRequestItemEntity requiredItem(String status) {
+        return requiredItem(status, "PROFILE");
+    }
+
+    private DocumentRequestItemEntity requiredItem(String status, String storageScope) {
         DocumentRequestItemEntity item = new DocumentRequestItemEntity();
         item.setDocumentStatus(status);
+        item.setStorageScope(storageScope);
         return item;
     }
 }

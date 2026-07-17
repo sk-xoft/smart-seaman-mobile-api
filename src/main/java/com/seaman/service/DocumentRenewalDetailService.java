@@ -20,6 +20,7 @@ import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.model.response.DocumentRenewalSummaryStatusResponse;
 import com.seaman.repository.DocumentRenewalDetailRepository;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
+import com.seaman.repository.DocumentRenewalRequestItemFileRepository;
 import com.seaman.repository.DocumentRequestItemFileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +47,7 @@ public class DocumentRenewalDetailService {
     private final DocumentRenewalFoundationRepository foundationRepository;
     private final DocumentRenewalDetailRepository detailRepository;
     private final DocumentRequestItemFileRepository fileRepository;
+    private final DocumentRenewalRequestItemFileRepository requestItemFileRepository;
     private final AmazonS3 s3;
     private final HttpServletRequest httpServletRequest;
 
@@ -92,8 +94,9 @@ public class DocumentRenewalDetailService {
                 foundationRepository.findOwnedRequestItems(requestId, userUuid);
         List<DocumentRenewalDetailItemResponse> result = new ArrayList<>();
         for (RenewalRequestItemEntity row : rows) {
-            List<DocumentRequestItemFileEntity> files = fileRepository.findFiles(
-                    userUuid, row.getDocumentMasterRequestItemCode());
+            List<DocumentRequestItemFileEntity> files = "REQUEST".equals(row.getStorageScope())
+                    ? requestItemFileRepository.findFiles(row.getId())
+                    : fileRepository.findFiles(userUuid, row.getDocumentMasterRequestItemCode());
             List<DocumentRenewalDetailFileResponse> mappedFiles = new ArrayList<>();
             boolean updated = false;
             boolean fileUploaded = false;
@@ -105,6 +108,7 @@ public class DocumentRenewalDetailService {
             DocumentRenewalDetailItemResponse item = new DocumentRenewalDetailItemResponse();
             item.setItemId(row.getId());
             item.setDocumentRequestItemCode(row.getDocumentMasterRequestItemCode());
+            item.setStorageScope(row.getStorageScope());
             item.setDocumentName(itemName(row));
             item.setSortOrder(row.getSortOrder());
             item.setFileUploaded(fileUploaded);

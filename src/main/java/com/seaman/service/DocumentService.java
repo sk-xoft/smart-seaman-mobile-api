@@ -506,6 +506,7 @@ public class DocumentService {
                     dto.setProfileRequestItemId(item.getProfileRequestItemId());
                     dto.setDocumentCode(item.getDocumentCode());
                     dto.setDocumentMasterRequestItemCode(item.getDocumentMasterRequestItemCode());
+                    dto.setStorageScope(item.getStorageScope());
                     dto.setDocumentType(item.getDocumentType());
                     dto.setDocumentName(item.getDocumentName());
                     dto.setDocumentStatus(item.getDocumentStatus());

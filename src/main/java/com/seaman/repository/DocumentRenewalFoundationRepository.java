@@ -102,7 +102,8 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     public List<RenewalRequestItemEntity> findOwnedRequestItems(
             String requestId, String mobileUserUuid) {
         return template.query("SELECT i.*, m.document_master_items_name AS document_name_th, "
-                        + "m.document_master_items_name AS document_name_en, m.sort_order "
+                        + "m.document_master_items_name AS document_name_en, m.sort_order, "
+                        + "m.storage_scope "
                         + "FROM m_document_request_items i "
                         + "INNER JOIN m_document_request r ON r.id = i.request_id "
                         + "INNER JOIN m_document_master_request_item m "
@@ -116,9 +117,12 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     public RenewalRequestItemEntity lockOwnedRequestItem(
             String requestNo, String documentRequestItemCode, String mobileUserUuid) {
         List<RenewalRequestItemEntity> rows = template.query(
-                "SELECT i.*, s.name_en AS status_name_en FROM m_document_request_items i "
+                "SELECT i.*, s.name_en AS status_name_en, m.storage_scope "
+                        + "FROM m_document_request_items i "
                         + "INNER JOIN m_document_request r ON r.id = i.request_id "
                         + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
+                        + "INNER JOIN m_document_master_request_item m "
+                        + "ON m.document_master_items_code = i.document_master_request_item_code "
                         + "WHERE r.request_no = :requestNo "
                         + "AND i.document_master_request_item_code = :documentRequestItemCode "
                         + "AND r.mobile_user_uuid = :mobileUserUuid FOR UPDATE",
@@ -142,8 +146,10 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public int countIncompleteCorrectedFixItems(String requestId, String mobileUserUuid) {
         String sql = "SELECT COUNT(*) FROM m_document_request_items i "
+                + "INNER JOIN m_document_master_request_item m "
+                + "ON m.document_master_items_code = i.document_master_request_item_code "
                 + "WHERE i.request_id = :requestId AND i.approve_status = 'FIX' AND NOT ("
-                + "(i.document_master_request_item_code = 'MRI001' AND ("
+                + "(m.storage_scope = 'PROFILE' AND i.document_master_request_item_code = 'MRI001' AND ("
                 + "((SELECT COUNT(DISTINCT p.slot_code) FROM m_document_profile_request_item p "
                 + "WHERE p.mobile_user_uuid = :mobileUserUuid "
                 + "AND p.document_master_request_item_code = i.document_master_request_item_code "
@@ -159,16 +165,57 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                 + "AND p.document_master_request_item_code = i.document_master_request_item_code "
                 + "AND p.file_uploaded = 1 AND p.is_updated = 1 "
                 + "AND (p.check_result IS NULL OR p.check_result <> 'fix'))) "
-                + "OR (i.document_master_request_item_code <> 'MRI001' AND EXISTS ("
+                + "OR (m.storage_scope = 'PROFILE' AND i.document_master_request_item_code <> 'MRI001' AND EXISTS ("
                 + "SELECT 1 FROM m_document_profile_request_item p "
                 + "WHERE p.mobile_user_uuid = :mobileUserUuid "
                 + "AND p.document_master_request_item_code = i.document_master_request_item_code "
                 + "AND p.document_type = 'GENERAL' AND p.slot_code = 'MAIN' "
                 + "AND p.file_uploaded = 1 AND p.is_updated = 1 "
-                + "AND (p.check_result IS NULL OR p.check_result <> 'fix'))))";
+                + "AND (p.check_result IS NULL OR p.check_result <> 'fix'))) "
+                + "OR (m.storage_scope = 'REQUEST' AND i.document_master_request_item_code = 'MRI001' AND ("
+                + "((SELECT COUNT(DISTINCT f.slot_code) FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'ID_CARD' AND f.slot_code IN ('FRONT','BACK') "
+                + "AND f.file_uploaded = 1 AND f.is_updated = 1 "
+                + "AND (f.check_result IS NULL OR f.check_result <> 'fix')) = 2) "
+                + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'PASSPORT' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND f.is_updated = 1 "
+                + "AND (f.check_result IS NULL OR f.check_result <> 'fix')))) "
+                + "OR (m.storage_scope = 'REQUEST' AND i.document_master_request_item_code <> 'MRI001' "
+                + "AND EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'GENERAL' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND f.is_updated = 1 "
+                + "AND (f.check_result IS NULL OR f.check_result <> 'fix'))))";
         Integer count = template.queryForObject(sql,
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("mobileUserUuid", mobileUserUuid), Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    public int countIncompleteRequestScopedItems(String requestId) {
+        String sql = "SELECT COUNT(*) FROM m_document_request_items i "
+                + "INNER JOIN m_document_master_request_item m "
+                + "ON m.document_master_items_code = i.document_master_request_item_code "
+                + "WHERE i.request_id = :requestId AND m.storage_scope = 'REQUEST' AND NOT ("
+                + "(i.document_master_request_item_code = 'MRI001' AND ("
+                + "((SELECT COUNT(DISTINCT f.slot_code) FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'ID_CARD' AND f.slot_code IN ('FRONT','BACK') "
+                + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix')) = 2) "
+                + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'PASSPORT' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix')))) "
+                + "OR (i.document_master_request_item_code <> 'MRI001' "
+                + "AND EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'GENERAL' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix'))))";
+        Integer count = template.queryForObject(sql,
+                new MapSqlParameterSource("requestId", requestId), Integer.class);
         return count == null ? 0 : count;
     }
 

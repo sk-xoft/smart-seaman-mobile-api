@@ -14,6 +14,7 @@ import com.seaman.exception.BusinessException;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.repository.DocumentRenewalDetailRepository;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
+import com.seaman.repository.DocumentRenewalRequestItemFileRepository;
 import com.seaman.repository.DocumentRequestItemFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ class DocumentRenewalDetailServiceTest {
     @Mock DocumentRenewalFoundationRepository foundationRepository;
     @Mock DocumentRenewalDetailRepository detailRepository;
     @Mock DocumentRequestItemFileRepository fileRepository;
+    @Mock DocumentRenewalRequestItemFileRepository requestItemFileRepository;
     @Mock AmazonS3 s3;
     @Mock HttpServletRequest request;
 
@@ -47,7 +49,8 @@ class DocumentRenewalDetailServiceTest {
     @BeforeEach
     void setUp() {
         service = new DocumentRenewalDetailService(
-                foundationRepository, detailRepository, fileRepository, s3, request);
+                foundationRepository, detailRepository, fileRepository,
+                requestItemFileRepository, s3, request);
         ReflectionTestUtils.setField(service, "bucketName", "bucket");
         UsersEntity user = new UsersEntity();
         user.setMobileUuid("user-uuid");
@@ -77,6 +80,7 @@ class DocumentRenewalDetailServiceTest {
         RenewalRequestItemEntity item = new RenewalRequestItemEntity();
         item.setId("item-id");
         item.setDocumentMasterRequestItemCode("MRI002");
+        item.setStorageScope("PROFILE");
         item.setDocumentNameTh("รูปถ่าย");
         item.setSortOrder(2);
         item.setApproveStatus("FIX");
@@ -105,6 +109,37 @@ class DocumentRenewalDetailServiceTest {
         assertNull(response.getDelivery());
         verify(foundationRepository, never()).findOwnedDeptSubmissions(anyString(), anyString());
         verify(foundationRepository, never()).findOwnedDeliveries(anyString(), anyString());
+    }
+
+    @Test
+    void mapsRequestScopedFilesFromRenewalItemStorage() throws Exception {
+        when(foundationRepository.findOwnedRequestByNo("260700001", "user-uuid"))
+                .thenReturn(owned);
+        RenewalRequestItemEntity item = new RenewalRequestItemEntity();
+        item.setId("request-item-id");
+        item.setDocumentMasterRequestItemCode("MRI003");
+        item.setStorageScope("REQUEST");
+        item.setDocumentNameTh("เอกสารใบเก่า");
+        item.setApproveStatus("FIX");
+        when(foundationRepository.findOwnedRequestItems("request-id", "user-uuid"))
+                .thenReturn(Collections.singletonList(item));
+        DocumentRequestItemFileEntity file = new DocumentRequestItemFileEntity();
+        file.setId("request-file-id");
+        file.setStorageKey("documents/request/file-id");
+        file.setFileUploaded(1);
+        file.setIsUpdated(true);
+        when(requestItemFileRepository.findFiles("request-item-id"))
+                .thenReturn(Collections.singletonList(file));
+        when(s3.generatePresignedUrl(eq("bucket"), eq("documents/request/file-id"), any(Date.class)))
+                .thenReturn(new URL("https://storage.example/request-signed"));
+
+        DocumentRenewalDetailResponse response = service.detail("260700001");
+
+        assertEquals("REQUEST", response.getItems().get(0).getStorageScope());
+        assertEquals("request-file-id", response.getItems().get(0).getFiles().get(0).getFileId());
+        assertEquals("https://storage.example/request-signed",
+                response.getItems().get(0).getFiles().get(0).getFileUrl());
+        verifyNoInteractions(fileRepository);
     }
 
     @Test

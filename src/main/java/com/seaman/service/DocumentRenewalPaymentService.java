@@ -38,6 +38,9 @@ public class DocumentRenewalPaymentService {
                 .equals(request.getStatusNameEn())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentStatus");
         }
+        if (foundationRepository.countIncompleteRequestScopedItems(requestId) > 0) {
+            throw new BusinessException(AppStatus.MISSING_PARAMETER, "requestDocumentItems");
+        }
         validatePaymentInput(input);
 
         PaymentTransactionEntity existing = paymentRepository.findByIdempotencyKey(

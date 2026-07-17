@@ -8,7 +8,9 @@ import java.util.List;
 @Getter @Setter
 public class DocumentRequestItemUploadResponse {
     private String profileRequestItemId;
+    private String requestItemFileId;
     private String itemCode;
+    private String storageScope;
     private String documentType;
     private Boolean complete;
     private List<DocumentRequestItemFileResponse> files;

@@ -10,6 +10,7 @@ import java.util.List;
 public class DocumentRenewalDetailItemResponse {
     private String itemId;
     private String documentRequestItemCode;
+    private String storageScope;
     private String documentName;
     private Integer sortOrder;
     private Boolean fileUploaded;

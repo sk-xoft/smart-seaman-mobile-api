@@ -66,6 +66,24 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getValue().contains("p.check_result <> 'fix'"));
         assertTrue(sql.getValue().contains("p.slot_code IN ('FRONT','BACK')"));
         assertTrue(sql.getValue().contains("p.document_type = 'PASSPORT'"));
+        assertTrue(sql.getValue().contains("m.storage_scope = 'REQUEST'"));
+        assertTrue(sql.getValue().contains("m_document_request_item_files f"));
+    }
+
+    @Test
+    void requestScopedPaymentReadinessRequiresPerRequestFiles() {
+        when(template.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
+                .thenReturn(0);
+
+        repository.countIncompleteRequestScopedItems("request-id");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).queryForObject(sql.capture(), any(MapSqlParameterSource.class), eq(Integer.class));
+        assertTrue(sql.getValue().contains("m.storage_scope = 'REQUEST'"));
+        assertTrue(sql.getValue().contains("m_document_request_item_files f"));
+        assertTrue(sql.getValue().contains("f.slot_code IN ('FRONT','BACK')"));
+        assertTrue(sql.getValue().contains("f.document_type = 'PASSPORT'"));
+        assertTrue(sql.getValue().contains("f.document_type = 'GENERAL'"));
     }
 
     @SuppressWarnings("unchecked")
