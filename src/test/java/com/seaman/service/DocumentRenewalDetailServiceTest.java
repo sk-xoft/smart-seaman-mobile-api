@@ -63,6 +63,7 @@ class DocumentRenewalDetailServiceTest {
         owned.setMobileUserUuid("user-uuid");
         owned.setDocumentCode("DOC001");
         owned.setDocumentStatusId("status-id");
+        owned.setStatusCode("PENDING_APPLICANT_CORRECTION");
         owned.setStatusNameTh("รอผู้ยื่นแก้ไข");
         owned.setStatusNameEn(
                 DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn());
@@ -100,6 +101,8 @@ class DocumentRenewalDetailServiceTest {
         DocumentRenewalDetailResponse response = service.detail("260700001");
 
         assertEquals("ประกาศนียบัตร", response.getDocumentName());
+        assertEquals("PENDING_APPLICANT_CORRECTION",
+                response.getStatus().getDocumentStatusCode());
         assertEquals("fix", response.getItems().get(0).getCheckResult());
         assertEquals("รูปไม่ชัด", response.getItems().get(0).getCheckNote());
         assertTrue(response.getItems().get(0).getIsUpdated());

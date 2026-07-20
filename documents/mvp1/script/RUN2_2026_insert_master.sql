@@ -1,19 +1,21 @@
 INSERT INTO m_document_status (
+    document_status_code,
     name_th,
     name_en,
     css_color,
     is_active,
     is_mobile_visible
 ) VALUES
-    ('รอชำระเงิน', 'Payment Pending', '#999999', 'YES', 'NO'),
-    ('รอตรวจเอกสาร', 'Pending Document Review', '#ff0000', 'YES', 'YES'),
-    ('รอผู้ยื่นแก้ไข', 'Pending Applicant Correction', '#ff914d', 'YES', 'YES'),
-    ('รอผลกรมเจ้าท่า', 'Pending Marine Department Result', '#af87ff', 'YES', 'YES'),
-    ('รอรับเอกสารจากกรม', 'Pending Department Document Pickup', '#ffde59', 'YES', 'YES'),
-    ('กำลังจัดส่ง', 'Delivering', '#21e5f8', 'YES', 'YES'),
-    ('จัดส่งสำเร็จ', 'Delivered', '#00bf63', 'YES', 'YES'),
-    ('ยกเลิก', 'Cancelled', '#ff5eb3', 'YES', 'YES')
+    ('PAYMENT_PENDING', 'รอชำระเงิน', 'Payment Pending', '#999999', 'YES', 'NO'),
+    ('PENDING_DOCUMENT_REVIEW', 'รอตรวจเอกสาร', 'Pending Document Review', '#ff0000', 'YES', 'YES'),
+    ('PENDING_APPLICANT_CORRECTION', 'รอผู้ยื่นแก้ไข', 'Pending Applicant Correction', '#ff914d', 'YES', 'YES'),
+    ('PENDING_MARINE_DEPARTMENT_RESULT', 'รอผลกรมเจ้าท่า', 'Pending Marine Department Result', '#af87ff', 'YES', 'YES'),
+    ('PENDING_DEPARTMENT_DOCUMENT_PICKUP', 'รอรับเอกสารจากกรม', 'Pending Department Document Pickup', '#ffde59', 'YES', 'YES'),
+    ('DELIVERING', 'กำลังจัดส่ง', 'Delivering', '#21e5f8', 'YES', 'YES'),
+    ('DELIVERED', 'จัดส่งสำเร็จ', 'Delivered', '#00bf63', 'YES', 'YES'),
+    ('CANCELLED', 'ยกเลิก', 'Cancelled', '#ff5eb3', 'YES', 'YES')
 ON DUPLICATE KEY UPDATE
+    document_status_code = VALUES(document_status_code),
     name_en = VALUES(name_en),
     css_color = VALUES(css_color),
     is_active = VALUES(is_active),

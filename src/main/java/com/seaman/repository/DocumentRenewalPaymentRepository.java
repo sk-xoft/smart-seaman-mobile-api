@@ -18,7 +18,7 @@ public class DocumentRenewalPaymentRepository extends CommonRepository {
                 "SELECT p.*, r.request_no FROM m_payment_transaction p "
                         + "INNER JOIN m_document_request r ON r.id = p.request_id "
                         + "WHERE p.request_id = :requestId AND p.id = :transactionId "
-                        + "AND r.mobile_user_uuid = :mobileUserUuid",
+                        + "AND r.mobile_user_uuid = :mobileUserUuid AND r.is_active = 'YES'",
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("transactionId", transactionId)
                         .addValue("mobileUserUuid", mobileUserUuid),
@@ -35,7 +35,7 @@ public class DocumentRenewalPaymentRepository extends CommonRepository {
                 "SELECT p.*, r.request_no FROM m_payment_transaction p "
                         + "INNER JOIN m_document_request r ON r.id = p.request_id "
                         + "WHERE p.request_id = :requestId AND p.idempotency_key = :idempotencyKey "
-                        + "AND r.mobile_user_uuid = :mobileUserUuid",
+                        + "AND r.mobile_user_uuid = :mobileUserUuid AND r.is_active = 'YES'",
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("idempotencyKey", idempotencyKey)
                         .addValue("mobileUserUuid", mobileUserUuid),

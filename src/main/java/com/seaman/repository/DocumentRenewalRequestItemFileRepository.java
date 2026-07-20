@@ -71,11 +71,17 @@ public class DocumentRenewalRequestItemFileRepository extends CommonRepository {
     public boolean isComplete(String requestItemId, String itemCode, String documentType) {
         String sql;
         if ("ID_CARD".equals(documentType)) {
-            sql = "SELECT COUNT(DISTINCT slot_code) FROM m_document_request_item_files "
+            sql = "SELECT CASE WHEN ("
+                    + "(SELECT COUNT(DISTINCT slot_code) FROM m_document_request_item_files "
                     + "WHERE request_item_id = :requestItemId "
                     + "AND document_master_request_item_code = :itemCode "
                     + "AND document_type = 'ID_CARD' AND slot_code IN ('FRONT','BACK') "
-                    + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix')";
+                    + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix')) = 2 "
+                    + "OR EXISTS (SELECT 1 FROM m_document_request_item_files "
+                    + "WHERE request_item_id = :requestItemId "
+                    + "AND document_master_request_item_code = :itemCode "
+                    + "AND document_type = 'ID_CARD' AND slot_code = 'MAIN' "
+                    + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix'))) THEN 1 ELSE 0 END";
         } else {
             sql = "SELECT COUNT(*) FROM m_document_request_item_files "
                     + "WHERE request_item_id = :requestItemId "
@@ -85,7 +91,7 @@ public class DocumentRenewalRequestItemFileRepository extends CommonRepository {
         }
         Integer count = template.queryForObject(sql,
                 params(requestItemId, itemCode, documentType, null), Integer.class);
-        return count != null && count == ("ID_CARD".equals(documentType) ? 2 : 1);
+        return count != null && count == 1;
     }
 
     private MapSqlParameterSource params(String requestItemId, String itemCode,

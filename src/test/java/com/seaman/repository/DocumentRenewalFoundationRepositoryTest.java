@@ -1,5 +1,6 @@
 package com.seaman.repository;
 
+import com.seaman.constant.DocumentRenewalStatus;
 import com.seaman.entity.RenewalRequestItemEntity;
 import com.seaman.entity.DocumentRenewalRequestEntity;
 import com.seaman.entity.DocumentRenewalTransactionEntity;
@@ -32,6 +33,23 @@ class DocumentRenewalFoundationRepositoryTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void activeStatusLookupUsesStatusCode() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList("status-id"));
+
+        String result = repository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertEquals("status-id", result);
+        assertTrue(sql.getValue().contains("document_status_code = :statusCode"));
+        assertEquals("PAYMENT_PENDING", parameters.getValue().getValue("statusCode"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void locksOwnedItemByRequestNumberAndDocumentItemCode() {
         when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(new RenewalRequestItemEntity()));
@@ -43,6 +61,7 @@ class DocumentRenewalFoundationRepositoryTest {
                 ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
         assertTrue(sql.getValue().contains("r.request_no = :requestNo"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
         assertTrue(sql.getValue().contains(
                 "i.document_master_request_item_code = :documentRequestItemCode"));
         assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
@@ -65,6 +84,7 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getValue().contains("p.is_updated = 1"));
         assertTrue(sql.getValue().contains("p.check_result <> 'fix'"));
         assertTrue(sql.getValue().contains("p.slot_code IN ('FRONT','BACK')"));
+        assertTrue(sql.getValue().contains("p.slot_code = 'MAIN'"));
         assertTrue(sql.getValue().contains("p.document_type = 'PASSPORT'"));
         assertTrue(sql.getValue().contains("m.storage_scope = 'REQUEST'"));
         assertTrue(sql.getValue().contains("m_document_request_item_files f"));
@@ -82,6 +102,7 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getValue().contains("m.storage_scope = 'REQUEST'"));
         assertTrue(sql.getValue().contains("m_document_request_item_files f"));
         assertTrue(sql.getValue().contains("f.slot_code IN ('FRONT','BACK')"));
+        assertTrue(sql.getValue().contains("f.slot_code = 'MAIN'"));
         assertTrue(sql.getValue().contains("f.document_type = 'PASSPORT'"));
         assertTrue(sql.getValue().contains("f.document_type = 'GENERAL'"));
     }
@@ -99,6 +120,7 @@ class DocumentRenewalFoundationRepositoryTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(template, times(2)).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertTrue(sql.getAllValues().get(0).contains("r.request_no = :requestNo"));
+        assertTrue(sql.getAllValues().get(0).contains("r.is_active = 'YES'"));
         assertTrue(!sql.getAllValues().get(0).contains("FOR UPDATE"));
         assertTrue(sql.getAllValues().get(1).contains("ORDER BY t.actioned_at, t.id"));
     }

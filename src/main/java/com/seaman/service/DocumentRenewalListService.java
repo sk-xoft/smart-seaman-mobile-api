@@ -52,6 +52,7 @@ public class DocumentRenewalListService {
     private DocumentRenewalSummaryResponse map(DocumentRenewalSummaryEntity row) {
         DocumentRenewalSummaryStatusResponse status = new DocumentRenewalSummaryStatusResponse();
         status.setId(row.getStatusId());
+        status.setDocumentStatusCode(row.getStatusCode());
         status.setNameTh(row.getStatusNameTh());
         status.setNameEn(row.getStatusNameEn());
         status.setCssColor(row.getStatusCssColor());

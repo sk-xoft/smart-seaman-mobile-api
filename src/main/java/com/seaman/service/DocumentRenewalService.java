@@ -72,6 +72,7 @@ public class DocumentRenewalService {
     private DocumentRenewalStatusResponse mapStatus(DocumentRenewalStatusEntity entity) {
         DocumentRenewalStatusResponse response = new DocumentRenewalStatusResponse();
         response.setId(entity.getId());
+        response.setDocumentStatusCode(entity.getDocumentStatusCode());
         response.setNameTh(entity.getNameTh());
         response.setNameEn(entity.getNameEn());
         response.setCssColor(entity.getCssColor());

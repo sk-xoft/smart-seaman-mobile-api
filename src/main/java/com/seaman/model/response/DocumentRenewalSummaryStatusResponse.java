@@ -7,6 +7,7 @@ import lombok.Setter;
 @Setter
 public class DocumentRenewalSummaryStatusResponse {
     private String id;
+    private String documentStatusCode;
     private String nameTh;
     private String nameEn;
     private String cssColor;

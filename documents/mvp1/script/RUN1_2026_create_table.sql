@@ -1,5 +1,6 @@
 CREATE TABLE m_document_status (
     id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_status_code VARCHAR(50) NOT NULL,
     name_th         VARCHAR(255)    NOT NULL,
     name_en         VARCHAR(255)    NOT NULL,
     css_color       VARCHAR(100)    NOT NULL,
@@ -7,6 +8,7 @@ CREATE TABLE m_document_status (
     is_mobile_visible VARCHAR(3)    NOT NULL DEFAULT 'YES',
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_document_status_code (document_status_code),
     UNIQUE KEY uq_document_status_name_th (name_th),
     UNIQUE KEY uq_document_status_name_en (name_en),
     CONSTRAINT chk_document_status_active
@@ -26,6 +28,7 @@ CREATE TABLE m_document_request (
     price_setting_id    CHAR(36)        NULL,
     delivery_address_id CHAR(36)        NULL,
     is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES', -- YES = active, NO = soft deleted
     amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
     submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     submitted_by        CHAR(36)        NULL,                   -- NULL = ลูกเรือยื่นเอง
@@ -37,11 +40,14 @@ CREATE TABLE m_document_request (
     KEY idx_docreq_document_code (document_code),
     KEY idx_docreq_price_setting (price_setting_id),
     KEY idx_docreq_delivery_address (delivery_address_id),
+    KEY idx_docreq_active_user (is_active, mobile_user_uuid),
     KEY idx_docreq_status_submitted (document_status_id, submitted_at),
     CONSTRAINT chk_docreq_amount
         CHECK (amount >= 0),
     CONSTRAINT chk_docreq_resubmit
         CHECK (is_resubmit IN (0, 1)),
+    CONSTRAINT chk_docreq_active
+        CHECK (is_active IN ('YES', 'NO')),
     CONSTRAINT fk_docreq_status
         FOREIGN KEY (document_status_id) REFERENCES m_document_status (id)
 ) ENGINE=InnoDB

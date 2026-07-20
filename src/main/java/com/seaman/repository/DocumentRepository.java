@@ -204,6 +204,10 @@ public class DocumentRepository extends CommonRepository {
         sql.append("        AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix')) = 2");
         sql.append("       OR EXISTS (SELECT 1 FROM m_document_profile_request_item p");
         sql.append("        WHERE p.mobile_user_uuid = :mobileUserUuid AND p.document_master_request_item_code = 'MRI001'");
+        sql.append("        AND p.document_type = 'ID_CARD' AND p.slot_code = 'MAIN'");
+        sql.append("        AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix'))");
+        sql.append("       OR EXISTS (SELECT 1 FROM m_document_profile_request_item p");
+        sql.append("        WHERE p.mobile_user_uuid = :mobileUserUuid AND p.document_master_request_item_code = 'MRI001'");
         sql.append("        AND p.document_type = 'PASSPORT' AND p.slot_code = 'MAIN'");
         sql.append("        AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix')))");
         sql.append("       THEN 'COMPLETE'");

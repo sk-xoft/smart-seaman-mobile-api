@@ -103,7 +103,7 @@ public class DocumentRenewalRequestItemFileService {
     private void validateCombination(String itemCode, String documentType, String slotCode) {
         if ("MRI001".equals(itemCode)) {
             boolean valid = ("ID_CARD".equals(documentType)
-                    && ("FRONT".equals(slotCode) || "BACK".equals(slotCode)))
+                    && ("FRONT".equals(slotCode) || "BACK".equals(slotCode) || "MAIN".equals(slotCode)))
                     || ("PASSPORT".equals(documentType) && "MAIN".equals(slotCode));
             if (!valid) throw new BusinessException(AppStatus.INVALID_FORMAT, "documentType/slotCode");
         } else if (!"GENERAL".equals(documentType) || !"MAIN".equals(slotCode)) {

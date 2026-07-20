@@ -22,11 +22,13 @@ class DocumentRenewalServiceTest {
     @Test
     void mapsCorrectionAndCancelledProgress() {
         DocumentRenewalStatusEntity correction = status("Pending Applicant Correction");
+        correction.setDocumentStatusCode("PENDING_APPLICANT_CORRECTION");
         DocumentRenewalStatusEntity cancelled = status("Cancelled");
         when(repository.findActiveStatuses()).thenReturn(Arrays.asList(correction, cancelled));
 
         java.util.List<DocumentRenewalStatusResponse> result = service.statuses();
 
+        assertEquals("PENDING_APPLICANT_CORRECTION", result.get(0).getDocumentStatusCode());
         assertEquals(1, result.get(0).getProgressStep());
         assertTrue(result.get(0).isCorrection());
         assertNull(result.get(1).getProgressStep());

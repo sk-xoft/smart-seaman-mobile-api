@@ -144,6 +144,7 @@ public class DocumentRenewalDetailService {
         DocumentRenewalSummaryStatusResponse status =
                 new DocumentRenewalSummaryStatusResponse();
         status.setId(request.getDocumentStatusId());
+        status.setDocumentStatusCode(request.getStatusCode());
         status.setNameTh(request.getStatusNameTh());
         status.setNameEn(request.getStatusNameEn());
         status.setCssColor(request.getStatusCssColor());

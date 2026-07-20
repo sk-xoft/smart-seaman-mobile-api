@@ -3,9 +3,20 @@ ALTER TABLE m_document_status
     ADD CONSTRAINT chk_document_status_mobile_visible
         CHECK (is_mobile_visible IN ('YES', 'NO'));
 
-INSERT INTO m_document_status (name_th, name_en, css_color, is_active, is_mobile_visible)
-VALUES ('รอชำระเงิน', 'Payment Pending', '#999999', 'YES', 'NO')
-ON DUPLICATE KEY UPDATE css_color = VALUES(css_color), is_active = 'YES', is_mobile_visible = 'NO';
+INSERT INTO m_document_status (
+    document_status_code,
+    name_th,
+    name_en,
+    css_color,
+    is_active,
+    is_mobile_visible
+)
+VALUES ('PAYMENT_PENDING', 'รอชำระเงิน', 'Payment Pending', '#999999', 'YES', 'NO')
+ON DUPLICATE KEY UPDATE
+    document_status_code = VALUES(document_status_code),
+    css_color = VALUES(css_color),
+    is_active = 'YES',
+    is_mobile_visible = 'NO';
 
 CREATE TABLE m_document_request_sequence (
     period CHAR(4) NOT NULL,

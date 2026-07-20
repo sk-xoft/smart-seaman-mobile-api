@@ -30,10 +30,11 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public DocumentRenewalRequestEntity lockRequest(String requestId) {
         List<DocumentRenewalRequestEntity> rows = template.query(
-                "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                "SELECT r.*, s.document_status_code AS status_code, "
+                        + "s.name_en AS status_name_en, s.name_th AS status_name_th, "
                         + "s.css_color AS status_css_color FROM m_document_request r "
                         + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
-                        + "WHERE r.id = :requestId FOR UPDATE",
+                        + "WHERE r.id = :requestId AND r.is_active = 'YES' FOR UPDATE",
                 new MapSqlParameterSource("requestId", requestId),
                 new BeanPropertyRowMapper<>(DocumentRenewalRequestEntity.class));
         if (rows.isEmpty()) {
@@ -55,10 +56,12 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     private DocumentRenewalRequestEntity findOwnedRequestByNo(
             String requestNo, String mobileUserUuid, boolean lock) {
         List<DocumentRenewalRequestEntity> rows = template.query(
-                "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                "SELECT r.*, s.document_status_code AS status_code, "
+                        + "s.name_en AS status_name_en, s.name_th AS status_name_th, "
                         + "s.css_color AS status_css_color FROM m_document_request r "
                         + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
                         + "WHERE r.request_no = :requestNo AND r.mobile_user_uuid = :mobileUserUuid"
+                        + " AND r.is_active = 'YES'"
                         + (lock ? " FOR UPDATE" : ""),
                 new MapSqlParameterSource().addValue("requestNo", requestNo)
                         .addValue("mobileUserUuid", mobileUserUuid),
@@ -71,10 +74,12 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     private DocumentRenewalRequestEntity findOwned(
             String requestId, String mobileUserUuid, boolean lock) {
-        String sql = "SELECT r.*, s.name_en AS status_name_en, s.name_th AS status_name_th, "
+        String sql = "SELECT r.*, s.document_status_code AS status_code, "
+                + "s.name_en AS status_name_en, s.name_th AS status_name_th, "
                 + "s.css_color AS status_css_color FROM m_document_request r "
                 + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
                 + "WHERE r.id = :requestId AND r.mobile_user_uuid = :mobileUserUuid"
+                + " AND r.is_active = 'YES'"
                 + (lock ? " FOR UPDATE" : "");
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("requestId", requestId)
@@ -89,8 +94,9 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public String findActiveStatusId(DocumentRenewalStatus status) {
         List<String> ids = template.query(
-                "SELECT id FROM m_document_status WHERE name_en = :nameEn AND is_active = 'YES'",
-                new MapSqlParameterSource("nameEn", status.getMasterNameEn()),
+                "SELECT id FROM m_document_status WHERE document_status_code = :statusCode "
+                        + "AND is_active = 'YES'",
+                new MapSqlParameterSource("statusCode", status.name()),
                 (rs, rowNum) -> rs.getString("id"));
         if (ids.size() != 1) {
             throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
@@ -109,6 +115,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                         + "INNER JOIN m_document_master_request_item m "
                         + "ON m.document_master_items_code = i.document_master_request_item_code "
                         + "WHERE i.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.is_active = 'YES' "
                         + "ORDER BY m.sort_order, i.id",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(RenewalRequestItemEntity.class));
@@ -125,7 +132,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                         + "ON m.document_master_items_code = i.document_master_request_item_code "
                         + "WHERE r.request_no = :requestNo "
                         + "AND i.document_master_request_item_code = :documentRequestItemCode "
-                        + "AND r.mobile_user_uuid = :mobileUserUuid FOR UPDATE",
+                        + "AND r.mobile_user_uuid = :mobileUserUuid AND r.is_active = 'YES' FOR UPDATE",
                 new MapSqlParameterSource().addValue("requestNo", requestNo)
                         .addValue("documentRequestItemCode", documentRequestItemCode)
                         .addValue("mobileUserUuid", mobileUserUuid),
@@ -158,6 +165,11 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                 + "OR EXISTS (SELECT 1 FROM m_document_profile_request_item p "
                 + "WHERE p.mobile_user_uuid = :mobileUserUuid "
                 + "AND p.document_master_request_item_code = i.document_master_request_item_code "
+                + "AND p.document_type = 'ID_CARD' AND p.slot_code = 'MAIN' "
+                + "AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix')) "
+                + "OR EXISTS (SELECT 1 FROM m_document_profile_request_item p "
+                + "WHERE p.mobile_user_uuid = :mobileUserUuid "
+                + "AND p.document_master_request_item_code = i.document_master_request_item_code "
                 + "AND p.document_type = 'PASSPORT' AND p.slot_code = 'MAIN' "
                 + "AND p.file_uploaded = 1 AND (p.check_result IS NULL OR p.check_result <> 'fix'))) "
                 + "AND EXISTS (SELECT 1 FROM m_document_profile_request_item p "
@@ -178,6 +190,11 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                 + "AND f.document_type = 'ID_CARD' AND f.slot_code IN ('FRONT','BACK') "
                 + "AND f.file_uploaded = 1 AND f.is_updated = 1 "
                 + "AND (f.check_result IS NULL OR f.check_result <> 'fix')) = 2) "
+                + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'ID_CARD' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND f.is_updated = 1 "
+                + "AND (f.check_result IS NULL OR f.check_result <> 'fix')) "
                 + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
                 + "WHERE f.request_item_id = i.id "
                 + "AND f.document_type = 'PASSPORT' AND f.slot_code = 'MAIN' "
@@ -207,6 +224,10 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                 + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix')) = 2) "
                 + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
                 + "WHERE f.request_item_id = i.id "
+                + "AND f.document_type = 'ID_CARD' AND f.slot_code = 'MAIN' "
+                + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix')) "
+                + "OR EXISTS (SELECT 1 FROM m_document_request_item_files f "
+                + "WHERE f.request_item_id = i.id "
                 + "AND f.document_type = 'PASSPORT' AND f.slot_code = 'MAIN' "
                 + "AND f.file_uploaded = 1 AND (f.check_result IS NULL OR f.check_result <> 'fix')))) "
                 + "OR (i.document_master_request_item_code <> 'MRI001' "
@@ -233,7 +254,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     public void markResubmitted(String requestId) {
         int updated = template.update(
                 "UPDATE m_document_request SET is_resubmit = 1, updated_at = NOW() "
-                        + "WHERE id = :requestId",
+                        + "WHERE id = :requestId AND is_active = 'YES'",
                 new MapSqlParameterSource("requestId", requestId));
         if (updated != 1) {
             throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
@@ -246,6 +267,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         return template.query("SELECT t.* FROM m_document_transaction t "
                         + "INNER JOIN m_document_request r ON r.id = t.request_id "
                         + "WHERE t.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.is_active = 'YES' "
                         + "ORDER BY t.actioned_at, t.id",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(DocumentRenewalTransactionEntity.class));
@@ -256,6 +278,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         return template.query("SELECT p.* FROM m_payment_transaction p "
                         + "INNER JOIN m_document_request r ON r.id = p.request_id "
                         + "WHERE p.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.is_active = 'YES' "
                         + "ORDER BY p.created_at, p.id",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(PaymentTransactionEntity.class));
@@ -265,7 +288,8 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
             String requestId, String mobileUserUuid) {
         return template.query("SELECT d.* FROM m_dept_submission d "
                         + "INNER JOIN m_document_request r ON r.id = d.request_id "
-                        + "WHERE d.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid",
+                        + "WHERE d.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.is_active = 'YES'",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeptSubmissionEntity.class));
     }
@@ -273,7 +297,8 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     public List<DeliveryEntity> findOwnedDeliveries(String requestId, String mobileUserUuid) {
         return template.query("SELECT d.* FROM m_delivery d "
                         + "INNER JOIN m_document_request r ON r.id = d.request_id "
-                        + "WHERE d.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid",
+                        + "WHERE d.request_id = :requestId AND r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.is_active = 'YES'",
                 ownedParameters(requestId, mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeliveryEntity.class));
     }
@@ -287,7 +312,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         int updated = template.update(
                 "UPDATE m_document_request SET document_status_id = :targetStatusId, "
                         + "updated_at = NOW() WHERE id = :requestId "
-                        + "AND document_status_id = :currentStatusId",
+                        + "AND document_status_id = :currentStatusId AND is_active = 'YES'",
                 new MapSqlParameterSource().addValue("targetStatusId", targetStatusId)
                         .addValue("requestId", requestId)
                         .addValue("currentStatusId", currentStatusId));

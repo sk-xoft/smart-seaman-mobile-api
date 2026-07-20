@@ -15,6 +15,7 @@ public class DocumentRenewalSummaryEntity {
     private String documentNameTh;
     private String documentNameEn;
     private String statusId;
+    private String statusCode;
     private String statusNameTh;
     private String statusNameEn;
     private String statusCssColor;

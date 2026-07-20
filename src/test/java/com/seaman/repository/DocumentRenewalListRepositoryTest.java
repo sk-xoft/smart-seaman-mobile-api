@@ -41,6 +41,8 @@ class DocumentRenewalListRepositoryTest {
                 ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
         assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
+        assertTrue(sql.getValue().contains("s.document_status_code AS status_code"));
         assertTrue(sql.getValue().contains("r.document_code COLLATE utf8mb4_general_ci"));
         assertTrue(sql.getValue().contains("ORDER BY r.submitted_at DESC, r.id DESC"));
         assertTrue(sql.getValue().contains("LIMIT 10 OFFSET :offSet"));

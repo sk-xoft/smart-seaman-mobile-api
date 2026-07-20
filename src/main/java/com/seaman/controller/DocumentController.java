@@ -6,10 +6,12 @@ import com.seaman.constant.Routes;
 import com.seaman.exception.BusinessException;
 import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.request.DocumentCreateRequest;
+import com.seaman.model.request.DocumentRequestValidateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
 import com.seaman.model.response.DocumentRequestItemResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
+import com.seaman.model.response.DocumentRequestValidateResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import java.util.List;
 import com.seaman.service.DocumentService;
@@ -176,12 +178,28 @@ public class DocumentController extends BaseController {
         ).build());
     }
 
-    // Task file : documents/mvp1/task/1-task_validate_documents_items.md
+//    @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
+//    @GetMapping(Routes.VALIDATE_DOCUMENT_ITEMS)
+//    public ResponseEntity<SuccessResponse<List<DocumentRequestItemResponse>>> validateDocumentItems(
+//            HttpServletRequest httpServletRequest,
+//            @Parameter(description = "รหัสประเภทเอกสาร", required = true) @RequestParam("documentCode") String documentCode) {
+//
+//        String description = messageCodeService.getMessageDescription(
+//                AppStatus.SUCCESS_CODE,
+//                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+//
+//        return ok(SuccessResponse.builder(
+//                AppStatus.SUCCESS_CODE,
+//                description,
+//                documentService.validateDocumentItems(documentCode)
+//        ).build());
+//    }
+
     @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
-    @GetMapping(Routes.VALIDATE_DOCUMENT_ITEMS)
-    public ResponseEntity<SuccessResponse<List<DocumentRequestItemResponse>>> validateDocumentItems(
+    @PostMapping({Routes.VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST})
+    public ResponseEntity<SuccessResponse<DocumentRequestValidateResponse>> validateDocumentItems(
             HttpServletRequest httpServletRequest,
-            @Parameter(description = "รหัสประเภทเอกสาร", required = true) @RequestParam("documentCode") String documentCode) {
+            @Valid @RequestBody DocumentRequestValidateRequest request) {
 
         String description = messageCodeService.getMessageDescription(
                 AppStatus.SUCCESS_CODE,
@@ -190,12 +208,14 @@ public class DocumentController extends BaseController {
         return ok(SuccessResponse.builder(
                 AppStatus.SUCCESS_CODE,
                 description,
-                documentService.validateDocumentItems(documentCode)
+                documentService.validateAndCreateDocumentRenewalsItems(request)
         ).build());
     }
 
+
+
     @Operation(summary = "Upload supporting document file",
-            description = "รองรับ ID_CARD FRONT/BACK, PASSPORT MAIN และ GENERAL MAIN")
+            description = "รองรับ ID_CARD MAIN/FRONT/BACK, PASSPORT MAIN และ GENERAL MAIN")
     @PostMapping(value = Routes.DOCUMENT_REQUEST_ITEM_FILES,
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SuccessResponse<DocumentRequestItemUploadResponse>> uploadRequestItemFile(

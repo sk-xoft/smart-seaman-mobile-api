@@ -47,6 +47,7 @@ class DocumentRenewalListServiceTest {
         row.setDocumentNameTh("ประกาศนียบัตร");
         row.setDocumentNameEn("Certificate");
         row.setStatusId("status-id");
+        row.setStatusCode("PENDING_DOCUMENT_REVIEW");
         row.setStatusNameTh("รอตรวจเอกสาร");
         row.setStatusNameEn("Pending Document Review");
         row.setStatusCssColor("#ff0000");
@@ -63,6 +64,8 @@ class DocumentRenewalListServiceTest {
         assertTrue(response.isLast());
         assertEquals("09/07/2026 14:30", response.getItems().get(0).getSubmittedAt());
         assertEquals("ประกาศนียบัตร", response.getItems().get(0).getDocumentName());
+        assertEquals("PENDING_DOCUMENT_REVIEW",
+                response.getItems().get(0).getStatus().getDocumentStatusCode());
         assertEquals(1, response.getItems().get(0).getStatus().getStep());
         assertTrue(response.getItems().get(0).getIsResubmit());
         verify(repository).findByUser("user-uuid", 10);

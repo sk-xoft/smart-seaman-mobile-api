@@ -1,3 +1,7 @@
+## 18 Jul
+    -> Update document sea record ต่อการ ต่ออายุเอกสารนั้น ๆ
+    -> ถ้าไม่มี Address ให้และ Mobile Number / first_name, last_name เป็น 
+
 ## 24 Jun
 
 1. m_documents > เพิ่ม field สำหรับบอกว่าต่ออายุเอกสารได้ // DONE

@@ -1,6 +1,7 @@
 package com.seaman.repository;
 
 import com.seaman.entity.DocumentRenewalPriceEntity;
+import com.seaman.entity.DocumentRenewalStatusEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +26,21 @@ class DocumentRenewalRepositoryTest {
         template = mock(NamedParameterJdbcTemplate.class);
         repository = new DocumentRenewalRepository();
         ReflectionTestUtils.setField(repository, "template", template);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void activeStatusQuerySelectsAndOrdersByStatusCode() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.<DocumentRenewalStatusEntity>emptyList());
+
+        repository.findActiveStatuses();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertTrue(sql.getValue().contains("document_status_code"));
+        assertTrue(sql.getValue().contains("is_mobile_visible = 'YES'"));
+        assertTrue(sql.getValue().contains("ORDER BY CASE document_status_code"));
     }
 
     @SuppressWarnings("unchecked")
