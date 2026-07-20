@@ -53,6 +53,7 @@ public class DocumentRenewalCreateService {
         List<DocumentRequestItemEntity> requiredItems = documentRepository
                 .findMissingItemsByUserAndDocumentCode(user.getMobileUuid(), documentCode);
         List<DocumentRequestItemEntity> missing = requiredItems == null ? null : requiredItems.stream()
+                .filter(item -> !"REQUEST".equalsIgnoreCase(item.getStorageScope()))
                 .filter(item -> !"COMPLETE".equalsIgnoreCase(item.getDocumentStatus()))
                 .collect(Collectors.toList());
         if (missing != null && !missing.isEmpty()) {

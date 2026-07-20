@@ -42,6 +42,13 @@ class DocumentRequestItemFileServiceTest {
         when(repository.isComplete("user-uuid","MRI001","ID_CARD")).thenReturn(false);
         assertFalse(service.upload("MRI001","ID_CARD","FRONT",file).getComplete());
     }
+    @Test void idCardMainCanComplete(){
+        when(repository.isActiveItem("MRI001")).thenReturn(true);
+        when(repository.findFiles("user-uuid","MRI001")).thenReturn(Collections.emptyList());
+        when(repository.upsertFile(anyString(),anyString(),anyString(),anyString(),anyString(),anyString(),anyString(),anyLong())).thenReturn("file-id");
+        when(repository.isComplete("user-uuid","MRI001","ID_CARD")).thenReturn(true);
+        assertTrue(service.upload("MRI001","ID_CARD","MAIN",file).getComplete());
+    }
     @Test void passportCanComplete(){
         when(repository.isActiveItem("MRI001")).thenReturn(true);
         when(repository.findFiles("user-uuid","MRI001")).thenReturn(Collections.emptyList());

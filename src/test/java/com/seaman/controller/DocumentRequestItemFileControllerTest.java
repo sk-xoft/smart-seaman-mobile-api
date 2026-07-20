@@ -1,7 +1,9 @@
 package com.seaman.controller;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.model.request.DocumentRequestValidateRequest;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
+import com.seaman.model.response.DocumentRequestValidateResponse;
 import com.seaman.service.DocumentRequestItemFileService;
 import com.seaman.service.DocumentService;
 import com.seaman.service.MessageCodeService;
@@ -34,5 +36,26 @@ class DocumentRequestItemFileControllerTest {
 
         assertEquals("profile-id", response.getBody().getData().getProfileRequestItemId());
         verify(files).upload("MRI001", "ID_CARD", "FRONT", file);
+    }
+
+    @Test
+    void validateDocumentItemsAcceptsPostBodyAndReturnsRequestInfo() {
+        MessageCodeService messages = mock(MessageCodeService.class);
+        DocumentService documents = mock(DocumentService.class);
+        DocumentRequestItemFileService files = mock(DocumentRequestItemFileService.class);
+        HttpServletRequest httpRequest = mock(HttpServletRequest.class);
+        DocumentRequestValidateRequest input = new DocumentRequestValidateRequest();
+        input.setDocumentCode("DOC001");
+        DocumentRequestValidateResponse data = new DocumentRequestValidateResponse();
+        data.setRequestNo("260700001");
+        when(documents.validateAndCreateDocumentRenewalsItems(input)).thenReturn(data);
+        when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
+        DocumentController controller = new DocumentController(messages, documents, files);
+
+        ResponseEntity<com.seaman.model.common.SuccessResponse<DocumentRequestValidateResponse>> response =
+                controller.validateDocumentItems(httpRequest, input);
+
+        assertEquals("260700001", response.getBody().getData().getRequestNo());
+        verify(documents).validateAndCreateDocumentRenewalsItems(input);
     }
 }

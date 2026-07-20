@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 class DocumentRenewalItemFileServiceTest {
     @Mock DocumentRenewalFoundationRepository repository;
     @Mock DocumentRequestItemFileService fileService;
+    @Mock DocumentRenewalRequestItemFileService requestItemFileService;
     @Mock HttpServletRequest request;
     @Mock MultipartFile file;
 
@@ -31,7 +32,8 @@ class DocumentRenewalItemFileServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DocumentRenewalItemFileService(repository, fileService, request);
+        service = new DocumentRenewalItemFileService(
+                repository, fileService, requestItemFileService, request);
         requestNo = "260700001";
         documentRequestItemCode = "MRI001";
         UsersEntity user = new UsersEntity();
@@ -50,6 +52,43 @@ class DocumentRenewalItemFileServiceTest {
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
         verify(fileService).upload("MRI001", "ID_CARD", "FRONT", file);
+    }
+
+    @Test
+    void storesRequestScopedCorrectionFileOnRenewalRequestItem() {
+        RenewalRequestItemEntity item = correctionItem("FIX");
+        item.setId("request-item-id");
+        item.setStorageScope("REQUEST");
+        when(repository.lockOwnedRequestItem(
+                requestNo, documentRequestItemCode, "user-uuid")).thenReturn(item);
+        DocumentRequestItemUploadResponse expected = new DocumentRequestItemUploadResponse();
+        when(requestItemFileService.upload("request-item-id", "MRI001", "ID_CARD", "FRONT", file))
+                .thenReturn(expected);
+
+        assertEquals(expected, service.upload(
+                requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        verify(requestItemFileService).upload(
+                "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
+        verifyNoInteractions(fileService);
+    }
+
+    @Test
+    void storesRequestScopedFileOnUnpaidDraftBeforePayment() {
+        RenewalRequestItemEntity item = correctionItem("PENDING");
+        item.setId("request-item-id");
+        item.setStorageScope("REQUEST");
+        item.setStatusNameEn(DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn());
+        when(repository.lockOwnedRequestItem(
+                requestNo, documentRequestItemCode, "user-uuid")).thenReturn(item);
+        DocumentRequestItemUploadResponse expected = new DocumentRequestItemUploadResponse();
+        when(requestItemFileService.upload("request-item-id", "MRI001", "ID_CARD", "FRONT", file))
+                .thenReturn(expected);
+
+        assertEquals(expected, service.upload(
+                requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        verify(requestItemFileService).upload(
+                "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
+        verifyNoInteractions(fileService);
     }
 
     @Test
@@ -84,7 +123,9 @@ class DocumentRenewalItemFileServiceTest {
 
     private RenewalRequestItemEntity correctionItem(String approveStatus) {
         RenewalRequestItemEntity item = new RenewalRequestItemEntity();
+        item.setId("request-item-id");
         item.setDocumentMasterRequestItemCode("MRI001");
+        item.setStorageScope("PROFILE");
         item.setApproveStatus(approveStatus);
         item.setStatusNameEn(DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn());
         return item;

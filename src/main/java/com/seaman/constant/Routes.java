@@ -58,24 +58,17 @@ public class Routes {
 
     public static final String POLICY = "/privacy_policy";
 
-    public static final String VALIDATE_DOCUMENT_ITEMS = "/documents/request-items/validate";
+    public static final String VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST = "/documents-renewals/requests/validate-and-create";
     public static final String DOCUMENT_RENEWAL_STATUSES = "/document-renewals/statuses";
     public static final String DOCUMENT_RENEWAL_PRICES = "/document-renewals/prices";
     public static final String DOCUMENT_RENEWALS = "/document-renewals";
     public static final String DOCUMENT_RENEWALS_MY = "/document-renewals/my";
-    public static final String DOCUMENT_RENEWAL_DETAIL =
-            "/document-renewals/{requestNo}";
-    public static final String DOCUMENT_RENEWAL_TIMELINE =
-            "/document-renewals/{requestNo}/timeline";
-    public static final String DOCUMENT_RENEWAL_ITEM_FILE =
-            "/document-renewals/{requestNo}/items/{documentRequestItemCode}/file";
-    public static final String DOCUMENT_RENEWAL_RESUBMIT =
-            "/document-renewals/{requestNo}/resubmit";
-    public static final String DOCUMENT_RENEWAL_PAYMENTS =
-            "/document-renewals/{requestId}/payments";
-    public static final String DOCUMENT_RENEWAL_PAYMENT =
-            "/document-renewals/{requestId}/payments/{transactionId}";
-    public static final String OMISE_WEBHOOK =
-            "/payments/omise/webhook";
+    public static final String DOCUMENT_RENEWAL_DETAIL = "/document-renewals/{requestNo}";
+    public static final String DOCUMENT_RENEWAL_TIMELINE = "/document-renewals/{requestNo}/timeline";
+    public static final String DOCUMENT_RENEWAL_ITEM_FILE = "/document-renewals/{requestNo}/items/{documentRequestItemCode}/file";
+    public static final String DOCUMENT_RENEWAL_RESUBMIT = "/document-renewals/{requestNo}/resubmit";
+    public static final String DOCUMENT_RENEWAL_PAYMENTS = "/document-renewals/{requestId}/payments";
+    public static final String DOCUMENT_RENEWAL_PAYMENT = "/document-renewals/{requestId}/payments/{transactionId}";
+    public static final String OMISE_WEBHOOK = "/payments/omise/webhook";
     public static final String DOCUMENT_REQUEST_ITEM_FILES = "/documents/request-items/{itemCode}/files";
 }

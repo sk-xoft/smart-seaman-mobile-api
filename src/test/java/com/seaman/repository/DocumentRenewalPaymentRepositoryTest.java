@@ -43,6 +43,7 @@ class DocumentRenewalPaymentRepositoryTest {
         assertTrue(sql.getValue().contains("p.request_id = :requestId"));
         assertTrue(sql.getValue().contains("p.id = :transactionId"));
         assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
         assertEquals("request-id", parameters.getValue().getValue("requestId"));
         assertEquals("payment-id", parameters.getValue().getValue("transactionId"));
         assertEquals("mobile-user-uuid", parameters.getValue().getValue("mobileUserUuid"));
@@ -61,6 +62,7 @@ class DocumentRenewalPaymentRepositoryTest {
         assertTrue(sql.getValue().contains("p.request_id = :requestId"));
         assertTrue(sql.getValue().contains("p.idempotency_key = :idempotencyKey"));
         assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
     }
 
     @SuppressWarnings("unchecked")

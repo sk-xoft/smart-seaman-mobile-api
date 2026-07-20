@@ -20,6 +20,7 @@ import java.util.Locale;
 public class DocumentRenewalItemFileService {
     private final DocumentRenewalFoundationRepository repository;
     private final DocumentRequestItemFileService fileService;
+    private final DocumentRenewalRequestItemFileService requestItemFileService;
     private final HttpServletRequest httpServletRequest;
 
     @Transactional
@@ -31,15 +32,26 @@ public class DocumentRenewalItemFileService {
                 documentRequestItemCodeInput, "documentRequestItemCode", 10);
         RenewalRequestItemEntity item = repository.lockOwnedRequestItem(
                 requestNo, documentRequestItemCode, currentUserUuid());
-        if (!DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn()
-                .equals(item.getStatusNameEn())) {
+        boolean requestScoped = "REQUEST".equals(item.getStorageScope());
+        boolean paymentPending = DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn()
+                .equals(item.getStatusNameEn());
+        boolean applicantCorrection = DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn()
+                .equals(item.getStatusNameEn());
+        if (requestScoped && paymentPending) {
+            return requestItemFileService.upload(item.getId(),
+                    item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
+        }
+        if (!applicantCorrection) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentStatus");
         }
         if (!"FIX".equals(item.getApproveStatus())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentRequestItemStatus");
         }
-        return fileService.upload(item.getDocumentMasterRequestItemCode(),
-                documentType, slotCode, file);
+        if (requestScoped) {
+            return requestItemFileService.upload(item.getId(),
+                    item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
+        }
+        return fileService.upload(item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
     }
 
     private String currentUserUuid() {

@@ -3,20 +3,28 @@ package com.seaman.service;
 import com.amazonaws.services.s3.AmazonS3;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
+import com.seaman.constant.DocumentRenewalAction;
+import com.seaman.constant.DocumentRenewalStatus;
 import com.seaman.entity.CertificateEntity;
 import com.seaman.entity.DocumentEntity;
+import com.seaman.entity.DocumentRenewalRequestEntity;
 import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
 import com.seaman.exception.MissingParameterException;
 import com.seaman.model.request.DocumentCreateRequest;
+import com.seaman.model.request.DocumentRequestValidateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
 import com.seaman.model.response.DocumentRequestItemResponse;
+import com.seaman.model.response.DocumentRequestValidateResponse;
+import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentUpdateResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import com.seaman.repository.CertificateRepository;
+import com.seaman.repository.DocumentRenewalCreateRepository;
+import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRepository;
 import com.seaman.repository.DocumentRequestItemFileRepository;
 import com.seaman.utils.DateUtil;
@@ -27,7 +35,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletRequest;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.Period;
 import java.util.*;
 
@@ -36,8 +48,13 @@ import java.util.*;
 public class DocumentService {
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Bangkok");
+
     private final HttpServletRequest httpServletRequest;
     private final DocumentRepository documentRepository;
+    private final DocumentRenewalCreateRepository documentRenewalCreateRepository;
+    private final DocumentRenewalFoundationRepository documentRenewalFoundationRepository;
+    private final DocumentRenewalService documentRenewalService;
     private final DocumentRequestItemFileRepository documentRequestItemFileRepository;
     private final DocumentRequestItemFileService documentRequestItemFileService;
     private final CertificateRepository certificateRepository;
@@ -469,14 +486,15 @@ public class DocumentService {
         return response;
     }
 
-    public List<DocumentRequestItemResponse> validateDocumentItems(String documentCode) {
+    @Transactional
+    public DocumentRequestValidateResponse validateAndCreateDocumentRenewalsItems(DocumentRequestValidateRequest request) {
 
-        List<DocumentRequestItemResponse> responseList = new ArrayList<>();
+        DocumentRequestValidateResponse response = new DocumentRequestValidateResponse();
 
         String statusCode = AppStatus.SUCCESS_CODE;
         String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
-        String serviceName = "VALIDATE_DOCUMENT_ITEMS";
+        String serviceName = "VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_ITEMS";
         String username = "";
         boolean inserted = false;
 
@@ -491,6 +509,23 @@ public class DocumentService {
             transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
             inserted = true;
 
+            String documentCode = request.getDocumentCode().trim().toUpperCase(Locale.ROOT);
+
+            DocumentRenewalRequestEntity activeRequest = documentRenewalCreateRepository
+                    .findLatestActiveRequestNotDelivered(usersEntity.getMobileUuid(), documentCode);
+            if (activeRequest != null) {
+                List<DocumentRequestItemEntity> existingItems = documentRenewalCreateRepository
+                        .findRequestItemsForValidate(activeRequest.getId(), usersEntity.getMobileUuid());
+                if (existingItems == null || existingItems.isEmpty()) {
+                    throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
+                }
+                response.setRequestId(activeRequest.getId());
+                response.setRequestNo(activeRequest.getRequestNo());
+                response.setDocumentCode(documentCode);
+                response.setItems(mapDocumentRequestItems(existingItems));
+                return response;
+            }
+
             List<DocumentRequestItemEntity> items =
                     documentRepository.findMissingItemsByUserAndDocumentCode(
                             usersEntity.getMobileUuid(), documentCode);
@@ -499,34 +534,29 @@ public class DocumentService {
                 throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
             }
 
-            if (items != null) {
-                for (DocumentRequestItemEntity item : items) {
-                    DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
-                    dto.setId(item.getId());
-                    dto.setProfileRequestItemId(item.getProfileRequestItemId());
-                    dto.setDocumentCode(item.getDocumentCode());
-                    dto.setDocumentMasterRequestItemCode(item.getDocumentMasterRequestItemCode());
-                    dto.setDocumentType(item.getDocumentType());
-                    dto.setDocumentName(item.getDocumentName());
-                    dto.setDocumentStatus(item.getDocumentStatus());
-                    dto.setSortOrder(item.getSortOrder());
-                    dto.setFileUploaded(item.getFileUploaded());
-                    dto.setFilePath(item.getFilePath());
-                    dto.setCheckResult(item.getCheckResult());
-                    dto.setCheckNote(item.getCheckNote());
-                    if (item.getProfileRequestItemId() != null) {
-                        dto.setFiles(documentRequestItemFileService.mapFiles(
-                                documentRequestItemFileRepository.findFiles(item.getMobileUserUuid(),
-                                        item.getDocumentMasterRequestItemCode())));
-                    }
+            response.setDocumentCode(documentCode);
+            response.setItems(mapDocumentRequestItems(items));
 
-                    if (item.getFileUploadedAt() != null) {
-                        dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.DATE_TIME));
-                    }
+            DocumentRenewalPriceResponse price = documentRenewalService.price(documentCode);
+            String requestId = frameworkUtils.generateUUID();
+            String period = YearMonth.now(BUSINESS_ZONE).format(DateTimeFormatter.ofPattern("yyMM"));
+            String requestNo = documentRenewalCreateRepository.nextRequestNo(period);
+            String statusId = documentRenewalFoundationRepository
+                    .findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING);
 
-                    responseList.add(dto);
-                }
+            documentRenewalCreateRepository.insertRequest(requestId, requestNo,
+                    usersEntity.getMobileUuid(), documentCode, statusId, price.getPriceSettingId(),
+                    null, price.getTotal());
+            int itemCount = documentRenewalCreateRepository.insertRequestItems(requestId, documentCode);
+            if (itemCount != items.size()) {
+                throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "documentRenewalRequestItems");
             }
+            documentRenewalFoundationRepository.appendTransaction(requestId, DocumentRenewalAction.CREATE,
+                    null, DocumentRenewalStatus.PAYMENT_PENDING, "Unpaid draft created",
+                    usersEntity.getMobileUuid());
+
+            response.setRequestId(requestId);
+            response.setRequestNo(requestNo);
 
         } catch (CommonException ce) {
             statusCode = ce.getCode();
@@ -538,10 +568,41 @@ public class DocumentService {
             throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, ex.getMessage());
         } finally {
             if (inserted) {
-                transactionLogsService.update(transId, frameworkUtils.toObjectToJson(responseList), statusCode, username);
+                transactionLogsService.update(transId, frameworkUtils.toObjectToJson(response), statusCode, username);
             }
         }
+        return response;
+    }
 
+    private List<DocumentRequestItemResponse> mapDocumentRequestItems(List<DocumentRequestItemEntity> items) {
+        List<DocumentRequestItemResponse> responseList = new ArrayList<>();
+        for (DocumentRequestItemEntity item : items) {
+            DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
+            dto.setId(item.getId());
+            dto.setProfileRequestItemId(item.getProfileRequestItemId());
+            dto.setDocumentCode(item.getDocumentCode());
+            dto.setDocumentMasterRequestItemCode(item.getDocumentMasterRequestItemCode());
+            dto.setStorageScope(item.getStorageScope());
+            dto.setDocumentType(item.getDocumentType());
+            dto.setDocumentName(item.getDocumentName());
+            dto.setDocumentStatus(item.getDocumentStatus());
+            dto.setSortOrder(item.getSortOrder());
+            dto.setFileUploaded(item.getFileUploaded());
+            dto.setFilePath(item.getFilePath());
+            dto.setCheckResult(item.getCheckResult());
+            dto.setCheckNote(item.getCheckNote());
+            if (item.getProfileRequestItemId() != null) {
+                dto.setFiles(documentRequestItemFileService.mapFiles(
+                        documentRequestItemFileRepository.findFiles(item.getMobileUserUuid(),
+                                item.getDocumentMasterRequestItemCode())));
+            }
+
+            if (item.getFileUploadedAt() != null) {
+                dto.setFileUploadedAt(dateUtil.formatDateToString(item.getFileUploadedAt(), DateUtil.DATE_TIME));
+            }
+
+            responseList.add(dto);
+        }
         return responseList;
     }
 

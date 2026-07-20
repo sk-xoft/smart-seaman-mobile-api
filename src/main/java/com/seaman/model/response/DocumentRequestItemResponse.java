@@ -13,6 +13,7 @@ public class DocumentRequestItemResponse {
     private String profileRequestItemId;
     private String documentCode;
     private String documentMasterRequestItemCode;
+    private String storageScope;
     private String documentType;
     private String documentName;
     private String documentStatus;

@@ -15,10 +15,12 @@ public class DocumentRenewalRequestEntity {
     private String documentStatusId;
     private String priceSettingId;
     private String deliveryAddressId;
+    private String statusCode;
     private String statusNameEn;
     private String statusNameTh;
     private String statusCssColor;
     private Boolean isResubmit;
+    private String isActive;
     private BigDecimal amount;
     private Date submittedAt;
     private String submittedBy;

@@ -11,6 +11,7 @@ public class RenewalRequestItemEntity {
     private String requestId;
     private String requestNo;
     private String documentMasterRequestItemCode;
+    private String storageScope;
     private String documentNameTh;
     private String documentNameEn;
     private Integer sortOrder;

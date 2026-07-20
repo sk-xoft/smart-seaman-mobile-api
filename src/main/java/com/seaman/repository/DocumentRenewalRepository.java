@@ -12,12 +12,16 @@ import java.util.List;
 public class DocumentRenewalRepository extends CommonRepository {
 
     public List<DocumentRenewalStatusEntity> findActiveStatuses() {
-        String sql = "SELECT id, name_th, name_en, css_color FROM m_document_status "
-                + "WHERE is_active = 'YES' AND is_mobile_visible = 'YES' ORDER BY CASE name_th "
-                + "WHEN 'รอตรวจเอกสาร' THEN 1 WHEN 'รอผู้ยื่นแก้ไข' THEN 2 "
-                + "WHEN 'รอผลกรมเจ้าท่า' THEN 3 WHEN 'รอรับเอกสารจากกรม' THEN 4 "
-                + "WHEN 'กำลังจัดส่ง' THEN 5 WHEN 'จัดส่งสำเร็จ' THEN 6 "
-                + "WHEN 'ยกเลิก' THEN 7 ELSE 99 END, name_th";
+        String sql = "SELECT id, document_status_code, name_th, name_en, css_color "
+                + "FROM m_document_status "
+                + "WHERE is_active = 'YES' AND is_mobile_visible = 'YES' "
+                + "ORDER BY CASE document_status_code "
+                + "WHEN 'PENDING_DOCUMENT_REVIEW' THEN 1 "
+                + "WHEN 'PENDING_APPLICANT_CORRECTION' THEN 2 "
+                + "WHEN 'PENDING_MARINE_DEPARTMENT_RESULT' THEN 3 "
+                + "WHEN 'PENDING_DEPARTMENT_DOCUMENT_PICKUP' THEN 4 "
+                + "WHEN 'DELIVERING' THEN 5 WHEN 'DELIVERED' THEN 6 "
+                + "WHEN 'CANCELLED' THEN 7 ELSE 99 END, name_th";
         return template.query(sql, new MapSqlParameterSource(),
                 new BeanPropertyRowMapper<>(DocumentRenewalStatusEntity.class));
     }
