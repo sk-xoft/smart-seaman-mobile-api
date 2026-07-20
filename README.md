@@ -249,6 +249,16 @@ source ~/.bashrc
 
 ./mvnw clean verify sonar:sonar \
   -Dsonar.host.url=http://localhost:9000 \
-  -Dsonar.token=$SONAR_TOKEN
+  -Dsonar.token=sqp_b40e93ebe0c4f5b42bbc30a6d496b05f23ac47e7
+
+```
+
+```bash
+
+mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+  -Dsonar.projectKey=smart-seaman-mobile-api \
+  -Dsonar.projectName='smart-seaman-mobile-api' \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.token=sqp_b40e93ebe0c4f5b42bbc30a6d496b05f23ac47e7
 
 ```
