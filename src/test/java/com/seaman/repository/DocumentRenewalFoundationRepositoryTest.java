@@ -107,6 +107,43 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getValue().contains("f.document_type = 'GENERAL'"));
     }
 
+    @Test
+    void updatesRequestMobileNumberByActiveRequestId() {
+        when(template.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+
+        repository.updateRequestMobileNumber("request-id", "0821549970");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).update(sql.capture(), parameters.capture());
+        assertTrue(sql.getValue().contains("UPDATE m_document_request"));
+        assertTrue(sql.getValue().contains("mobile_number = :mobileNumber"));
+        assertTrue(sql.getValue().contains("id = :requestId"));
+        assertTrue(sql.getValue().contains("is_active = 'YES'"));
+        assertEquals("request-id", parameters.getValue().getValue("requestId"));
+        assertEquals("0821549970", parameters.getValue().getValue("mobileNumber"));
+    }
+
+    @Test
+    void updatesDeliveryAddressSnapshotMobileNumberByRequestAndOwner() {
+        when(template.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+
+        repository.updateDeliveryAddressMobileNumber("request-id", "user-uuid", "0821549970");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).update(sql.capture(), parameters.capture());
+        assertTrue(sql.getValue().contains("UPDATE m_document_request_delivery_address"));
+        assertTrue(sql.getValue().contains("mobile_number = :mobileNumber"));
+        assertTrue(sql.getValue().contains("request_id = :requestId"));
+        assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
+        assertEquals("request-id", parameters.getValue().getValue("requestId"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+        assertEquals("0821549970", parameters.getValue().getValue("mobileNumber"));
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     void timelineOwnershipLookupDoesNotLockAndRowsAreDeterministicallyOrdered() {

@@ -25,6 +25,8 @@ public class DeliveryAddressResponse {
     private String postalCode;
     @Schema(example = "0812345678")
     private String mobileNumber;
+    @Schema(example = "16 ม. 8 ตำบลนากลาง อำเภอนากลาง จังหวัดหนองบัวลำภู 39170")
+    private String description;
     @Schema(example = "true")
     private Boolean isDefault;
 }

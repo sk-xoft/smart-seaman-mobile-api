@@ -1,9 +1,11 @@
 package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.BusinessConstant;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.exception.BusinessException;
+import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
@@ -51,6 +53,7 @@ public class DocumentRepository extends CommonRepository {
         return listAll;
     }
 
+    @Cacheable(cacheNames = BusinessConstant.MASTER_DOCUMENT, key = "#documentCode", sync = true)
     public DocumentEntity findByDocumentCode(String documentCode) {
         List<DocumentEntity> rows;
         try {

@@ -12,8 +12,10 @@ import com.seaman.model.response.PageDocumentRenewalResponse;
 import com.seaman.model.response.DocumentRenewalTimelineResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
+import com.seaman.model.request.DocumentRenewalMobileRequest;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
+import com.seaman.model.response.DocumentRenewalMobileResponse;
 import com.seaman.model.response.DocumentRenewalPaymentResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
@@ -21,6 +23,7 @@ import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalListService;
 import com.seaman.service.DocumentRenewalTimelineService;
 import com.seaman.service.DocumentRenewalDetailService;
+import com.seaman.service.DocumentRenewalMobileService;
 import com.seaman.service.DocumentRenewalPaymentService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
@@ -31,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -58,6 +62,7 @@ public class DocumentRenewalController extends BaseController {
     private final DocumentRenewalTimelineService timelineService;
     private final DocumentRenewalDetailService detailService;
     private final DocumentRenewalPaymentService paymentService;
+    private final DocumentRenewalMobileService mobileService;
 
     @Operation(summary = "Create unpaid document renewal draft")
     @PostMapping(Routes.DOCUMENT_RENEWALS)
@@ -85,6 +90,15 @@ public class DocumentRenewalController extends BaseController {
     public ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> resubmit(
             HttpServletRequest request, @PathVariable String requestNo) {
         return ok(success(request, resubmitService.resubmit(requestNo)));
+    }
+
+    @Operation(summary = "Update renewal request mobile number snapshot")
+    @PutMapping(Routes.DOCUMENT_RENEWAL_REQUEST_MOBILE)
+    public ResponseEntity<SuccessResponse<DocumentRenewalMobileResponse>> updateMobile(
+            HttpServletRequest request,
+            @PathVariable String requestNo,
+            @Valid @RequestBody DocumentRenewalMobileRequest input) {
+        return ok(success(request, mobileService.update(requestNo, input)));
     }
 
     @Operation(summary = "Create an Omise payment attempt for a renewal request")

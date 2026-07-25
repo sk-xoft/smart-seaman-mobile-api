@@ -201,12 +201,19 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
 
     public List<DeliveryAddressEntity> findDeliveryAddressSnapshot(
             String requestId, String mobileUserUuid) {
-        String sql = "SELECT source_delivery_address_id AS id, mobile_user_uuid, "
-                + "first_name, last_name, address_line, province, district, "
-                + "sub_district, postal_code, mobile_number "
-                + "FROM m_document_request_delivery_address "
-                + "WHERE request_id = :requestId AND mobile_user_uuid = :mobileUserUuid "
-                + "ORDER BY created_at DESC, id DESC";
+        String sql = "SELECT a.source_delivery_address_id AS id, a.mobile_user_uuid, "
+                + "a.first_name, a.last_name, a.address_line, a.province, a.district, "
+                + "a.sub_district, a.postal_code, a.mobile_number, "
+                + "CONCAT_WS(' ', a.address_line, "
+                + "CONCAT('ตำบล', sd.name_in_thai), "
+                + "CONCAT('อำเภอ', d.name_in_thai), "
+                + "CONCAT('จังหวัด', p.name_in_thai), a.postal_code) AS description "
+                + "FROM m_document_request_delivery_address a "
+                + "LEFT JOIN provinces p ON p.code = a.province "
+                + "LEFT JOIN districts d ON d.code = a.district "
+                + "LEFT JOIN subdistricts sd ON sd.code = a.sub_district "
+                + "WHERE a.request_id = :requestId AND a.mobile_user_uuid = :mobileUserUuid "
+                + "ORDER BY a.created_at DESC, a.id DESC";
         return template.query(sql,
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("mobileUserUuid", mobileUserUuid),

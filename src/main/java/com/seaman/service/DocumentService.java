@@ -9,6 +9,7 @@ import com.seaman.entity.CertificateEntity;
 import com.seaman.entity.DeliveryAddressEntity;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRenewalRequestEntity;
+import com.seaman.entity.DocumentRequestItemFileEntity;
 import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
@@ -498,6 +499,17 @@ public class DocumentService {
     public DocumentRequestValidateResponse validateAndCreateDocumentRenewalsItems(DocumentRequestValidateRequest request) {
 
         DocumentRequestValidateResponse response = new DocumentRequestValidateResponse();
+        long startedAt = System.nanoTime();
+        long findDocumentMs = 0;
+        long activeRequestMs = 0;
+        long validateItemsMs = 0;
+        long priceMs = 0;
+        long addressMs = 0;
+        long createRequestMs = 0;
+        long insertItemsMs = 0;
+        long mapItemsMs = 0;
+        long responseLogJsonMs = 0;
+        String timingPath = "create";
 
         String statusCode = AppStatus.SUCCESS_CODE;
         String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
@@ -518,15 +530,22 @@ public class DocumentService {
             inserted = true;
 
             String documentCode = request.getDocumentCode().trim().toUpperCase(Locale.ROOT);
+            long segmentStartedAt = System.nanoTime();
             DocumentEntity document = documentRepository.findByDocumentCode(documentCode);
             String documentName = documentName(document, documentCode);
+            findDocumentMs = elapsedMs(segmentStartedAt);
 
             // ตรวจสอบการ renewal มีสถานะจัดส่งสำเร็จแล้วหรือไม่
+            segmentStartedAt = System.nanoTime();
             DocumentRenewalRequestEntity activeRequest = documentRenewalCreateRepository
                     .findLatestActiveRequestNotDelivered(usersEntity.getMobileUuid(), documentCode);
+            activeRequestMs = elapsedMs(segmentStartedAt);
             if (activeRequest != null) {
+                timingPath = "existing";
+                segmentStartedAt = System.nanoTime();
                 List<DocumentRequestItemEntity> existingItems = documentRenewalCreateRepository
                         .findRequestItemsForValidate(activeRequest.getId(), usersEntity.getMobileUuid());
+                validateItemsMs = elapsedMs(segmentStartedAt);
                 if (existingItems == null || existingItems.isEmpty()) {
                     throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
                 }
@@ -537,13 +556,17 @@ public class DocumentService {
                 response.setMobileNumber(activeRequest.getMobileNumber());
                 response.setEmail(activeRequest.getEmail());
                 response.setAddress(deliveryAddressSnapshot(activeRequest.getId(), usersEntity.getMobileUuid()));
+                segmentStartedAt = System.nanoTime();
                 response.setItems(mapDocumentRequestItems(existingItems));
+                mapItemsMs = elapsedMs(segmentStartedAt);
                 return response;
             }
 
+            segmentStartedAt = System.nanoTime();
             List<DocumentRequestItemEntity> items =
                     documentRepository.findMissingItemsByUserAndDocumentCode(
                             usersEntity.getMobileUuid(), documentCode);
+            validateItemsMs = elapsedMs(segmentStartedAt);
 
             if (items == null || items.isEmpty()) {
                 throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
@@ -554,10 +577,15 @@ public class DocumentService {
             response.setMobileNumber(usersEntity.getMobileNumber());
             response.setEmail(usersEntity.getEmail());
 
+            segmentStartedAt = System.nanoTime();
             DocumentRenewalPriceResponse price = documentRenewalService.price(documentCode);
+            priceMs = elapsedMs(segmentStartedAt);
+            segmentStartedAt = System.nanoTime();
             DeliveryAddressEntity address = defaultDeliveryAddressOrNull(usersEntity.getMobileUuid());
+            addressMs = elapsedMs(segmentStartedAt);
             String requestId = frameworkUtils.generateUUID();
             String period = YearMonth.now(BUSINESS_ZONE).format(DateTimeFormatter.ofPattern("yyMM"));
+            segmentStartedAt = System.nanoTime();
             String requestNo = documentRenewalCreateRepository.nextRequestNo(period);
             String statusId = documentRenewalFoundationRepository
                     .findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING);
@@ -566,6 +594,7 @@ public class DocumentService {
                     usersEntity.getMobileUuid(), usersEntity.getMobileNumber(), usersEntity.getEmail(),
                     documentCode, statusId, price.getPriceSettingId(),
                     address == null ? null : address.getId(), price.getTotal());
+            createRequestMs = elapsedMs(segmentStartedAt);
             // ตรวจสอบที่อยู่ ณ ปัจจุบันเป็นข้อมูล address ที่อยู่ปัจจุบันของผู้ใช้งาน
             if (address != null) {
                 documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
@@ -574,6 +603,7 @@ public class DocumentService {
             }
 
             // เพิ่มเอกสารที่ต้องมีในการ renewals
+            segmentStartedAt = System.nanoTime();
             int itemCount = documentRenewalCreateRepository.insertRequestItems(requestId, documentCode);
             if (itemCount != items.size()) {
                 throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "documentRenewalRequestItems");
@@ -587,7 +617,10 @@ public class DocumentService {
             if (createdItems == null || createdItems.isEmpty()) {
                 throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
             }
+            insertItemsMs = elapsedMs(segmentStartedAt);
+            segmentStartedAt = System.nanoTime();
             response.setItems(mapDocumentRequestItems(createdItems));
+            mapItemsMs = elapsedMs(segmentStartedAt);
             response.setRequestId(requestId);
             response.setRequestNo(requestNo);
 
@@ -601,10 +634,37 @@ public class DocumentService {
             throw new BusinessException(AppStatus.EXCEPTION_GLOBAL, ex.getMessage());
         } finally {
             if (inserted) {
-                transactionLogsService.update(transId, frameworkUtils.toObjectToJson(response), statusCode, username);
+                long segmentStartedAt = System.nanoTime();
+                String responseJson = frameworkUtils.toObjectToJson(response);
+                responseLogJsonMs = elapsedMs(segmentStartedAt);
+                transactionLogsService.update(transId, responseJson, statusCode, username);
             }
+            String documentCode = request.getDocumentCode() == null
+                    ? "" : request.getDocumentCode().trim().toUpperCase(Locale.ROOT);
+            logValidateAndCreateTiming(startedAt, documentCode, activeRequestMs, findDocumentMs,
+                    validateItemsMs, priceMs, addressMs, createRequestMs, insertItemsMs,
+                    mapItemsMs, responseLogJsonMs, timingPath);
         }
         return response;
+    }
+
+    private long elapsedMs(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
+    }
+
+    private void logValidateAndCreateTiming(
+            long startedAt, String documentCode, long activeRequestMs, long findDocumentMs,
+            long validateItemsMs, long priceMs, long addressMs, long createRequestMs,
+            long insertItemsMs, long mapItemsMs, long responseLogJsonMs, String path) {
+        long totalMs = elapsedMs(startedAt);
+        if (totalMs < 300) {
+            return;
+        }
+        log.info("validateAndCreateDocumentRenewalsItems timing path={} documentCode={} totalMs={} "
+                        + "findDocumentMs={} activeRequestMs={} validateItemsMs={} priceMs={} "
+                        + "addressMs={} createRequestMs={} insertItemsMs={} mapItemsMs={} responseLogJsonMs={}",
+                path, documentCode, totalMs, findDocumentMs, activeRequestMs, validateItemsMs,
+                priceMs, addressMs, createRequestMs, insertItemsMs, mapItemsMs, responseLogJsonMs);
     }
 
     private DeliveryAddressEntity defaultDeliveryAddressOrNull(String mobileUserUuid) {
@@ -637,11 +697,14 @@ public class DocumentService {
         response.setSubDistrict(entity.getSubDistrict());
         response.setPostalCode(entity.getPostalCode());
         response.setMobileNumber(mobileNumber);
+        response.setDescription(entity.getDescription());
         response.setIsDefault(entity.getIsDefault());
         return response;
     }
 
     private List<DocumentRequestItemResponse> mapDocumentRequestItems(List<DocumentRequestItemEntity> items) {
+        Map<String, List<DocumentRequestItemFileEntity>> requestFilesByItemId = requestFilesByItemId(items);
+        Map<String, List<DocumentRequestItemFileEntity>> profileFilesByItemCode = profileFilesByItemCode(items);
         List<DocumentRequestItemResponse> responseList = new ArrayList<>();
         for (DocumentRequestItemEntity item : items) {
             DocumentRequestItemResponse dto = new DocumentRequestItemResponse();
@@ -660,11 +723,11 @@ public class DocumentService {
             dto.setCheckNote(item.getCheckNote());
             if ("REQUEST".equals(item.getStorageScope())) {
                 dto.setFiles(documentRenewalRequestItemFileService.mapFiles(
-                        documentRenewalRequestItemFileRepository.findFiles(item.getId())));
+                        requestFilesByItemId.getOrDefault(item.getId(), Collections.emptyList())));
             } else if (item.getProfileRequestItemId() != null) {
                 dto.setFiles(documentRequestItemFileService.mapFiles(
-                        documentRequestItemFileRepository.findFiles(item.getMobileUserUuid(),
-                                item.getDocumentMasterRequestItemCode())));
+                        profileFilesByItemCode.getOrDefault(
+                                item.getDocumentMasterRequestItemCode(), Collections.emptyList())));
             }
 
             if (item.getFileUploadedAt() != null) {
@@ -674,6 +737,58 @@ public class DocumentService {
             responseList.add(dto);
         }
         return responseList;
+    }
+
+    private Map<String, List<DocumentRequestItemFileEntity>> requestFilesByItemId(
+            List<DocumentRequestItemEntity> items) {
+        List<String> requestItemIds = items.stream()
+                .filter(item -> "REQUEST".equals(item.getStorageScope()))
+                .filter(item -> Integer.valueOf(1).equals(item.getFileUploaded()))
+                .map(DocumentRequestItemEntity::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (requestItemIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<DocumentRequestItemFileEntity> files =
+                documentRenewalRequestItemFileRepository.findFilesByRequestItemIds(requestItemIds);
+        if (files == null || files.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return files.stream()
+                .filter(file -> file.getRequestItemId() != null)
+                .collect(Collectors.groupingBy(DocumentRequestItemFileEntity::getRequestItemId));
+    }
+
+    private Map<String, List<DocumentRequestItemFileEntity>> profileFilesByItemCode(
+            List<DocumentRequestItemEntity> items) {
+        Optional<String> mobileUserUuid = items.stream()
+                .map(DocumentRequestItemEntity::getMobileUserUuid)
+                .filter(Objects::nonNull)
+                .findFirst();
+        if (mobileUserUuid.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<String> itemCodes = items.stream()
+                .filter(item -> !"REQUEST".equals(item.getStorageScope()))
+                .filter(item -> item.getProfileRequestItemId() != null)
+                .filter(item -> Integer.valueOf(1).equals(item.getFileUploaded()))
+                .map(DocumentRequestItemEntity::getDocumentMasterRequestItemCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (itemCodes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<DocumentRequestItemFileEntity> files =
+                documentRequestItemFileRepository.findFilesByItemCodes(mobileUserUuid.get(), itemCodes);
+        if (files == null || files.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return files.stream()
+                .filter(file -> file.getDocumentMasterRequestItemCode() != null)
+                .collect(Collectors.groupingBy(DocumentRequestItemFileEntity::getDocumentMasterRequestItemCode));
     }
 
     private String documentName(DocumentEntity document, String fallback) {

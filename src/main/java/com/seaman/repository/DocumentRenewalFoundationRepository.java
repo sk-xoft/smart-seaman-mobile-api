@@ -262,6 +262,33 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         }
     }
 
+    public void updateRequestMobileNumber(String requestId, String mobileNumber) {
+        int updated = template.update(
+                "UPDATE m_document_request SET mobile_number = :mobileNumber, updated_at = NOW() "
+                        + "WHERE id = :requestId AND is_active = 'YES'",
+                new MapSqlParameterSource().addValue("requestId", requestId)
+                        .addValue("mobileNumber", mobileNumber));
+        if (updated != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
+                    "documentRenewalRequest");
+        }
+    }
+
+    public void updateDeliveryAddressMobileNumber(
+            String requestId, String mobileUserUuid, String mobileNumber) {
+        int updated = template.update(
+                "UPDATE m_document_request_delivery_address "
+                        + "SET mobile_number = :mobileNumber "
+                        + "WHERE request_id = :requestId AND mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("requestId", requestId)
+                        .addValue("mobileUserUuid", mobileUserUuid)
+                        .addValue("mobileNumber", mobileNumber));
+        if (updated != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
+                    "documentRenewalDeliveryAddressSnapshot");
+        }
+    }
+
     public List<DocumentRenewalTransactionEntity> findOwnedTransactions(
             String requestId, String mobileUserUuid) {
         return template.query("SELECT t.* FROM m_document_transaction t "

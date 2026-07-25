@@ -59,6 +59,7 @@ public class Routes {
     public static final String POLICY = "/privacy_policy";
 
     public static final String VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST = "/documents-renewals/requests/validate-and-create";
+    public static final String DOCUMENT_RENEWAL_REQUEST_MOBILE = "/documents-renewals/requests/{requestNo}/mobile";
     public static final String DOCUMENT_RENEWAL_STATUSES = "/document-renewals/statuses";
     public static final String DOCUMENT_RENEWAL_PRICES = "/document-renewals/prices";
     public static final String DOCUMENT_RENEWALS = "/document-renewals";

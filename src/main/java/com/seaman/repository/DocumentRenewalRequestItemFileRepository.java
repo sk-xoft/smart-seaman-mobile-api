@@ -24,6 +24,22 @@ public class DocumentRenewalRequestItemFileRepository extends CommonRepository {
                 new BeanPropertyRowMapper<>(DocumentRequestItemFileEntity.class));
     }
 
+    public List<DocumentRequestItemFileEntity> findFilesByRequestItemIds(List<String> requestItemIds) {
+        if (requestItemIds == null || requestItemIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return template.query("SELECT id, id AS profile_request_item_id, request_item_id, "
+                        + "document_type, slot_code, file_path AS storage_key, original_file_name, "
+                        + "mime_type, file_size, file_uploaded, file_uploaded_at, check_result, "
+                        + "check_note, is_updated "
+                        + "FROM m_document_request_item_files "
+                        + "WHERE request_item_id IN (:requestItemIds) "
+                        + "AND document_type IS NOT NULL "
+                        + "ORDER BY request_item_id, document_type, slot_code",
+                new MapSqlParameterSource("requestItemIds", requestItemIds),
+                new BeanPropertyRowMapper<>(DocumentRequestItemFileEntity.class));
+    }
+
     public void deleteOtherTypes(String requestItemId, String documentType) {
         template.update("DELETE FROM m_document_request_item_files "
                         + "WHERE request_item_id = :requestItemId "

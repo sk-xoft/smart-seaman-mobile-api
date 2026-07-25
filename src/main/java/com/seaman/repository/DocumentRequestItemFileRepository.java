@@ -29,6 +29,25 @@ public class DocumentRequestItemFileRepository extends CommonRepository {
                 new BeanPropertyRowMapper<>(DocumentRequestItemFileEntity.class));
     }
 
+    public List<DocumentRequestItemFileEntity> findFilesByItemCodes(
+            String mobileUserUuid, List<String> itemCodes) {
+        if (itemCodes == null || itemCodes.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return template.query("SELECT id, id AS profile_request_item_id, "
+                        + "document_master_request_item_code, document_type, slot_code, "
+                        + "file_path AS storage_key, original_file_name, mime_type, file_size, "
+                        + "file_uploaded, file_uploaded_at, check_result, check_note, is_updated "
+                        + "FROM m_document_profile_request_item "
+                        + "WHERE mobile_user_uuid = :mobileUserUuid "
+                        + "AND document_master_request_item_code IN (:itemCodes) "
+                        + "AND document_type IS NOT NULL "
+                        + "ORDER BY document_master_request_item_code, document_type, slot_code",
+                new MapSqlParameterSource().addValue("mobileUserUuid", mobileUserUuid)
+                        .addValue("itemCodes", itemCodes),
+                new BeanPropertyRowMapper<>(DocumentRequestItemFileEntity.class));
+    }
+
     public void deleteOtherTypes(String mobileUserUuid, String itemCode, String documentType) {
         template.update("DELETE FROM m_document_profile_request_item WHERE mobile_user_uuid = :mobileUserUuid "
                         + "AND document_master_request_item_code = :itemCode AND document_type IS NOT NULL "

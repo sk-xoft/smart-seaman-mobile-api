@@ -37,9 +37,9 @@ public class DocumentRenewalItemFileService {
                 .equals(item.getStatusNameEn());
         boolean applicantCorrection = DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn()
                 .equals(item.getStatusNameEn());
-        if (requestScoped && paymentPending) {
-            return requestItemFileService.upload(item.getId(),
-                    item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
+        if (paymentPending) {
+            return withRequestContext(item,
+                    uploadByStorageScope(item, requestScoped, documentType, slotCode, file));
         }
         if (!applicantCorrection) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentStatus");
@@ -47,11 +47,28 @@ public class DocumentRenewalItemFileService {
         if (!"FIX".equals(item.getApproveStatus())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentRequestItemStatus");
         }
+        return withRequestContext(item,
+                uploadByStorageScope(item, requestScoped, documentType, slotCode, file));
+    }
+
+    private DocumentRequestItemUploadResponse uploadByStorageScope(
+            RenewalRequestItemEntity item, boolean requestScoped, String documentType,
+            String slotCode, MultipartFile file) {
         if (requestScoped) {
             return requestItemFileService.upload(item.getId(),
                     item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
         }
+        if (!"PROFILE".equals(item.getStorageScope())) {
+            throw new BusinessException(AppStatus.INVALID_FORMAT, "storageScope");
+        }
         return fileService.upload(item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
+    }
+
+    private DocumentRequestItemUploadResponse withRequestContext(
+            RenewalRequestItemEntity item, DocumentRequestItemUploadResponse response) {
+        response.setRequestId(item.getRequestId());
+        response.setRequestNo(item.getRequestNo());
+        return response;
     }
 
     private String currentUserUuid() {

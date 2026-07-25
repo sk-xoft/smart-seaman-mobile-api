@@ -149,6 +149,10 @@ class DocumentRenewalCreateRepositoryTest {
         assertTrue(sql.getValue().contains("request_id = :requestId"));
         assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
         assertTrue(sql.getValue().contains("source_delivery_address_id AS id"));
+        assertTrue(sql.getValue().contains("AS description"));
+        assertTrue(sql.getValue().contains("LEFT JOIN provinces p"));
+        assertTrue(sql.getValue().contains("LEFT JOIN districts d"));
+        assertTrue(sql.getValue().contains("LEFT JOIN subdistricts sd"));
         assertEquals("request-id", parameters.getValue().getValue("requestId"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
     }

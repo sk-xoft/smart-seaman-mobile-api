@@ -94,6 +94,7 @@ class DocumentServiceValidateRequestTest {
         defaultAddress.setDistrict("Bang Rak");
         defaultAddress.setSubDistrict("Si Lom");
         defaultAddress.setPostalCode("10500");
+        defaultAddress.setDescription("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500");
         request = new DocumentRequestValidateRequest();
         request.setDocumentCode("doc001");
     }
@@ -117,6 +118,8 @@ class DocumentServiceValidateRequestTest {
         assertEquals("default-address-id", response.getAddress().get(0).getId());
         assertEquals("Somchai", response.getAddress().get(0).getFirstName());
         assertEquals("0812345678", response.getAddress().get(0).getMobileNumber());
+        assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         verify(createRepository).insertRequest("request-id", "260700001",
                 "mobile-user-uuid", "0812345678", "crew@example.com", "DOC001",
                 "payment-status-id", "price-setting-id", "default-address-id", new BigDecimal("1500.00"));
@@ -145,6 +148,8 @@ class DocumentServiceValidateRequestTest {
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
         assertEquals("default-address-id", response.getAddress().get(0).getId());
+        assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         assertEquals(2, response.getItems().size());
         assertEquals("MRI002", response.getItems().get(0).getDocumentMasterRequestItemCode());
         assertEquals("COMPLETE", response.getItems().get(0).getDocumentStatus());
@@ -176,6 +181,7 @@ class DocumentServiceValidateRequestTest {
         DeliveryAddressEntity snapshotAddress = deliveryAddress("snapshot-address-id");
         snapshotAddress.setMobileNumber("0899999999");
         snapshotAddress.setFirstName("Snapshot");
+        snapshotAddress.setDescription("2 Snapshot Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500");
         when(createRepository.findDeliveryAddressSnapshot("existing-request-id", "mobile-user-uuid"))
                 .thenReturn(Collections.singletonList(snapshotAddress));
 
@@ -191,6 +197,8 @@ class DocumentServiceValidateRequestTest {
         assertEquals("snapshot-address-id", response.getAddress().get(0).getId());
         assertEquals("Snapshot", response.getAddress().get(0).getFirstName());
         assertEquals("0899999999", response.getAddress().get(0).getMobileNumber());
+        assertEquals("2 Snapshot Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         assertEquals("MISSING", response.getItems().get(0).getDocumentStatus());
         verify(documentRepository, never()).findMissingItemsByUserAndDocumentCode(anyString(), anyString());
         verify(renewalService, never()).price(anyString());

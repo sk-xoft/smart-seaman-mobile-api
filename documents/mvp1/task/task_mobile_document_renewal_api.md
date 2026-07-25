@@ -3,12 +3,12 @@
 อ้างอิง:
 - Requirement: `documents/mvp1/document_renewal_figma_spec.md`
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
-- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`
+- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`
 
 อัปเดตล่าสุด: 2026-07-25
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 19/19 tasks
+Progress: 20/20 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -49,6 +49,7 @@ Progress: 19/19 tasks
 | 16 | [x] | Get default delivery address | Backend | `GET /v1/delivery-addresses`, `DeliveryAddressControllerTest` | - |
 | 17 | [x] | Update mobile number with history | Backend | `POST /v1/profile-update`, `ProfileMobileNumberUpdateTest` | - |
 | 18 | [x] | Snapshot delivery address per renewal request | Backend/DBA | `m_document_request_delivery_address`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest` | - |
+| 19 | [x] | Update renewal request mobile number snapshot | Backend | `PUT /v1/documents-renewals/requests/{requestNo}/mobile`, `DocumentRenewalMobileServiceTest` | - |
 
 ## Supporting Status
 
@@ -619,16 +620,20 @@ Estimate: 2 MD
 Priority: High
 
 Goal:
-- mobile user แก้ไฟล์ supporting document ใน correction flow ได้อย่างปลอดภัย
+- mobile user upload หรือแก้ไฟล์ supporting document ของ renewal request ได้อย่างปลอดภัย
 
 Scope:
 - `POST /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file`
 - multipart fields `documentType`, `slotCode`, `file`
-- อนุญาตเฉพาะ request status `Pending Applicant Correction` และ item status `FIX`
+- อนุญาต request status `Payment Pending` สำหรับ unpaid draft upload
+- อนุญาต request status `Pending Applicant Correction` เฉพาะ item status `FIX`
+- lookup `storage_scope` จาก `m_document_master_request_item`
+- ถ้า `storage_scope = REQUEST` ให้ insert/update `m_document_request_item_files`
+- ถ้า `storage_scope = PROFILE` ให้ insert/update `m_document_profile_request_item`
 - reuse MIME/size validation, UUID storage key และ transaction-aware object cleanup
 
 Out of scope:
-- profile document first-time upload
+- storage scope อื่นนอกเหนือจาก `REQUEST` และ `PROFILE`
 
 Implementation checklist:
 - [x] Controller / endpoint
@@ -641,7 +646,12 @@ Implementation checklist:
 - [x] cURL example
 
 Acceptance criteria:
-- user แก้ file ได้เฉพาะ state ที่อนุญาต
+- user upload file ได้เฉพาะ state ที่อนุญาต
+- response ต้องคืน `requestId` และ `requestNo` ของ renewal request ที่ upload
+- `PAYMENT_PENDING` ต้อง upload ได้ทั้ง `REQUEST` และ `PROFILE` ตาม `storage_scope`
+- `PENDING_APPLICANT_CORRECTION` ต้อง upload ได้เฉพาะ item ที่ `approve_status = FIX`
+- item `storage_scope = REQUEST` เช่น `MRI004` ต้องบันทึกไฟล์ลง `m_document_request_item_files`
+- item `storage_scope = PROFILE` เช่น `MRI001` ต้องบันทึกไฟล์ลง `m_document_profile_request_item`
 - DB ไม่ชี้ไฟล์ใหม่หาก upload ล้มเหลว
 - DB rollback หลัง upload ต้อง cleanup orphan object
 - ไม่ใช้ชื่อไฟล์จาก client เป็น storage key โดยตรง
@@ -1154,6 +1164,97 @@ curl --request POST \
   }'
 ```
 
+### MR-MOB-19: Update Renewal Request Mobile Number Snapshot
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.5 MD
+Priority: High
+
+Goal:
+- ให้ mobile app แก้เบอร์มือถือสำหรับ renewal request ที่ถูก snapshot ไว้แล้ว โดยไม่แก้ profile หลักของ user
+
+Scope:
+- API `PUT /v1/documents-renewals/requests/{requestNo}/mobile`
+- รับ `mobileNumber` จาก request body
+- ใช้ authenticated user จาก request context เพื่อ scope ownership
+- lock renewal request ด้วย `requestNo` + `mobile_user_uuid` และ `is_active = 'YES'`
+- update `m_document_request.mobile_number`
+- update `m_document_request_delivery_address.mobile_number` ของ request เดียวกัน
+
+Out of scope:
+- เปลี่ยน `m_mobile_users.MOBILE_NUMBER`
+- insert `m_mobile_number_history`
+- เปลี่ยนข้อมูลที่อยู่ เช่น province/district/subDistrict/postalCode
+- admin update flow
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Business logic:
+- client ส่งเฉพาะ `mobileNumber`
+- `mobileNumber` ต้องเป็นเบอร์ไทย 10 หลักขึ้นต้นด้วย `0`
+- server อ่าน `mobile_user_uuid` จาก authenticated user เท่านั้น
+- request ต้องเป็น active renewal request ที่เป็นของ user ที่ login
+- update `m_document_request.mobile_number` เป็นค่าใหม่เสมอเมื่อ request ถูกต้อง
+- update `m_document_request_delivery_address.mobile_number` ด้วยค่าเดียวกัน
+- ถ้า request ไม่มี delivery address snapshot ให้ rollback เพราะ endpoint นี้ต้อง update ทั้ง `m_document_request` และ `m_document_request_delivery_address`
+- ทุก update อยู่ใน transaction เดียวกัน
+
+Acceptance criteria:
+- user แก้ mobile number ของ renewal request ตัวเองได้
+- user แก้ renewal request ของ user อื่นไม่ได้
+- invalid mobile number ถูก reject ก่อน update
+- `m_document_request.mobile_number` ถูก update ตาม request body
+- `m_document_request_delivery_address.mobile_number` ถูก update ตาม request body
+- ถ้าไม่มี address snapshot ต้อง rollback โดยไม่มี partial update ใน `m_document_request`
+
+Evidence when done:
+- API example: `PUT /v1/documents-renewals/requests/{requestNo}/mobile`
+- Test classes: `DocumentRenewalMobileServiceTest`, `DocumentRenewalControllerTest`, `DocumentRenewalFoundationRepositoryTest`
+- Files changed: `Routes`, `DocumentRenewalController`, `DocumentRenewalMobileService`, `DocumentRenewalFoundationRepository`, `DocumentRenewalMobileRequest`, `DocumentRenewalMobileResponse`
+
+Request body:
+
+```json
+{
+  "mobileNumber": "0821549970"
+}
+```
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestNo": "260700001",
+    "mobileNumber": "0821549970"
+  }
+}
+```
+
+```bash
+curl --request PUT \
+  --url "${base_url}/v1/documents-renewals/requests/260700001/mobile" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "mobileNumber": "0821549970"
+  }'
+```
+
 ## Remaining Work
 
 | Priority | Task | Why it remains | Next action | Blocker |
@@ -1193,6 +1294,7 @@ Operational งานที่อยู่นอก implementation scope เช�
 11. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 12. MR-MOB-12 contract/integration/concurrency tests
 13. MR-MOB-17 atomic mobile-number update และ change history
+14. MR-MOB-19 renewal request mobile snapshot update
 
 ## Evidence Checked
 
@@ -1215,6 +1317,9 @@ Operational งานที่อยู่นอก implementation scope เช�
 - `src/main/java/com/seaman/controller/ProfileController.java`
 - `src/main/java/com/seaman/service/ProfileService.java`
 - `src/main/java/com/seaman/repository/UserRepository.java`
+- `src/main/java/com/seaman/controller/DocumentRenewalController.java`
+- `src/main/java/com/seaman/service/DocumentRenewalMobileService.java`
+- `src/main/java/com/seaman/repository/DocumentRenewalFoundationRepository.java`
 - `documents/non_prod_db_schema.md`
 
 ## Assumptions

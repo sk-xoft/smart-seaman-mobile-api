@@ -131,6 +131,7 @@ public class DeliveryAddressService {
         response.setSubDistrict(entity.getSubDistrict());
         response.setPostalCode(entity.getPostalCode());
         response.setMobileNumber(entity.getMobileNumber());
+        response.setDescription(entity.getDescription());
         response.setIsDefault(entity.getIsDefault());
         return response;
     }

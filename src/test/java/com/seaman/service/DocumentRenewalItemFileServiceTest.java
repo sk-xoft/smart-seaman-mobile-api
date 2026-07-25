@@ -51,6 +51,8 @@ class DocumentRenewalItemFileServiceTest {
 
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        assertEquals("request-id", expected.getRequestId());
+        assertEquals("260700001", expected.getRequestNo());
         verify(fileService).upload("MRI001", "ID_CARD", "FRONT", file);
     }
 
@@ -67,6 +69,8 @@ class DocumentRenewalItemFileServiceTest {
 
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        assertEquals("request-id", expected.getRequestId());
+        assertEquals("260700001", expected.getRequestNo());
         verify(requestItemFileService).upload(
                 "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
         verifyNoInteractions(fileService);
@@ -86,9 +90,29 @@ class DocumentRenewalItemFileServiceTest {
 
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        assertEquals("request-id", expected.getRequestId());
+        assertEquals("260700001", expected.getRequestNo());
         verify(requestItemFileService).upload(
                 "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
         verifyNoInteractions(fileService);
+    }
+
+    @Test
+    void storesProfileScopedFileOnUnpaidDraftBeforePayment() {
+        RenewalRequestItemEntity item = correctionItem("PENDING");
+        item.setStorageScope("PROFILE");
+        item.setStatusNameEn(DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn());
+        when(repository.lockOwnedRequestItem(
+                requestNo, documentRequestItemCode, "user-uuid")).thenReturn(item);
+        DocumentRequestItemUploadResponse expected = new DocumentRequestItemUploadResponse();
+        when(fileService.upload("MRI001", "ID_CARD", "FRONT", file)).thenReturn(expected);
+
+        assertEquals(expected, service.upload(
+                requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
+        assertEquals("request-id", expected.getRequestId());
+        assertEquals("260700001", expected.getRequestNo());
+        verify(fileService).upload("MRI001", "ID_CARD", "FRONT", file);
+        verifyNoInteractions(requestItemFileService);
     }
 
     @Test
@@ -114,6 +138,18 @@ class DocumentRenewalItemFileServiceTest {
     }
 
     @Test
+    void rejectsUnknownStorageScope() {
+        RenewalRequestItemEntity item = correctionItem("FIX");
+        item.setStorageScope("ARCHIVE");
+        when(repository.lockOwnedRequestItem(requestNo, documentRequestItemCode, "user-uuid"))
+                .thenReturn(item);
+
+        assertThrows(BusinessException.class,
+                () -> service.upload(requestNo, documentRequestItemCode, "GENERAL", "MAIN", file));
+        verifyNoInteractions(fileService, requestItemFileService);
+    }
+
+    @Test
     void rejectsInvalidIdentifiersBeforeDatabaseAccess() {
         assertThrows(BusinessException.class,
                 () -> service.upload("invalid request", documentRequestItemCode,
@@ -124,6 +160,8 @@ class DocumentRenewalItemFileServiceTest {
     private RenewalRequestItemEntity correctionItem(String approveStatus) {
         RenewalRequestItemEntity item = new RenewalRequestItemEntity();
         item.setId("request-item-id");
+        item.setRequestId("request-id");
+        item.setRequestNo("260700001");
         item.setDocumentMasterRequestItemCode("MRI001");
         item.setStorageScope("PROFILE");
         item.setApproveStatus(approveStatus);

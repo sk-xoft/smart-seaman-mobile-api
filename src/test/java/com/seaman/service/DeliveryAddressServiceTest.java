@@ -110,6 +110,8 @@ class DeliveryAddressServiceTest {
 
         DeliveryAddressResponse response = service.getDefault();
         assertEquals("address-id", response.getId());
+        assertEquals("1 Main Road ตำบลพระบรมมหาราชวัง อำเภอพระนคร จังหวัดกรุงเทพมหานคร 10200",
+                response.getDescription());
         assertTrue(response.getIsDefault());
         verify(deliveryAddressRepository).findActiveDefaults("user-uuid");
     }
@@ -199,6 +201,7 @@ class DeliveryAddressServiceTest {
         entity.setDistrict("1001");
         entity.setSubDistrict("100101");
         entity.setPostalCode("10200");
+        entity.setDescription("1 Main Road ตำบลพระบรมมหาราชวัง อำเภอพระนคร จังหวัดกรุงเทพมหานคร 10200");
         entity.setIsDefault(true);
         return entity;
     }
