@@ -26,29 +26,17 @@ import java.util.*;
 public class AuthService {
 
     private final Logger log = LoggerFactory.getLogger(AuthService.class);
-
     private final HttpServletRequest httpServletRequest;
-
     private final JwtTokenService jwtTokenUtil;
-
     private final FrameworkUtils frameworkUtils;
-
     private final UserRepository userRepository;
-
     private final SessionRepository sessionRepository;
-
     private final DocumentRepository documentRepository;
-
     private final CertificateRepository certificateRepository;
-
-    private final TransactionLogsService transactionLogsService;
-
+    private final TransactionLogsService tsnLogSrv;
     private final PasswordEncoder passwordEncoder;
-
     private final ForgotPasswordRepository forgotPasswordRepository;
-
     private final DateUtil dateUtil;
-
     private final EmailService emailService;
 
     @Value("${register.confirm.url}")
@@ -57,14 +45,13 @@ public class AuthService {
     @Value("${forgot.confirm.url}")
     private String linkConfirmForgot;
 
-    public LoginResponse login(LoginRequest loginRequest) {
+    public LoginResponse login(LoginRequest req) {
 
         // Set default status.
         String statusCode  =  AppStatus.SUCCESS_CODE;
 
         LoginResponse response = new LoginResponse();
         String correlationId = httpServletRequest.getHeader(AppSys.HEADER_CORRELATION_ID);
-
         String transId = (String) httpServletRequest.getAttribute(AppSys.TRACE_ID);
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
         String serviceName = "LOGIN";
@@ -73,21 +60,20 @@ public class AuthService {
         try {
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, loginRequest.getUsername());
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, req.getUsername());
 
             // -- 1. find username in table, And check password
-            Optional<UsersEntity> usersEntityOptional = Optional.ofNullable(userRepository.findByUsername(loginRequest.getUsername()));
-
-            if (usersEntityOptional.isEmpty()) {
+            Optional<UsersEntity> userDTO = Optional.ofNullable(userRepository.findByUsername(req.getUsername()));
+            if (userDTO.isEmpty()) {
                 throw new BusinessException(AppStatus.EXCEPTION_USERNAME_INCORRECT, "");
             }
 
-            UsersEntity usersEntity = usersEntityOptional.get();
-            if (!this.matchPassword(loginRequest.getPassword(), usersEntity.getPassword())) {
+            UsersEntity usersEntity = userDTO.get();
+            if (!this.matchPassword(req.getPassword(), usersEntity.getPassword())) {
                 throw new BusinessException(AppStatus.EXCEPTION_USER_HERO_INCORRECT, "");
             }
 
-            log.info("User is status -> {}.", usersEntity.getUserStatus());
+            log.info("Validate user is status -> {}={}.", usersEntity.getUsername(), usersEntity.getUserStatus());
             if("D".equals(usersEntity.getUserStatus())) {
                 throw new BusinessException(AppStatus.USER_IS_INACTIVATED, "");
             } else if(!"A".equals(usersEntity.getUserStatus())) {
@@ -95,7 +81,7 @@ public class AuthService {
             }
 
             // Set username for insert log.
-            username = loginRequest.getUsername();
+            username = req.getUsername();
 
             // -- 2. Generate JWT
             // Ref : https://www.rfc-editor.org/rfc/rfc7519#section-4.1
@@ -103,10 +89,10 @@ public class AuthService {
             Map<String, Object> claims = new HashMap<>();
             claims.put(AppSys.CLAIMS_ISSUER, AppSys.APPLICATION_NAME);
             claims.put(AppSys.CLAIMS_JTI, clientSessionId);
-            claims.put(AppSys.CLAIMS_SUBJECT, loginRequest.getUsername());
+            claims.put(AppSys.CLAIMS_SUBJECT, req.getUsername());
 
             // Create JWT TOKEN
-            String jwtToken = jwtTokenUtil.generateToken(claims, loginRequest.getUsername());
+            String jwtToken = jwtTokenUtil.generateToken(claims, req.getUsername());
 
             // Store table session
             SessionEntity sessionEntity = new SessionEntity();
@@ -114,10 +100,10 @@ public class AuthService {
             sessionEntity.setToken(jwtToken);
             sessionEntity.setDeviceModel("MOBILE"); // must use form header request.
             sessionEntity.setUserId(usersEntity.getMobileUuid());
-            sessionEntity.setCreateBy(loginRequest.getUsername());
+            sessionEntity.setCreateBy(req.getUsername());
             sessionEntity.setLoginTime(new Date());
             sessionEntity.setCreateDate(new Date());
-            sessionEntity.setUpdateBy(loginRequest.getUsername());
+            sessionEntity.setUpdateBy(req.getUsername());
             sessionEntity.setUpdateDate(new Date());
             sessionEntity.setIsOnline("YES");
             sessionEntity.setCorrelationId(correlationId);
@@ -130,10 +116,8 @@ public class AuthService {
             // Mark response
             response.setToken(jwtToken);
             response.setRefToken(clientSessionId);
-            response.setUsername(loginRequest.getUsername());
+            response.setUsername(req.getUsername());
             response.setLastLoginDateTime(dateUtil.convertTime(new Date().getTime()));
-
-            log.info("{}", "Process login is success.");
         } catch (CommonException ce){
             statusCode = ce.getCode();
             throw ce;
@@ -143,7 +127,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
 
         return response;
@@ -163,7 +147,7 @@ public class AuthService {
         try {
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, createBy);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, createBy);
 
             Optional<UsersEntity> isEmail = Optional.ofNullable(userRepository.findByEmail(request.getEmail()));
             if (isEmail.isEmpty()) {
@@ -242,7 +226,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, request.getEmail());
+            tsnLogSrv.update(transId, resJson, statusCode, request.getEmail());
         }
 
         return response;
@@ -267,7 +251,7 @@ public class AuthService {
             httpServletRequest.setAttribute("clientSessionId", refToken);
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, username);
 
             // Optional<String> opt = SecurityUtils.getCurrentUserId();
 //            if (opt.isEmpty()) {
@@ -304,7 +288,7 @@ public class AuthService {
             // Update toke
             sessionEntity.setToken(jwtToken);
             sessionRepository.update(sessionEntity);
-            
+
             response.setToken(jwtToken);
 
         } catch (CommonException ce){
@@ -316,7 +300,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
 
         return response;
@@ -339,7 +323,7 @@ public class AuthService {
             username = usersEntity.getUsername();
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, username);
 
             // Check password is match.
             if(request.getConfirmPassword().equals(request.getNewPassword())) {
@@ -380,7 +364,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
 
         return response;
@@ -412,7 +396,7 @@ public class AuthService {
             username = usersEntity.getUsername();
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, username);
 
             usersEntity.setUserStatus("A");
             userRepository.updateStatus(usersEntity);
@@ -429,7 +413,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
 
         return response;
@@ -456,7 +440,7 @@ public class AuthService {
             username = usersEntity.getUsername();
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, username);
 
             // Setup Response
             response.setUsername(usersEntity.getUsername());
@@ -479,7 +463,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
         return response;
     }
@@ -506,7 +490,7 @@ public class AuthService {
             username = usersEntity.getUsername();
 
             // Store trans
-            transactionLogsService.insert(transId, bodyReqJson, serviceName, username);
+            tsnLogSrv.insert(transId, bodyReqJson, serviceName, username);
 
             // Check password is match.
             if(request.getConfirmPassword().equals(request.getPassword())) {
@@ -539,7 +523,7 @@ public class AuthService {
             throw ex;
         } finally {
             String resJson = frameworkUtils.toObjectToJson(response);
-            transactionLogsService.update(transId, resJson, statusCode, username);
+            tsnLogSrv.update(transId, resJson, statusCode, username);
         }
 
         return response;

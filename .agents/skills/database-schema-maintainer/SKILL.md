@@ -11,9 +11,9 @@ Treat executable SQL scripts as the source of truth. Preserve unrelated user cha
 
 1. Read the relevant requirements and inspect all related tables before editing.
 2. Check existing column types and collations on both sides of every foreign key.
-3. Update `documents/mvp1/script/RUN1_2026_create_table.sql` for DDL.
-4. Update `RUN2_2026_insert_master.sql` for repeatable master data and `RUN3_create_index.sql` only for indexes intentionally applied separately.
-5. Update `2026_drop_table.sql` in reverse dependency order. Do not disable safety beyond its existing `FOREIGN_KEY_CHECKS` wrapper.
+3. Update `documents/mvp1/script/01_create_mvp1_tables.sql` for fresh-install DDL.
+4. Update `02_seed_mvp1_master_data.sql` for repeatable master data and `03_create_core_indexes.sql` only for indexes intentionally applied separately.
+5. Update `00_drop_mvp1_tables.sql` in reverse dependency order. Do not disable safety beyond its existing `FOREIGN_KEY_CHECKS` wrapper.
 6. Synchronize `documents/mvp1/db_script_new_feature_v1.md` and any diagram explicitly in scope. Copy DDL exactly; keep business notes concise.
 7. Validate formatting, dependency order, constraints, and documentation parity.
 
@@ -31,7 +31,7 @@ Treat executable SQL scripts as the source of truth. Preserve unrelated user cha
 ## Verification
 
 - Run `git diff --check`.
-- Compare every documented `CREATE TABLE` block with RUN1 table-by-table.
+- Compare every documented `CREATE TABLE` block with `01_create_mvp1_tables.sql` table-by-table.
 - Search for stale table, column, constraint, and singular/plural names.
 - If a MySQL runtime is available, execute against an isolated disposable schema; never run DDL against a shared environment without explicit authorization.
 - Report changed scripts, documentation, validations run, and anything not executable locally.

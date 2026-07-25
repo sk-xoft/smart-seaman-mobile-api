@@ -22,8 +22,10 @@ CREATE TABLE m_document_status (
 CREATE TABLE m_document_request (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     request_no          VARCHAR(20)     NOT NULL,
-    mobile_user_uuid    VARCHAR(50)     NOT NULL,
-    document_code       VARCHAR(50)     NOT NULL,
+    mobile_user_uuid    VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    mobile_number       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+    email               VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+    document_code       VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     document_status_id  CHAR(36)        NOT NULL,
     price_setting_id    CHAR(36)        NULL,
     delivery_address_id CHAR(36)        NULL,
@@ -208,6 +210,7 @@ CREATE TABLE m_document_master_request_item (
 CREATE TABLE m_document_request_items (
     id                                  CHAR(36)        NOT NULL DEFAULT (UUID()),
     request_id                          CHAR(36)        NOT NULL,
+    request_no                          VARCHAR(20)     NOT NULL,
     document_master_request_item_code   VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
     approve_status                      VARCHAR(10)     NOT NULL DEFAULT 'PENDING',
     note                                TEXT            NULL,
@@ -217,6 +220,7 @@ CREATE TABLE m_document_request_items (
     PRIMARY KEY (id),
     UNIQUE KEY uq_doc_reqitems_request_master (request_id, document_master_request_item_code),
     KEY idx_doc_reqitems_request_status (request_id, approve_status),
+    KEY idx_doc_reqitems_request_no (request_no),
     KEY idx_doc_reqitems_master_code (document_master_request_item_code),
 
     CONSTRAINT chk_doc_reqitems_approve_status
@@ -437,6 +441,34 @@ CREATE TABLE m_delivery_address (
 ALTER TABLE m_document_request
     ADD CONSTRAINT fk_docreq_delivery_address
         FOREIGN KEY (delivery_address_id) REFERENCES m_delivery_address (id);
+
+CREATE TABLE m_document_request_delivery_address (
+    id                          CHAR(36)        NOT NULL DEFAULT (UUID()),
+    request_id                  CHAR(36)        NOT NULL,
+    source_delivery_address_id  CHAR(36)        NULL,
+    mobile_user_uuid            VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    first_name                  VARCHAR(100)    NOT NULL,
+    last_name                   VARCHAR(100)    NOT NULL,
+    address_line                VARCHAR(500)    NOT NULL,
+    province                    VARCHAR(100)    NOT NULL,
+    district                    VARCHAR(100)    NOT NULL,
+    sub_district                VARCHAR(100)    NOT NULL,
+    postal_code                 VARCHAR(10)     NOT NULL,
+    mobile_number               VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+    created_at                  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_docreq_delivery_address_request (request_id),
+    KEY idx_docreq_delivery_address_source (source_delivery_address_id),
+    KEY idx_docreq_delivery_address_user (mobile_user_uuid),
+
+    CONSTRAINT fk_docreq_delivery_address_request
+        FOREIGN KEY (request_id) REFERENCES m_document_request (id),
+    CONSTRAINT fk_docreq_delivery_address_source
+        FOREIGN KEY (source_delivery_address_id) REFERENCES m_delivery_address (id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE m_delivery (
     id                  CHAR(36)        NOT NULL DEFAULT (UUID()),

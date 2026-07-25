@@ -94,5 +94,5 @@ target
 ## Sensitive credentials
 ##############################
 *-firebase-adminsdk-*.json
-## application-local.properties
-## application-*.local.properties
+application-local.properties
+application-*.local.properties

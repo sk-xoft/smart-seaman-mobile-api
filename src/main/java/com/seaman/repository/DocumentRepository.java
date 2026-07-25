@@ -51,6 +51,19 @@ public class DocumentRepository extends CommonRepository {
         return listAll;
     }
 
+    public DocumentEntity findByDocumentCode(String documentCode) {
+        List<DocumentEntity> rows;
+        try {
+            rows = template.query("SELECT * FROM m_documents WHERE DOCUMENT_CODE = :documentCode",
+                    new MapSqlParameterSource("documentCode", documentCode),
+                    new BeanPropertyRowMapper<>(DocumentEntity.class));
+        } catch (Exception ex) {
+            log.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<DocumentEntity> findByPage(String userUid, int offSet,  String documentType) {
         List<DocumentEntity> listAll = null;
 

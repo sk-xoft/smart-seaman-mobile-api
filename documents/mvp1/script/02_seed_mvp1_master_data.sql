@@ -25,15 +25,17 @@ INSERT INTO m_document_master_request_item (
     document_master_items_code,
     document_master_items_name,
     sort_order,
+    storage_scope,
     is_active
 ) VALUES
-    ('MRI001', 'สำเนาบัตรประชาชน / Passport', 1, 'YES'),
-    ('MRI002', 'รูปถ่าย (ขนาด 2 นิ้ว)', 2, 'YES'),
-    ('MRI003', 'ใบรับรองแพทย์', 3, 'YES'),
-    ('MRI004', 'Sea Service Record', 4, 'YES')
+    ('MRI001', 'สำเนาบัตรประชาชน / Passport', 1, 'PROFILE', 'YES'),
+    ('MRI002', 'รูปถ่าย (ขนาด 2 นิ้ว)', 2, 'PROFILE', 'YES'),
+    ('MRI003', 'ใบรับรองแพทย์', 3, 'PROFILE', 'YES'),
+    ('MRI004', 'Sea Service Record', 4, 'REQUEST', 'YES')
 ON DUPLICATE KEY UPDATE
     document_master_items_name = VALUES(document_master_items_name),
     sort_order = VALUES(sort_order),
+    storage_scope = VALUES(storage_scope),
     is_active = VALUES(is_active);
 
 INSERT INTO m_document_setting_requires (

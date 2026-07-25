@@ -14,7 +14,7 @@ Project นี้เป็น Spring Boot 2.6.2 REST API แบบ stateless JWT
 
 | Status | Area | Update |
 | --- | --- | --- |
-| Done | Mobile renewal contract | `documents/mvp1/task/2-task_mobile_document_renewal_api.md` ปิด MR-MOB-02 ถึง MR-MOB-12 แล้ว และมี controller/service/repository/model tests ครอบคลุม 10 mobile renewal endpoints |
+| Done | Mobile renewal contract | `../task/task_mobile_document_renewal_api.md` ปิด MR-MOB-02 ถึง MR-MOB-12 แล้ว และมี controller/service/repository/model tests ครอบคลุม 10 mobile renewal endpoints |
 | Done | Payment source of truth | Omise PromptPay/Mobile Banking ใช้ webhook `charge.complete` + retrieve charge จาก provider ก่อนเปลี่ยน request status; client callback ไม่สามารถ mark success เอง |
 | Done | Payment duplicate guard | Payment attempt ใช้ `idempotencyKey`; webhook success ซ้ำไม่ append timeline หรือเปลี่ยนสถานะซ้ำ |
 | Done | Mobile number history | `POST /v1/profile-update` update `MOBILE_NUMBER` ภายใต้ transaction + row lock และ insert `m_mobile_number_history` เมื่อเบอร์เปลี่ยน |
@@ -169,10 +169,10 @@ Project นี้เป็น Spring Boot 2.6.2 REST API แบบ stateless JWT
 | --- | --- | --- |
 | `m_certificates` lookup/list | non-prod schema มีแค่ primary key `CERT_ID`; query ใช้ `CERT_MOBILE_UUID`, `CERT_DOCUMENT_CODE`, `CERT_END_DATE` | ควรเพิ่ม 2 indexes ด้านล่าง |
 | `m_documents` list | มี primary key `DOCUMENT_ID` และ unique `DOCUMENT_CODE`; query list filter ด้วย `DOCUMENT_STATUS`, `DOCUMENT_TYPE`, `DOCUMENT_DEFAULT_FLAG` แล้ว order by `DOCUMENT_SEQ` | ควรเพิ่ม index สำหรับ status/type list; default list ให้ validate ด้วย `EXPLAIN` ก่อนเพิ่ม |
-| `t_session` auth/session | RUN3 มี `ux_t_session_client_session_id (CLIENT_SESSION_ID)` และ `ix_t_session_user_id (USER_ID)` แล้ว | ไม่ต้องเพิ่ม index ใหม่ตอนนี้; `TOKEN != :TOKEN` เป็น inequality บน `TEXT` ไม่เหมาะทำ normal index |
+| `t_session` auth/session | `03_create_core_indexes.sql` มี `ux_t_session_client_session_id (CLIENT_SESSION_ID)` และ `ix_t_session_user_id (USER_ID)` แล้ว | ไม่ต้องเพิ่ม index ใหม่ตอนนี้; `TOKEN != :TOKEN` เป็น inequality บน `TEXT` ไม่เหมาะทำ normal index |
 | `t_transaction_logs` update | schema มีแค่ primary key `IN_LOG_ID`; repository update ด้วย `TRANS_ID` | ควรเพิ่ม index บน `TRANS_ID` |
-| `m_document_setting_requires` validation | RUN3 มี `idx_doc_setting_requires_validate (document_code, is_required, is_active, sort_order, document_master_request_item_code)` แล้ว | ไม่ต้องเพิ่มใหม่; ให้ verify ด้วย `EXPLAIN` บนข้อมูลจริง |
-| `m_payment_transaction` retry/webhook | RUN1 มี `uq_payment_idempotency_key`, `uq_payment_provider_charge`, `idx_payment_request_created` แล้ว | ไม่ต้องเพิ่มใหม่; ให้ verify ด้วย `EXPLAIN` บนข้อมูลจริง |
+| `m_document_setting_requires` validation | `03_create_core_indexes.sql` มี `idx_doc_setting_requires_validate (document_code, is_required, is_active, sort_order, document_master_request_item_code)` แล้ว | ไม่ต้องเพิ่มใหม่; ให้ verify ด้วย `EXPLAIN` บนข้อมูลจริง |
+| `m_payment_transaction` retry/webhook | `01_create_mvp1_tables.sql` มี `uq_payment_idempotency_key`, `uq_payment_provider_charge`, `idx_payment_request_created` แล้ว | ไม่ต้องเพิ่มใหม่; ให้ verify ด้วย `EXPLAIN` บนข้อมูลจริง |
 
 1. เพิ่ม index สำหรับ certificate list:
 
@@ -210,7 +210,7 @@ CREATE INDEX idx_documents_default_seq ON m_documents (DOCUMENT_DEFAULT_FLAG, DO
 3. สำหรับ transaction/session:
 
 ```sql
--- t_session มี RUN3 แล้ว:
+-- t_session มี 03_create_core_indexes.sql แล้ว:
 -- ALTER TABLE t_session ADD UNIQUE INDEX ux_t_session_client_session_id (CLIENT_SESSION_ID);
 -- ALTER TABLE t_session ADD INDEX ix_t_session_user_id (USER_ID);
 -- จึงยังไม่แนะนำ index ใหม่สำหรับ t_session
@@ -247,7 +247,7 @@ Immediate actions ชุดนี้ควรทำก่อน production harde
 | P0 | Mask error detail และ PII ใน response/transaction logs | หลาย repository/service โยน `ex.getMessage()` และ transaction log เก็บ request/response JSON; เสี่ยง leak SQL, JWT, S3 key, email, phone, address, Base64 file | `ExceptionAdvice`, repository/service catch blocks, `LoggerService`, `TransactionLogsRepository`, transaction log event handlers | client ได้ generic error code/message; internal exception detail อยู่เฉพาะ structured application logs; token/Base64/email/mobile/address ถูก mask หรือไม่ถูก persist ใน transaction log | unit tests สำหรับ exception response redaction; tests/fixtures ยืนยัน transaction log request/response mask sensitive fields เช่น `token`, `fileCert`, `imageProfile`, `email`, `mobileNumber` |
 | P0 | ลบ/ลด startup logging ที่มี secret/config sensitive | `SmartSeamanMobileApiApplication` log config หลายตัวตอน startup เช่น DB URL, username, object store key prefix, JWT/encrypt key prefix; secret อาจหลุดใน log aggregation/support bundle | `SmartSeamanMobileApiApplication` | startup log เหลือเฉพาะ app name, profile, timezone, charset และ masked non-secret metadata; ห้าม log full DB URL, DB username/password, object-store key, JWT secret, encrypt key, FCM credential path ถ้าถือเป็น sensitive | review startup log string; unit/smoke test ถ้าทำได้ว่าค่า secret/env ไม่ปรากฏใน output |
 | P0 | บังคับ Omise webhook signature verification ใน prod | webhook endpoint เป็น public; ตอนนี้ secret ว่างจะ skip verification เพื่อให้ dev/test รันง่าย แต่ prod ต้อง fail-closed | `OmiseWebhookService`, Omise config properties, deployment env | prod profile ต้อง fail-fast หรือ reject webhook ถ้า `OMISE_WEBHOOK_SECRET` ว่าง; invalid/missing signature ไม่ update payment/request; dev/test ยังใช้ secret ว่างได้ตาม profile policy | tests: no secret in prod, invalid signature, valid signature, duplicate webhook; deployment checklist ตรวจ Omise dashboard webhook URL และ secret |
-| P1 | เพิ่มหรือ validate indexes สำหรับ hot queries | verified แล้วว่าบาง hot table ยังมีแค่ primary key; list/auth/log/payment paths ต้องมี index ตรง query จริงก่อน load สูง | new RUN script หรือ DB migration plan; `m_certificates`, `m_documents`, `t_transaction_logs`; existing RUN3/RUN1 indexes | เพิ่มเฉพาะ verified indexes: `m_certificates(CERT_MOBILE_UUID, CERT_DOCUMENT_CODE)`, `m_certificates(CERT_MOBILE_UUID, CERT_END_DATE)`, `m_documents(DOCUMENT_STATUS, DOCUMENT_TYPE, DOCUMENT_SEQ)`, `t_transaction_logs(TRANS_ID)`; ไม่เพิ่ม `t_session` index ใหม่ตอนนี้เพราะ RUN3 มี `CLIENT_SESSION_ID` และ `USER_ID` แล้ว | `EXPLAIN` ก่อน/หลังบน staging data; migration smoke test; rollback SQL; p95 latency/DB CPU comparison หลัง deploy |
+| P1 | เพิ่มหรือ validate indexes สำหรับ hot queries | verified แล้วว่าบาง hot table ยังมีแค่ primary key; list/auth/log/payment paths ต้องมี index ตรง query จริงก่อน load สูง | new RUN script หรือ DB migration plan; `m_certificates`, `m_documents`, `t_transaction_logs`; existing `03_create_core_indexes.sql`/`01_create_mvp1_tables.sql` indexes | เพิ่มเฉพาะ verified indexes: `m_certificates(CERT_MOBILE_UUID, CERT_DOCUMENT_CODE)`, `m_certificates(CERT_MOBILE_UUID, CERT_END_DATE)`, `m_documents(DOCUMENT_STATUS, DOCUMENT_TYPE, DOCUMENT_SEQ)`, `t_transaction_logs(TRANS_ID)`; ไม่เพิ่ม `t_session` index ใหม่ตอนนี้เพราะ `03_create_core_indexes.sql` มี `CLIENT_SESSION_ID` และ `USER_ID` แล้ว | `EXPLAIN` ก่อน/หลังบน staging data; migration smoke test; rollback SQL; p95 latency/DB CPU comparison หลัง deploy |
 | P1 | ตั้ง request size/content validation สำหรับ Base64/file endpoints | renewal multipart flow ใหม่มี validation แล้ว แต่ legacy certificate/profile/banner/news/voucher/document flows ยังมี Base64 decode/read ผ่าน memory และบางจุด preview/download เป็น Base64 string | legacy upload/download services/controllers, `DocumentUploadRequest`, `ProfileRequest`, file utilities, multipart config | reject oversized payload ก่อน decode เท่าที่ทำได้; validate decoded size, MIME/signature allowlist และ invalid Base64; allow only PNG/JPEG/PDF ตาม endpoint; response ไม่คืน storage key/path ตรง | tests สำหรับ oversized file, invalid Base64, unsupported MIME, valid PNG/JPEG/PDF; heap/memory smoke test สำหรับ payload ใหญ่ |
 
 #### Immediate Action Execution Order

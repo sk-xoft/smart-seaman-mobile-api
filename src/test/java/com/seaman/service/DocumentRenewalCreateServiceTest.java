@@ -49,12 +49,22 @@ class DocumentRenewalCreateServiceTest {
                 renewalService, documentRepository, deliveryAddressRepository, httpServletRequest);
         UsersEntity user = new UsersEntity();
         user.setMobileUuid("mobile-user-uuid");
+        user.setMobileNumber("0812345678");
+        user.setEmail("crew@example.com");
         lenient().when(httpServletRequest.getAttribute("userObject")).thenReturn(user);
         input = new DocumentRenewalCreateRequest();
         input.setDocumentCode("doc001");
         input.setDeliveryAddressId(UUID.randomUUID().toString());
         address = new DeliveryAddressEntity();
         address.setId(input.getDeliveryAddressId());
+        address.setMobileUserUuid("mobile-user-uuid");
+        address.setFirstName("Somchai");
+        address.setLastName("Seaman");
+        address.setAddressLine("1 Ocean Road");
+        address.setProvince("Bangkok");
+        address.setDistrict("Bang Rak");
+        address.setSubDistrict("Si Lom");
+        address.setPostalCode("10500");
     }
 
     @Test
@@ -78,9 +88,11 @@ class DocumentRenewalCreateServiceTest {
         assertEquals("PAYMENT_PENDING", response.getStatus());
         assertEquals(new BigDecimal("1500.00"), response.getAmount());
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
-                eq("mobile-user-uuid"), eq("DOC001"), eq("payment-status-id"),
-                eq("price-setting-id"), eq(input.getDeliveryAddressId()),
+                eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
+                eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
                 eq(new BigDecimal("1500.00")));
+        verify(createRepository).insertDeliveryAddressSnapshot(
+                response.getRequestId(), address, "0812345678");
         verify(foundationRepository).appendTransaction(anyString(), eq(DocumentRenewalAction.CREATE),
                 isNull(), eq(DocumentRenewalStatus.PAYMENT_PENDING),
                 eq("Unpaid draft created"), eq("mobile-user-uuid"));
@@ -104,9 +116,11 @@ class DocumentRenewalCreateServiceTest {
 
         assertEquals("260700001", response.getRequestNo());
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
-                eq("mobile-user-uuid"), eq("DOC001"), eq("payment-status-id"),
-                eq("price-setting-id"), eq(input.getDeliveryAddressId()),
+                eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
+                eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
                 eq(new BigDecimal("1500.00")));
+        verify(createRepository).insertDeliveryAddressSnapshot(
+                response.getRequestId(), address, "0812345678");
     }
 
     @Test
@@ -139,7 +153,8 @@ class DocumentRenewalCreateServiceTest {
 
         assertThrows(BusinessException.class, () -> service.create(input));
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString(), any());
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
     }
 
     @Test
@@ -153,7 +168,8 @@ class DocumentRenewalCreateServiceTest {
 
         assertThrows(BusinessException.class, () -> service.create(input));
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString(), any());
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
     }
 
     @Test

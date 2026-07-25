@@ -11,6 +11,8 @@ public class DocumentRenewalRequestEntity {
     private String id;
     private String requestNo;
     private String mobileUserUuid;
+    private String mobileNumber;
+    private String email;
     private String documentCode;
     private String documentStatusId;
     private String priceSettingId;

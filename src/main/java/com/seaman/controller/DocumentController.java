@@ -9,11 +9,9 @@ import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentRequestValidateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
-import com.seaman.model.response.DocumentRequestItemResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRequestValidateResponse;
 import com.seaman.model.response.PageDocumentResponse;
-import java.util.List;
 import com.seaman.service.DocumentService;
 import com.seaman.service.DocumentRequestItemFileService;
 import com.seaman.service.MessageCodeService;
@@ -54,7 +52,6 @@ public class DocumentController extends BaseController {
                 description,
                 documentService.pageDocument(offSet, "COT")
         ).build());
-
     }
 
     @Operation(summary = "รายการ Document", description = "ดึงรายการเอกสารประเภท Document แบบแบ่งหน้า")
@@ -63,13 +60,11 @@ public class DocumentController extends BaseController {
             @Parameter(description = "ตำแหน่งเริ่มต้น (0-based)", required = true) @RequestParam("offSet") int offSet) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-
         return ok(SuccessResponse.builder(
                 AppStatus.SUCCESS_CODE,
                 description,
                 documentService.pageDocument(offSet, "Document")
         ).build());
-
     }
 
     @Operation(summary = "เอกสารใกล้หมดอายุ", description = "รายการใบรับรองที่จะหมดอายุภายใน 18 เดือน")
@@ -78,7 +73,6 @@ public class DocumentController extends BaseController {
             @Parameter(description = "ตำแหน่งเริ่มต้น (0-based)", required = true) @RequestParam("offSet") int offSet) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-
         return ok(SuccessResponse.builder(
                 AppStatus.SUCCESS_CODE,
                 description,
@@ -93,9 +87,6 @@ public class DocumentController extends BaseController {
             @Valid @RequestBody DocumentCreateRequest request) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-
-        // Validate body request
-        // This validation format
         if(!ObjectValidatorUtils.verifyDateFormat(request.getCertStartDate())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, request.getCertStartDate());
         }
@@ -104,12 +95,10 @@ public class DocumentController extends BaseController {
             // this case is expire.
             request.setCertEndDate(null);
         } else {
-
             if (!ObjectValidatorUtils.verifyDateFormat(request.getCertEndDate())) {
                 throw new BusinessException(AppStatus.INVALID_FORMAT, request.getCertEndDate());
             }
         }
-
         return ok(SuccessResponse.builder(
                 AppStatus.SUCCESS_CODE,
                 description,
@@ -135,7 +124,6 @@ public class DocumentController extends BaseController {
             // this case is expire.
             request.setCertEndDate(null);
         } else {
-
             if (!ObjectValidatorUtils.verifyDateFormat(request.getCertEndDate())) {
                 throw new BusinessException(AppStatus.INVALID_FORMAT, request.getCertEndDate());
             }
@@ -170,30 +158,12 @@ public class DocumentController extends BaseController {
             @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode) {
 
         String description = messageCodeService.getMessageDescription(AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-
         return ok(SuccessResponse.builder(
                 AppStatus.SUCCESS_CODE,
                 description,
                 documentService.documentEdit(certCode)
         ).build());
     }
-
-//    @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
-//    @GetMapping(Routes.VALIDATE_DOCUMENT_ITEMS)
-//    public ResponseEntity<SuccessResponse<List<DocumentRequestItemResponse>>> validateDocumentItems(
-//            HttpServletRequest httpServletRequest,
-//            @Parameter(description = "รหัสประเภทเอกสาร", required = true) @RequestParam("documentCode") String documentCode) {
-//
-//        String description = messageCodeService.getMessageDescription(
-//                AppStatus.SUCCESS_CODE,
-//                (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
-//
-//        return ok(SuccessResponse.builder(
-//                AppStatus.SUCCESS_CODE,
-//                description,
-//                documentService.validateDocumentItems(documentCode)
-//        ).build());
-//    }
 
     @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
     @PostMapping({Routes.VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST})
@@ -211,8 +181,6 @@ public class DocumentController extends BaseController {
                 documentService.validateAndCreateDocumentRenewalsItems(request)
         ).build());
     }
-
-
 
     @Operation(summary = "Upload supporting document file",
             description = "รองรับ ID_CARD MAIN/FRONT/BACK, PASSPORT MAIN และ GENERAL MAIN")
@@ -235,7 +203,8 @@ public class DocumentController extends BaseController {
     @GetMapping(Routes.VIEW_CERT)
     @ResponseStatus(HttpStatus.OK)
     public HttpEntity<byte[]> getImage(
-            @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode) throws MagicMatchNotFoundException, MagicException, MagicParseException {
+            @Parameter(description = "รหัสเอกสาร", required = true) @RequestParam("certCode") String certCode)
+            throws MagicMatchNotFoundException, MagicException, MagicParseException {
 
         String fileBase64 = documentService.viewCert(certCode);
 
@@ -257,9 +226,7 @@ public class DocumentController extends BaseController {
         if("application/pdf".equals(mimeType)) {
             headers.setContentType(MediaType.APPLICATION_PDF);
         }
-
         headers.setContentLength(content.length);
-
         return new HttpEntity<byte[]>(content, headers);
     }
 }

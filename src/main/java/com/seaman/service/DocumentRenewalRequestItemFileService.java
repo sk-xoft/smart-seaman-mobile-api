@@ -85,6 +85,7 @@ public class DocumentRenewalRequestItemFileService {
             response.setFileId(entity.getId());
             response.setDocumentType(entity.getDocumentType());
             response.setSlotCode(entity.getSlotCode());
+            response.setFilePath(entity.getStorageKey());
             response.setOriginalFileName(entity.getOriginalFileName());
             response.setMimeType(entity.getMimeType());
             response.setFileSize(entity.getFileSize());
@@ -92,12 +93,16 @@ public class DocumentRenewalRequestItemFileService {
                 response.setFileUploadedAt(entity.getFileUploadedAt().toInstant()
                         .atZone(ZoneId.of("Asia/Bangkok")).format(DISPLAY_DATE));
             }
-            response.setCheckResult(entity.getCheckResult());
-            response.setCheckNote(entity.getCheckNote());
-            response.setIsUpdated(entity.getIsUpdated());
+            if (notBlank(entity.getCheckResult())) response.setCheckResult(entity.getCheckResult());
+            if (notBlank(entity.getCheckNote())) response.setCheckNote(entity.getCheckNote());
+            if (Boolean.TRUE.equals(entity.getIsUpdated())) response.setIsUpdated(true);
             result.add(response);
         }
         return result;
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private void validateCombination(String itemCode, String documentType, String slotCode) {
