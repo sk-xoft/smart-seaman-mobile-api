@@ -33,6 +33,9 @@ public class DocumentEntity {
     private String disYear;
     private String disMonth;
     private String disDay;
+    private String certExpiredFlag;
 
     private String documentCourseCode;
+    private String documentRenewalRequestFlag;
+    private String documentRenewalProcessingFlag;
 }

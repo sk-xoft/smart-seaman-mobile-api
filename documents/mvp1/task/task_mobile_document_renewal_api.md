@@ -8,7 +8,7 @@
 อัปเดตล่าสุด: 2026-07-25
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 21/21 tasks
+Progress: 22/22 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -51,6 +51,7 @@ Progress: 21/21 tasks
 | 18 | [x] | Snapshot delivery address per renewal request | Backend/DBA | `m_document_request_delivery_address`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest` | - |
 | 19 | [x] | Update renewal request mobile number snapshot | Backend | `PUT /v1/documents-renewals/requests/{requestNo}/mobile`, `DocumentRenewalMobileServiceTest` | - |
 | 20 | [x] | Idempotency for validate-and-create draft creation | Backend/DBA | `idempotency_key`, `90_15_migrate_document_request_idempotency_key.sql`, `DocumentServiceValidateRequestTest` | - |
+| 21 | [x] | Close-to-expiration certification list renewal indicators | Backend | `GET /v1/documents/certification/to-expiration?offSet=0`, `DocumentControllerTest` | - |
 
 ## Supporting Status
 
@@ -64,6 +65,101 @@ Progress: 21/21 tasks
 | [~] | MySQL 8 disposable integration harness | Backend/QA | มี unit/contract/repository-SQL tests แล้ว | เพิ่ม Testcontainers task แยกถ้าต้องการ migration smoke test แบบ strict MySQL |
 
 ## Task Breakdown
+
+### MR-MOB-21: Close-To-Expiration Certification List Renewal Indicators
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.5 MD
+Priority: High
+
+Goal:
+- เพิ่มข้อมูลสำหรับหน้าเอกสารใกล้หมดอายุ เพื่อให้ mobile แสดงได้ว่า certificate หมดอายุแล้วหรือยัง และ document code นั้นกำลังมีคำขอต่อเอกสารที่ยังดำเนินการอยู่หรือไม่
+
+Scope:
+- API `GET /v1/documents/certification/to-expiration?offSet={n}`
+- ใช้ authenticated user จาก request context เท่านั้น
+- คืนรายการ certificate ของ user ที่ `CERT_END_DATE <= NOW() + INTERVAL 18 MONTH`
+- เพิ่ม field `documentRenewalFlag` จาก `m_documents.DOCUMENT_RENEWAL_FLAG`
+- เพิ่ม field `certExpiredFlag` จากการคำนวณ `certEndDate` เทียบวันปัจจุบันตาม timezone `Asia/Bangkok`
+- เพิ่ม field `documentRenewalProcessingFlag` จากการตรวจ `m_document_request`
+- คง field `documentRenewalRequestFlag` ไว้เป็น alias ของ `documentRenewalProcessingFlag` เพื่อ backward compatibility
+
+Out of scope:
+- การสร้าง renewal request
+- การ validate required renewal documents
+- การเปลี่ยนสถานะ renewal request
+- การกรองรายการด้วย `DOCUMENT_RENEWAL_FLAG`
+
+Implementation checklist:
+- [x] Controller / endpoint เดิม
+- [x] Repository / SQL เพิ่ม renewal processing indicator
+- [x] Response field เพิ่มใน `DocumentEntity`
+- [x] Expired calculation ใน service
+- [x] cURL example
+- [x] Compile/test verification
+
+Business logic:
+- `offSet` เป็นตำแหน่งเริ่มต้นของ pagination แบบ 0-based
+- API คืน `itemTotal`, `last` และ `items[]`
+- `certExpiredFlag = "Y"` เมื่อ `certEndDate` น้อยกว่าวันปัจจุบันตาม timezone `Asia/Bangkok`
+- ถ้า `certEndDate = "2027-12-31 00:00:00"` ระบบ parse เฉพาะ date part `2027-12-31` ก่อนคำนวณ
+- `certExpiredFlag = "N"` เมื่อ certificate ยังไม่หมดอายุ หรือไม่มี `certEndDate`
+- `documentRenewalProcessingFlag = "Y"` เมื่อพบ row ใน `m_document_request` ที่:
+  - `mobile_user_uuid` ตรงกับ authenticated user
+  - `document_code` ตรงกับ `m_documents.DOCUMENT_CODE`
+  - `is_active = 'YES'`
+  - status จาก `m_document_status.document_status_code` ไม่ใช่ `DELIVERED` และไม่ใช่ `CANCELLED`
+- `documentRenewalProcessingFlag = "N"` เมื่อไม่พบคำขอต่อเอกสารที่ยังดำเนินการอยู่
+- `documentRenewalRequestFlag` set ค่าเท่ากับ `documentRenewalProcessingFlag`
+- API ไม่ filter ด้วย `DOCUMENT_RENEWAL_FLAG`; field นี้ใช้เพื่อให้ client ตัดสินใจแสดง action/CTA เอง
+
+Response fields ที่เกี่ยวข้อง:
+- `certStartDate`: วันที่เริ่มต้น certificate format `yyyy-MM-dd`
+- `certEndDate`: วันที่หมดอายุ certificate format `yyyy-MM-dd`
+- `disYear`, `disMonth`, `disDay`: จำนวนเวลาคงเหลือที่คำนวณจาก `certEndDate`
+- `certExpiredFlag`: `"Y"`/`"N"`
+- `documentRenewalFlag`: master flag จาก `m_documents`
+- `documentRenewalProcessingFlag`: `"Y"`/`"N"` บอกว่ามี renewal request ที่ยังดำเนินการอยู่
+- `documentRenewalRequestFlag`: alias ของ `documentRenewalProcessingFlag`
+
+API example: `GET /v1/documents/certification/to-expiration?offSet=0`
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/documents/certification/to-expiration?offSet=0" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+Example response:
+
+```json
+{
+  "code": "0000",
+  "description": "success",
+  "data": {
+    "itemTotal": 1,
+    "last": true,
+    "items": [
+      {
+        "documentCode": "DOC001",
+        "documentNameTh": "เอกสารตัวอย่าง",
+        "documentNameEn": "Sample Document",
+        "certStartDate": "2024-01-01",
+        "certEndDate": "2027-12-31",
+        "disYear": "1",
+        "disMonth": "5",
+        "disDay": "5",
+        "certExpiredFlag": "N",
+        "documentRenewalFlag": "Y",
+        "documentRenewalProcessingFlag": "Y",
+        "documentRenewalRequestFlag": "Y"
+      }
+    ]
+  }
+}
+```
 
 ### MR-MOB-00: Validate And Create Renewal Request Draft
 

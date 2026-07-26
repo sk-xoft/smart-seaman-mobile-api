@@ -43,6 +43,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletRequest;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -204,16 +205,19 @@ public class DocumentService {
 
             List<DocumentEntity> documentEntityResultList = new ArrayList<>();
             for (DocumentEntity entity: documentEntityList){
+                entity.setDocumentRenewalRequestFlag(entity.getDocumentRenewalProcessingFlag());
 
                 if(null != entity.getCertEndDate()) {
                     Period certPeriod = dateUtil.calculateDisplayDateCertRemain(entity.getCertEndDate());
                     entity.setDisYear(String.valueOf(certPeriod.getYears()));
                     entity.setDisMonth(String.valueOf(certPeriod.getMonths()));
                     entity.setDisDay(String.valueOf(certPeriod.getDays()));
+                    entity.setCertExpiredFlag(certExpiredFlag(entity.getCertEndDate()));
                 } else {
                     entity.setDisYear("-");
                     entity.setDisMonth("-");
                     entity.setDisDay("-");
+                    entity.setCertExpiredFlag("N");
                 }
 
                 if(entity.getCertStartDate() != null) {
@@ -244,6 +248,12 @@ public class DocumentService {
         }
 
         return response;
+    }
+
+    private String certExpiredFlag(String certEndDate) {
+        LocalDate endDate = LocalDate.parse(certEndDate.substring(0, 10));
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        return endDate.isBefore(today) ? "Y" : "N";
     }
 
     public DocumentCreateResponse documentCreate(DocumentCreateRequest request) {

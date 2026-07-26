@@ -118,7 +118,16 @@ public class DocumentRepository extends CommonRepository {
         List<DocumentEntity> listAll = null;
 
         StringBuilder sql = new StringBuilder();
-        sql.append("select md.* , mc.CERT_START_DATE , mc.CERT_END_DATE, mc.CERT_FILE, mc.ORIGINAL_FILE_NAME as CERT_FILE_NAME from m_documents md");
+        sql.append("select md.* , mc.CERT_START_DATE , mc.CERT_END_DATE, mc.CERT_FILE, mc.ORIGINAL_FILE_NAME as CERT_FILE_NAME, ");
+        sql.append(" case when exists ( ");
+        sql.append(" select 1 from m_document_request dr ");
+        sql.append(" inner join m_document_status ds on ds.id = dr.document_status_id ");
+        sql.append(" where dr.mobile_user_uuid = :userId ");
+        sql.append(" and dr.document_code = md.DOCUMENT_CODE COLLATE utf8mb4_general_ci ");
+        sql.append(" and dr.is_active = 'YES' ");
+        sql.append(" and ds.document_status_code not in ('DELIVERED', 'CANCELLED') ");
+        sql.append(" ) then 'Y' else 'N' end as DOCUMENT_RENEWAL_PROCESSING_FLAG ");
+        sql.append(" from m_documents md");
         sql.append(" left join m_certificates mc on mc.CERT_DOCUMENT_CODE = md.DOCUMENT_CODE");
         sql.append(" where");
         sql.append(" md.DOCUMENT_STATUS = 'A'");
