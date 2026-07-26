@@ -1,10 +1,13 @@
 package com.seaman.service;
 
 import com.seaman.entity.DeliveryAddressEntity;
+import com.seaman.entity.DocumentRenewalRequestEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.model.request.DeliveryAddressRequest;
 import com.seaman.repository.DeliveryAddressRepository;
+import com.seaman.repository.DocumentRenewalCreateRepository;
+import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.ThailandAddressRepository;
 import com.seaman.model.response.DeliveryAddressResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +35,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class DeliveryAddressServiceTest {
     @Mock DeliveryAddressRepository deliveryAddressRepository;
+    @Mock DocumentRenewalCreateRepository documentRenewalCreateRepository;
+    @Mock DocumentRenewalFoundationRepository documentRenewalFoundationRepository;
     @Mock ThailandAddressRepository thailandAddressRepository;
     @Mock HttpServletRequest httpServletRequest;
 
@@ -40,9 +46,11 @@ class DeliveryAddressServiceTest {
     @BeforeEach
     void setUp() {
         service = new DeliveryAddressService(
-                deliveryAddressRepository, thailandAddressRepository, httpServletRequest);
+                deliveryAddressRepository, documentRenewalCreateRepository, documentRenewalFoundationRepository,
+                thailandAddressRepository, httpServletRequest);
         user = new UsersEntity();
         user.setMobileUuid("user-uuid");
+        user.setMobileNumber("0812345678");
         lenient().when(httpServletRequest.getAttribute("userObject")).thenReturn(user);
     }
 
@@ -84,9 +92,30 @@ class DeliveryAddressServiceTest {
         validMaster(request);
         String id = UUID.randomUUID().toString();
         when(deliveryAddressRepository.findActiveOwned(id, "user-uuid")).thenReturn(null);
+        when(documentRenewalCreateRepository.findDeliveryAddressSnapshotById(id, "user-uuid")).thenReturn(null);
 
         assertThrows(BusinessException.class, () -> service.update(id, request));
         verify(deliveryAddressRepository, never()).update(any());
+    }
+
+    @Test
+    void updatesRenewalSnapshotWhenAddressIdIsSnapshotId() {
+        DeliveryAddressRequest request = request(true);
+        validMaster(request);
+        String id = UUID.randomUUID().toString();
+        DeliveryAddressEntity snapshot = addressEntity();
+        snapshot.setId(id);
+        snapshot.setMobileNumber("0812345678");
+        when(deliveryAddressRepository.findActiveOwned(id, "user-uuid")).thenReturn(null);
+        when(documentRenewalCreateRepository.findDeliveryAddressSnapshotById(id, "user-uuid"))
+                .thenReturn(snapshot);
+
+        DeliveryAddressResponse response = service.update(id, request);
+
+        assertEquals(id, response.getId());
+        assertEquals("0812345678", response.getMobileNumber());
+        verify(deliveryAddressRepository, never()).update(any());
+        verify(documentRenewalCreateRepository).updateDeliveryAddressSnapshot(any(DeliveryAddressEntity.class));
     }
 
     @Test
@@ -172,6 +201,79 @@ class DeliveryAddressServiceTest {
         verifyNoInteractions(deliveryAddressRepository, thailandAddressRepository);
     }
 
+    @Test
+    void renewalAddressCreatesUserAddressWhenUserHasNoneAndSnapshotsRequest() {
+        DeliveryAddressRequest request = request(true);
+        validMaster(request);
+        DocumentRenewalRequestEntity renewal = renewalRequest();
+        when(documentRenewalFoundationRepository.lockOwnedRequestByNo("REQ001", "user-uuid"))
+                .thenReturn(renewal);
+        when(documentRenewalCreateRepository.countDeliveryAddressSnapshot("request-id", "user-uuid"))
+                .thenReturn(0);
+        when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(0);
+
+        DeliveryAddressResponse response = service.createForRenewal("REQ001", request);
+
+        assertTrue(response.getIsDefault());
+        verify(deliveryAddressRepository).insert(any(DeliveryAddressEntity.class));
+        verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(
+                eq("request-id"), any(DeliveryAddressEntity.class), eq("0812345678"));
+    }
+
+    @Test
+    void renewalAddressDoesNotCreateDuplicateUserAddressWhenOneAlreadyExists() {
+        DeliveryAddressRequest request = request(false);
+        validMaster(request);
+        DocumentRenewalRequestEntity renewal = renewalRequest();
+        when(documentRenewalFoundationRepository.lockOwnedRequestByNo("REQ001", "user-uuid"))
+                .thenReturn(renewal);
+        when(documentRenewalCreateRepository.countDeliveryAddressSnapshot("request-id", "user-uuid"))
+                .thenReturn(0);
+        when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(1);
+
+        service.createForRenewal("REQ001", request);
+
+        verify(deliveryAddressRepository, never()).insert(any(DeliveryAddressEntity.class));
+        verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(
+                eq("request-id"), any(DeliveryAddressEntity.class), eq("0812345678"));
+    }
+
+    @Test
+    void renewalAddressAcceptsRequestIdPathParameter() {
+        DeliveryAddressRequest request = request(false);
+        validMaster(request);
+        DocumentRenewalRequestEntity renewal = renewalRequest();
+        String requestId = UUID.randomUUID().toString();
+        renewal.setId(requestId);
+        when(documentRenewalFoundationRepository.lockOwnedRequest(requestId, "user-uuid"))
+                .thenReturn(renewal);
+        when(documentRenewalCreateRepository.countDeliveryAddressSnapshot(requestId, "user-uuid"))
+                .thenReturn(0);
+        when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(1);
+
+        service.createForRenewal(requestId, request);
+
+        verify(documentRenewalFoundationRepository).lockOwnedRequest(requestId, "user-uuid");
+        verify(documentRenewalFoundationRepository, never()).lockOwnedRequestByNo(any(), any());
+        verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(
+                eq(requestId), any(DeliveryAddressEntity.class), eq("0812345678"));
+    }
+
+    @Test
+    void renewalAddressRejectsDuplicateSnapshot() {
+        DeliveryAddressRequest request = request(false);
+        validMaster(request);
+        DocumentRenewalRequestEntity renewal = renewalRequest();
+        when(documentRenewalFoundationRepository.lockOwnedRequestByNo("REQ001", "user-uuid"))
+                .thenReturn(renewal);
+        when(documentRenewalCreateRepository.countDeliveryAddressSnapshot("request-id", "user-uuid"))
+                .thenReturn(1);
+
+        assertThrows(BusinessException.class, () -> service.createForRenewal("REQ001", request));
+        verify(deliveryAddressRepository, never()).insert(any(DeliveryAddressEntity.class));
+        verify(documentRenewalCreateRepository, never()).insertDeliveryAddressSnapshot(any(), any(), any());
+    }
+
     private void validMaster(DeliveryAddressRequest request) {
         when(thailandAddressRepository.isValidAddress(
                 request.getProvince(), request.getDistrict(), request.getSubDistrict(), request.getPostalCode()))
@@ -203,6 +305,14 @@ class DeliveryAddressServiceTest {
         entity.setPostalCode("10200");
         entity.setDescription("1 Main Road ตำบลพระบรมมหาราชวัง อำเภอพระนคร จังหวัดกรุงเทพมหานคร 10200");
         entity.setIsDefault(true);
+        return entity;
+    }
+
+    private DocumentRenewalRequestEntity renewalRequest() {
+        DocumentRenewalRequestEntity entity = new DocumentRenewalRequestEntity();
+        entity.setId("request-id");
+        entity.setRequestNo("REQ001");
+        entity.setMobileUserUuid("user-uuid");
         return entity;
     }
 }

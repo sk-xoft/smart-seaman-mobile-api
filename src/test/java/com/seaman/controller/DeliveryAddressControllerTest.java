@@ -44,13 +44,17 @@ class DeliveryAddressControllerTest {
         DeliveryAddressResponse data = new DeliveryAddressResponse();
         data.setId("address-id");
         when(service.create(input)).thenReturn(data);
+        when(service.createForRenewal("REQ001", input)).thenReturn(data);
         when(service.update("address-id", input)).thenReturn(data);
         DeliveryAddressController controller = new DeliveryAddressController(service, messages);
 
         assertEquals("address-id", controller.create(servletRequest, input).getBody().getData().getId());
+        assertEquals("address-id", controller.createForRenewal(servletRequest, "REQ001", input)
+                .getBody().getData().getId());
         assertEquals("address-id", controller.update(servletRequest, "address-id", input)
                 .getBody().getData().getId());
         verify(service).create(input);
+        verify(service).createForRenewal("REQ001", input);
         verify(service).update("address-id", input);
     }
 }

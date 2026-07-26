@@ -2,11 +2,14 @@ package com.seaman.service;
 
 import com.seaman.constant.AppStatus;
 import com.seaman.entity.DeliveryAddressEntity;
+import com.seaman.entity.DocumentRenewalRequestEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.model.request.DeliveryAddressRequest;
 import com.seaman.model.response.DeliveryAddressResponse;
 import com.seaman.repository.DeliveryAddressRepository;
+import com.seaman.repository.DocumentRenewalCreateRepository;
+import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.ThailandAddressRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,8 @@ import java.util.List;
 public class DeliveryAddressService {
 
     private final DeliveryAddressRepository deliveryAddressRepository;
+    private final DocumentRenewalCreateRepository documentRenewalCreateRepository;
+    private final DocumentRenewalFoundationRepository documentRenewalFoundationRepository;
     private final ThailandAddressRepository thailandAddressRepository;
     private final HttpServletRequest httpServletRequest;
 
@@ -57,6 +62,37 @@ public class DeliveryAddressService {
     }
 
     @Transactional
+    public DeliveryAddressResponse createForRenewal(String requestNoOrId, DeliveryAddressRequest request) {
+        UsersEntity user = currentUser();
+        String mobileUserUuid = user.getMobileUuid();
+        validateMasterAddress(request);
+
+        DocumentRenewalRequestEntity renewalRequest = isUuid(requestNoOrId)
+                ? documentRenewalFoundationRepository.lockOwnedRequest(requestNoOrId, mobileUserUuid)
+                : documentRenewalFoundationRepository.lockOwnedRequestByNo(requestNoOrId, mobileUserUuid);
+        if (documentRenewalCreateRepository.countDeliveryAddressSnapshot(
+                renewalRequest.getId(), mobileUserUuid) > 0) {
+            throw new BusinessException(AppStatus.DATA_IS_EXISTING, "documentRenewalDeliveryAddressSnapshot");
+        }
+
+        deliveryAddressRepository.lockUser(mobileUserUuid);
+        deliveryAddressRepository.lockActiveAddresses(mobileUserUuid);
+
+        boolean hasActiveAddress = deliveryAddressRepository.countActive(mobileUserUuid) > 0;
+        DeliveryAddressEntity entity = toEntity(
+                hasActiveAddress ? null : UUID.randomUUID().toString(), mobileUserUuid, request);
+        entity.setIsDefault(!hasActiveAddress);
+        if (!hasActiveAddress) {
+            deliveryAddressRepository.clearDefault(mobileUserUuid);
+            deliveryAddressRepository.insert(entity);
+        }
+
+        documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+                renewalRequest.getId(), entity, user.getMobileNumber());
+        return toResponse(entity);
+    }
+
+    @Transactional
     public DeliveryAddressResponse update(String addressId, DeliveryAddressRequest request) {
         String mobileUserUuid = currentUserUuid();
         validateAddressId(addressId);
@@ -66,7 +102,15 @@ public class DeliveryAddressService {
 
         DeliveryAddressEntity current = deliveryAddressRepository.findActiveOwned(addressId, mobileUserUuid);
         if (current == null) {
-            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "deliveryAddress");
+            DeliveryAddressEntity snapshot = documentRenewalCreateRepository
+                    .findDeliveryAddressSnapshotById(addressId, mobileUserUuid);
+            if (snapshot == null) {
+                throw new BusinessException(AppStatus.DATA_NOT_FOUND, "deliveryAddress");
+            }
+            DeliveryAddressEntity entity = toEntity(addressId, mobileUserUuid, request);
+            entity.setMobileNumber(snapshot.getMobileNumber());
+            documentRenewalCreateRepository.updateDeliveryAddressSnapshot(entity);
+            return toResponse(entity);
         }
         if (Boolean.TRUE.equals(current.getIsDefault()) && !Boolean.TRUE.equals(request.getIsDefault())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "isDefault");
@@ -81,11 +125,15 @@ public class DeliveryAddressService {
     }
 
     private String currentUserUuid() {
+        return currentUser().getMobileUuid();
+    }
+
+    private UsersEntity currentUser() {
         UsersEntity user = (UsersEntity) httpServletRequest.getAttribute("userObject");
         if (user == null || user.getMobileUuid() == null || user.getMobileUuid().trim().isEmpty()) {
             throw new BusinessException(AppStatus.USERNAME_IS_NOT_FOUND_SECURITY_CONTEXT, "userObject");
         }
-        return user.getMobileUuid();
+        return user;
     }
 
     private void validateAddressId(String addressId) {
@@ -93,6 +141,15 @@ public class DeliveryAddressService {
             UUID.fromString(addressId);
         } catch (Exception ex) {
             throw new BusinessException(AppStatus.INVALID_UUID, "addressId");
+        }
+    }
+
+    private boolean isUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (Exception ex) {
+            return false;
         }
     }
 

@@ -5,10 +5,10 @@
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
 - DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`
 
-อัปเดตล่าสุด: 2026-07-25
+อัปเดตล่าสุด: 2026-07-26
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 22/22 tasks
+Progress: 23/23 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -52,6 +52,7 @@ Progress: 22/22 tasks
 | 19 | [x] | Update renewal request mobile number snapshot | Backend | `PUT /v1/documents-renewals/requests/{requestNo}/mobile`, `DocumentRenewalMobileServiceTest` | - |
 | 20 | [x] | Idempotency for validate-and-create draft creation | Backend/DBA | `idempotency_key`, `90_15_migrate_document_request_idempotency_key.sql`, `DocumentServiceValidateRequestTest` | - |
 | 21 | [x] | Close-to-expiration certification list renewal indicators | Backend | `GET /v1/documents/certification/to-expiration?offSet=0`, `DocumentControllerTest` | - |
+| 22 | [x] | Create delivery address snapshot by renewal request | Backend | `POST /v1/delivery-addresses/{requestNoOrId}`, `DeliveryAddressServiceTest` | - |
 
 ## Supporting Status
 
@@ -1034,6 +1035,7 @@ Scope:
 - validate required fields, length, postal code และ address hierarchy
 - lock user row and active address rows สำหรับ default mutation
 - generated column/unique key `uq_delivery_address_active_default`
+- `PUT /v1/delivery-addresses/{addressId}` รองรับทั้ง id จาก `m_delivery_address` และ snapshot id จาก `m_document_request_delivery_address`
 
 Out of scope:
 - delete delivery address
@@ -1056,6 +1058,7 @@ Acceptance criteria:
 - active default address มีได้ไม่เกินหนึ่งรายการต่อ user
 - default replacement ต้อง atomic
 - update address ที่ไม่มีอยู่, เป็นของ user อื่น หรือ inactive ต้องไม่แก้ไขข้อมูล
+- update ด้วย snapshot id ต้องแก้เฉพาะ `m_document_request_delivery_address` ของ authenticated user
 
 Evidence when done:
 - DB script: `90_05_migrate_delivery_address_default_guard.sql`
@@ -1090,6 +1093,70 @@ curl --request PUT \
     "firstName": "ศรัญญู",
     "lastName": "แก้วโสภา",
     "addressLine": "99 ม. 1",
+    "province": "39",
+    "district": "3902",
+    "subDistrict": "390202",
+    "postalCode": "39170",
+    "isDefault": true
+  }'
+```
+
+### MR-MOB-22: Create Delivery Address Snapshot By Renewal Request
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: High
+
+Goal:
+- mobile user บันทึกที่อยู่จัดส่งให้ renewal request ที่มีอยู่ โดย snapshot ลง request นั้น และสร้าง `m_delivery_address` ให้ user เฉพาะกรณี user ยังไม่มี active delivery address
+
+Scope:
+- `POST /v1/delivery-addresses/{requestNoOrId}`
+- path parameter รับได้ทั้ง `m_document_request.request_no` และ UUID `m_document_request.id`
+- validate required fields, length, postal code และ address hierarchy แบบเดียวกับ create delivery address ปกติ
+- lock renewal request ด้วย `requestNo` + authenticated `mobile_user_uuid`
+- ตรวจ `m_delivery_address` ด้วย `mobile_user_uuid`; ถ้าไม่มี active address ให้ insert address ใหม่เป็น default
+- insert snapshot ลง `m_document_request_delivery_address`
+- reject ถ้า renewal request มี delivery address snapshot อยู่แล้ว
+
+Out of scope:
+- update snapshot เดิม
+- delete delivery address
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO reuse
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Acceptance criteria:
+- user ไม่สามารถสร้าง snapshot ให้ renewal request ของ user อื่น
+- ถ้า user ไม่มี active row ใน `m_delivery_address` ต้อง insert address ใหม่ด้วย `mobile_user_uuid` ของ authenticated user
+- ถ้า user มี active row ใน `m_delivery_address` อยู่แล้ว ต้องไม่สร้าง duplicate address จาก endpoint นี้
+- ต้อง insert `m_document_request_delivery_address` ด้วย `request_id` ของ `requestNo` ที่ส่งมา
+- request เดิมที่มี snapshot แล้วต้องถูก reject เพื่อไม่ชน unique key `uq_docreq_delivery_address_request`
+
+Evidence when done:
+- Test classes: `DeliveryAddressControllerTest`, `DeliveryAddressServiceTest`, `DocumentRenewalCreateRepositoryTest`
+- API example: `POST /v1/delivery-addresses/{requestNoOrId}`
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/delivery-addresses/${request_no_or_id}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "addressLine": "16 ม. 8",
     "province": "39",
     "district": "3902",
     "subDistrict": "390202",

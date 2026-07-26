@@ -221,9 +221,19 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
         requireOne(rows, "documentRenewalDeliveryAddressSnapshot");
     }
 
+    public int countDeliveryAddressSnapshot(String requestId, String mobileUserUuid) {
+        Integer count = template.queryForObject(
+                "SELECT COUNT(*) FROM m_document_request_delivery_address "
+                        + "WHERE request_id = :requestId AND mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("requestId", requestId)
+                        .addValue("mobileUserUuid", mobileUserUuid),
+                Integer.class);
+        return count == null ? 0 : count;
+    }
+
     public List<DeliveryAddressEntity> findDeliveryAddressSnapshot(
             String requestId, String mobileUserUuid) {
-        String sql = "SELECT a.source_delivery_address_id AS id, a.mobile_user_uuid, "
+        String sql = "SELECT COALESCE(a.source_delivery_address_id, a.id) AS id, a.mobile_user_uuid, "
                 + "a.first_name, a.last_name, a.address_line, a.province, a.district, "
                 + "a.sub_district, a.postal_code, a.mobile_number, "
                 + "CONCAT_WS(' ', a.address_line, "
@@ -240,6 +250,36 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("mobileUserUuid", mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
+    }
+
+    public DeliveryAddressEntity findDeliveryAddressSnapshotById(String id, String mobileUserUuid) {
+        List<DeliveryAddressEntity> rows = template.query(
+                "SELECT a.id, a.mobile_user_uuid, a.first_name, a.last_name, a.address_line, "
+                        + "a.province, a.district, a.sub_district, a.postal_code, a.mobile_number "
+                        + "FROM m_document_request_delivery_address a "
+                        + "WHERE a.id = :id AND a.mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("id", id)
+                        .addValue("mobileUserUuid", mobileUserUuid),
+                new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public void updateDeliveryAddressSnapshot(DeliveryAddressEntity entity) {
+        int rows = template.update("UPDATE m_document_request_delivery_address "
+                        + "SET first_name = :firstName, last_name = :lastName, "
+                        + "address_line = :addressLine, province = :province, district = :district, "
+                        + "sub_district = :subDistrict, postal_code = :postalCode "
+                        + "WHERE id = :id AND mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("id", entity.getId())
+                        .addValue("mobileUserUuid", entity.getMobileUserUuid())
+                        .addValue("firstName", entity.getFirstName())
+                        .addValue("lastName", entity.getLastName())
+                        .addValue("addressLine", entity.getAddressLine())
+                        .addValue("province", entity.getProvince())
+                        .addValue("district", entity.getDistrict())
+                        .addValue("subDistrict", entity.getSubDistrict())
+                        .addValue("postalCode", entity.getPostalCode()));
+        requireOne(rows, "documentRenewalDeliveryAddressSnapshot");
     }
 
     public int insertRequestItems(String requestId, String documentCode) {
