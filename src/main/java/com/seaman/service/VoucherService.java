@@ -1,7 +1,6 @@
 package com.seaman.service;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.google.zxing.WriterException;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.UsersEntity;
@@ -11,16 +10,13 @@ import com.seaman.model.response.VoucherModel;
 import com.seaman.model.response.VoucherResponse;
 import com.seaman.repository.VoucherRepository;
 import com.seaman.utils.FrameworkUtils;
-import com.seaman.utils.QRCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
@@ -212,8 +208,6 @@ public class VoucherService {
         String bodyReqJson = (String) httpServletRequest.getAttribute(AppSys.REQUEST_BODY);
         String serviceName = "VOUCHER DETAIL";
         String username = "";
-
-        byte[] image = new byte[0];
 
         try {
             UsersEntity usersEntity = (UsersEntity) httpServletRequest.getAttribute("userObject");

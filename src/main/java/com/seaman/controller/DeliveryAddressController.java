@@ -71,7 +71,7 @@ public class DeliveryAddressController extends BaseController {
             @ApiResponse(responseCode = "200", description = "แก้ไขที่อยู่สำเร็จ"),
             @ApiResponse(responseCode = "400", description = "Request validation error")
     })
-    @PutMapping(Routes.DELIVERY_ADDRESS)
+    @PutMapping(Routes.DELIVERY_ADDRESSES_RENEWAL)
     public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> update(
             HttpServletRequest httpRequest, @PathVariable String addressId,
             @Valid @RequestBody DeliveryAddressRequest request) {

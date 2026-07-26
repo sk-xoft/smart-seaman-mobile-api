@@ -3,7 +3,6 @@ package com.seaman.interceptor;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.exception.BusinessException;
-import com.seaman.exception.MissingParameterException;
 import com.seaman.utils.HttpsUtils;
 import com.seaman.utils.ObjectValidatorUtils;
 import lombok.RequiredArgsConstructor;

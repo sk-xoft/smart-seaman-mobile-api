@@ -1,7 +1,5 @@
 package com.seaman.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,8 +19,6 @@ import com.google.firebase.messaging.FirebaseMessaging;
 @Configuration
 @ConditionalOnProperty(prefix = "fcm.firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class GoogleAuthConfig {
-
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     private static final List<String> SCOPES = List.of(
             "https://www.googleapis.com/auth/firebase.messaging"

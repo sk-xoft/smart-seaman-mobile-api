@@ -4,7 +4,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.BannerEntity;
-import com.seaman.entity.NewsEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.CommonException;
 import com.seaman.model.response.BannerModel;
