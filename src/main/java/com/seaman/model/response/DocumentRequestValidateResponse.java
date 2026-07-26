@@ -13,6 +13,9 @@ public class DocumentRequestValidateResponse {
     private String requestNo;
     private String documentCode;
     private String documentName;
+    private String documentNameTh;
+    private String documentNameEn;
+    private String certEndDate;
     private String idempotencyKey;
     private String mobileNumber;
     private String email;

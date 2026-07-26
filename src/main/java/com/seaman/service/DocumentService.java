@@ -558,7 +558,7 @@ public class DocumentService {
                     }
                     timingPath = "idempotent";
                     segmentStartedAt = System.nanoTime();
-                    response = buildValidateCreateResponse(idempotentRequest, documentCode, documentName,
+                    response = buildValidateCreateResponse(idempotentRequest, document, documentCode, documentName,
                             usersEntity.getMobileUuid());
                     validateItemsMs = elapsedMs(segmentStartedAt);
                     return response;
@@ -573,7 +573,7 @@ public class DocumentService {
             if (activeRequest != null) {
                 timingPath = "existing";
                 segmentStartedAt = System.nanoTime();
-                response = buildValidateCreateResponse(activeRequest, documentCode, documentName,
+                response = buildValidateCreateResponse(activeRequest, document, documentCode, documentName,
                         usersEntity.getMobileUuid());
                 validateItemsMs = elapsedMs(segmentStartedAt);
                 return response;
@@ -591,6 +591,7 @@ public class DocumentService {
 
             response.setDocumentCode(documentCode);
             response.setDocumentName(documentName);
+            setValidateDocumentInfo(response, document, usersEntity.getMobileUuid(), documentCode);
             response.setMobileNumber(usersEntity.getMobileNumber());
             response.setEmail(usersEntity.getEmail());
 
@@ -622,7 +623,7 @@ public class DocumentService {
                     throw ex;
                 }
                 timingPath = "idempotent-duplicate";
-                response = buildValidateCreateResponse(idempotentRequest, documentCode, documentName,
+                response = buildValidateCreateResponse(idempotentRequest, document, documentCode, documentName,
                         usersEntity.getMobileUuid());
                 return response;
             }
@@ -690,7 +691,7 @@ public class DocumentService {
     }
 
     private DocumentRequestValidateResponse buildValidateCreateResponse(
-            DocumentRenewalRequestEntity request, String documentCode, String documentName,
+            DocumentRenewalRequestEntity request, DocumentEntity document, String documentCode, String documentName,
             String mobileUserUuid) {
         List<DocumentRequestItemEntity> items = documentRenewalCreateRepository
                 .findRequestItemsForValidate(request.getId(), mobileUserUuid);
@@ -702,12 +703,35 @@ public class DocumentService {
         response.setRequestNo(request.getRequestNo());
         response.setDocumentCode(documentCode);
         response.setDocumentName(documentName);
+        setValidateDocumentInfo(response, document, mobileUserUuid, documentCode);
         response.setIdempotencyKey(request.getIdempotencyKey());
         response.setMobileNumber(request.getMobileNumber());
         response.setEmail(request.getEmail());
         response.setAddress(deliveryAddressSnapshot(request.getId(), mobileUserUuid));
         response.setItems(mapDocumentRequestItems(items));
         return response;
+    }
+
+    private void setValidateDocumentInfo(DocumentRequestValidateResponse response, DocumentEntity document,
+            String mobileUserUuid, String documentCode) {
+        if (document != null) {
+            response.setDocumentNameTh(document.getDocumentNameTh());
+            response.setDocumentNameEn(document.getDocumentNameEn());
+        }
+        response.setCertEndDate(currentCertEndDate(mobileUserUuid, documentCode));
+    }
+
+    private String currentCertEndDate(String mobileUserUuid, String documentCode) {
+        List<CertificateEntity> certificates =
+                certificateRepository.findByUsersAndCertCodeList(mobileUserUuid, documentCode);
+        if (certificates == null || certificates.isEmpty()) {
+            return null;
+        }
+        String certEndDate = certificates.get(0).getCertEndDate();
+        if (certEndDate == null) {
+            return null;
+        }
+        return certEndDate.length() >= 10 ? certEndDate.substring(0, 10) : certEndDate;
     }
 
     private long elapsedMs(long startedAt) {

@@ -3,6 +3,7 @@ package com.seaman.service;
 import com.amazonaws.services.s3.AmazonS3;
 import com.seaman.constant.DocumentRenewalAction;
 import com.seaman.constant.DocumentRenewalStatus;
+import com.seaman.entity.CertificateEntity;
 import com.seaman.entity.DeliveryAddressEntity;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRenewalRequestEntity;
@@ -80,6 +81,10 @@ class DocumentServiceValidateRequestTest {
         document.setDocumentNameTh("ประกาศนียบัตรลูกเรือ");
         document.setDocumentNameEn("Seafarer Certificate");
         when(documentRepository.findByDocumentCode("DOC001")).thenReturn(document);
+        CertificateEntity certificate = new CertificateEntity();
+        certificate.setCertEndDate("2027-12-31 00:00:00");
+        lenient().when(certificateRepository.findByUsersAndCertCodeList("mobile-user-uuid", "DOC001"))
+                .thenReturn(Collections.singletonList(certificate));
         lenient().when(renewalRequestItemFileRepository.findFiles(anyString()))
                 .thenReturn(Collections.<DocumentRequestItemFileEntity>emptyList());
         lenient().when(renewalRequestItemFileService.mapFiles(anyList()))
@@ -109,6 +114,9 @@ class DocumentServiceValidateRequestTest {
 
         assertEquals("DOC001", response.getDocumentCode());
         assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentName());
+        assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentNameTh());
+        assertEquals("Seafarer Certificate", response.getDocumentNameEn());
+        assertEquals("2027-12-31", response.getCertEndDate());
         assertEquals("MISSING", response.getItems().get(0).getDocumentStatus());
         assertEquals("request-id", response.getRequestId());
         assertEquals("260700001", response.getRequestNo());
@@ -212,6 +220,9 @@ class DocumentServiceValidateRequestTest {
 
         assertEquals("DOC001", response.getDocumentCode());
         assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentName());
+        assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentNameTh());
+        assertEquals("Seafarer Certificate", response.getDocumentNameEn());
+        assertEquals("2027-12-31", response.getCertEndDate());
         assertEquals("existing-request-id", response.getRequestId());
         assertEquals("260700099", response.getRequestNo());
         assertEquals("existing-key", response.getIdempotencyKey());
