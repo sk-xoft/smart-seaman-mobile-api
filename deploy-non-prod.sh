@@ -99,7 +99,7 @@ docker run \
   --restart unless-stopped \
   --env-file "$ENV_FILE" \
   --volume "${FIREBASE_FILE}:/app/firebase.json:ro" \
-  --volume "${LOG_DIR}:./logs" \
+  --volume "${LOG_DIR}:/logs" \
   --env "FCM_CREDENTIAL_FILE=${FCM_CREDENTIAL_FILE}" \
   --publish "${HOST_PORT}:${CONTAINER_PORT}/tcp" \
   "$IMAGE_NAME"
