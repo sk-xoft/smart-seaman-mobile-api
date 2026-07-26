@@ -150,7 +150,7 @@ docker run --name smart-seaman-mobile-api -d \
 docker run --name smart-seaman-mobile-api -d \
   --env-file /home/ssmuser/apps/config/mobile-api/non-prod/.env \
   -v /home/ssmuser/apps/config/mobile-api/non-prod/smart-seaman-firebase.json:/app/firebase.json \
-  -v /home/ssmuser/apps-logs-service/smart-seaman-mobile-api/logs:/apps-logs-service/smart-seaman-mobile-api/logs \
+  -v /home/ssmuser/apps/logs-srv/mobile-api/logs:../logs \
   -e FCM_CREDENTIAL_FILE=/app/firebase.json \
   -it -p 30000:8080/tcp \
   smart-seaman-mobile-api:latest
