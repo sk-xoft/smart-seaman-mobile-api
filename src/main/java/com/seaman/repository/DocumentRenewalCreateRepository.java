@@ -54,6 +54,24 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public DocumentRenewalRequestEntity findByIdempotencyKey(
+            String mobileUserUuid, String idempotencyKey) {
+        List<DocumentRenewalRequestEntity> rows = template.query(
+                "SELECT r.*, s.document_status_code AS status_code, "
+                        + "s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                        + "s.css_color AS status_css_color "
+                        + "FROM m_document_request r "
+                        + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
+                        + "WHERE r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.idempotency_key = :idempotencyKey "
+                        + "AND r.is_active = 'YES' "
+                        + "ORDER BY r.created_at DESC, r.id DESC LIMIT 1",
+                new MapSqlParameterSource().addValue("mobileUserUuid", mobileUserUuid)
+                        .addValue("idempotencyKey", idempotencyKey),
+                new BeanPropertyRowMapper<>(DocumentRenewalRequestEntity.class));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<DocumentRequestItemEntity> findRequestItemsForValidate(
             String requestId, String mobileUserUuid) {
         String sql = "SELECT i.id, r.mobile_user_uuid, r.document_code, "
@@ -160,19 +178,23 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
     public void insertRequest(String id, String requestNo, String mobileUserUuid,
                               String mobileNumber, String email,
                               String documentCode, String statusId, String priceSettingId,
-                              String deliveryAddressId, java.math.BigDecimal amount) {
+                              String deliveryAddressId, java.math.BigDecimal amount,
+                              String idempotencyKey) {
         int rows = template.update("INSERT INTO m_document_request "
                         + "(id, request_no, mobile_user_uuid, mobile_number, email, "
                         + "document_code, document_status_id, "
-                        + "price_setting_id, delivery_address_id, is_active, amount) "
+                        + "price_setting_id, delivery_address_id, is_active, amount, "
+                        + "idempotency_key) "
                         + "VALUES (:id, :requestNo, :mobileUserUuid, :mobileNumber, :email, "
                         + ":documentCode, :statusId, "
-                        + ":priceSettingId, :deliveryAddressId, 'YES', :amount)",
+                        + ":priceSettingId, :deliveryAddressId, 'YES', :amount, "
+                        + ":idempotencyKey)",
                 new MapSqlParameterSource().addValue("id", id).addValue("requestNo", requestNo)
                         .addValue("mobileUserUuid", mobileUserUuid).addValue("mobileNumber", mobileNumber)
                         .addValue("email", email).addValue("documentCode", documentCode)
                         .addValue("statusId", statusId).addValue("priceSettingId", priceSettingId)
-                        .addValue("deliveryAddressId", deliveryAddressId).addValue("amount", amount));
+                        .addValue("deliveryAddressId", deliveryAddressId).addValue("amount", amount)
+                        .addValue("idempotencyKey", idempotencyKey));
         requireOne(rows, "documentRenewalRequest");
     }
 

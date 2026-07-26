@@ -84,7 +84,8 @@ class DocumentRenewalCreateRepositoryTest {
 
         repository.insertRequest("request-id", "260700001", "user-uuid",
                 "0812345678", "crew@example.com", "DOC001", "status-id",
-                "price-setting-id", "address-id", new java.math.BigDecimal("1500.00"));
+                "price-setting-id", "address-id", new java.math.BigDecimal("1500.00"),
+                "idem-001");
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> parameters =
@@ -92,8 +93,33 @@ class DocumentRenewalCreateRepositoryTest {
         verify(template).update(sql.capture(), parameters.capture());
         assertTrue(sql.getValue().contains("mobile_number"));
         assertTrue(sql.getValue().contains("email"));
+        assertTrue(sql.getValue().contains("idempotency_key"));
         assertEquals("0812345678", parameters.getValue().getValue("mobileNumber"));
         assertEquals("crew@example.com", parameters.getValue().getValue("email"));
+        assertEquals("idem-001", parameters.getValue().getValue("idempotencyKey"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void idempotencyLookupScopesByUserAndActiveRequest() {
+        DocumentRenewalRequestEntity row = new DocumentRenewalRequestEntity();
+        row.setId("request-id");
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(row));
+
+        DocumentRenewalRequestEntity result =
+                repository.findByIdempotencyKey("user-uuid", "idem-001");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertEquals("request-id", result.getId());
+        assertTrue(sql.getValue().contains("r.idempotency_key = :idempotencyKey"));
+        assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+        assertEquals("idem-001", parameters.getValue().getValue("idempotencyKey"));
     }
 
     @Test

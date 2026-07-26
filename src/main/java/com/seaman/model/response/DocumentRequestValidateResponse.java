@@ -13,6 +13,7 @@ public class DocumentRequestValidateResponse {
     private String requestNo;
     private String documentCode;
     private String documentName;
+    private String idempotencyKey;
     private String mobileNumber;
     private String email;
     private List<DeliveryAddressResponse> address = Collections.emptyList();

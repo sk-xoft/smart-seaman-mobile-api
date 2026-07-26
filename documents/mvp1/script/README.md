@@ -41,6 +41,8 @@
 | 11 | `90_11_migrate_document_request_collation.sql` | ปรับ collation ของ renewal request logical keys ให้ join กับ profile/master tables ได้โดยไม่เกิด collation error |
 | 12 | `90_12_migrate_document_request_user_contact_snapshot.sql` | เพิ่ม snapshot `mobile_number` และ `email` ของผู้ยื่นใน renewal request |
 | 13 | `90_13_migrate_document_request_delivery_address_snapshot.sql` | เพิ่ม snapshot delivery address ต่อ renewal request และ backfill จาก `delivery_address_id` เท่าที่มีข้อมูล |
+| 14 | `90_14_migrate_validate_create_performance_indexes.sql` | เพิ่ม indexes สำหรับ hot path ของ validate-and-create |
+| 15 | `90_15_migrate_document_request_idempotency_key.sql` | เพิ่ม `idempotency_key` สำหรับกันการสร้าง renewal request draft ซ้ำ |
 
 หลัง migration:
 

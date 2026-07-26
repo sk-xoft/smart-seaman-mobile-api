@@ -3,12 +3,12 @@
 อ้างอิง:
 - Requirement: `documents/mvp1/document_renewal_figma_spec.md`
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
-- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`
+- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`
 
 อัปเดตล่าสุด: 2026-07-25
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 20/20 tasks
+Progress: 21/21 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -50,6 +50,7 @@ Progress: 20/20 tasks
 | 17 | [x] | Update mobile number with history | Backend | `POST /v1/profile-update`, `ProfileMobileNumberUpdateTest` | - |
 | 18 | [x] | Snapshot delivery address per renewal request | Backend/DBA | `m_document_request_delivery_address`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest` | - |
 | 19 | [x] | Update renewal request mobile number snapshot | Backend | `PUT /v1/documents-renewals/requests/{requestNo}/mobile`, `DocumentRenewalMobileServiceTest` | - |
+| 20 | [x] | Idempotency for validate-and-create draft creation | Backend/DBA | `idempotency_key`, `90_15_migrate_document_request_idempotency_key.sql`, `DocumentServiceValidateRequestTest` | - |
 
 ## Supporting Status
 
@@ -77,6 +78,7 @@ Goal:
 Scope:
 - API `POST /v1/documents-renewals/requests/validate-and-create`
 - รับ `documentCode` จาก request body และ normalize เป็น uppercase
+- รับ optional `idempotencyKey` จาก request body เพื่อกัน client retry แล้วสร้าง request draft ซ้ำ
 - ใช้ `mobile_user_uuid` จาก authenticated user เท่านั้น
 - คืน `documentName` จาก `m_documents` ตามภาษา request (`Accept-Language`) โดย fallback เป็น `documentCode`
 - ถ้ามี active renewal request ของ user/document ที่ยังไม่ delivered ให้คืน request เดิมและ request items เดิม โดยไม่สร้างซ้ำ
@@ -105,12 +107,16 @@ Implementation checklist:
 
 Business logic:
 - client ส่งแค่ `documentCode`; ห้ามส่ง `mobileUserUuid`, ราคา, status หรือ request number จาก client
+- client สามารถส่ง optional `idempotencyKey`; ถ้า retry action เดิมต้องส่ง key เดิม
 - server อ่าน authenticated user จาก `userObject` ใน request context
 - server snapshot `mobile_number` และ `email` จาก authenticated user ลง `m_document_request`
 - server หา default active delivery address ของ user; ถ้ามีให้ snapshot ลง `m_document_request_delivery_address`, ถ้าไม่มีให้ไม่สร้าง snapshot และไม่ error
 - `documentCode` ถูก `trim()` และแปลงเป็น uppercase ก่อนใช้ query
 - `documentName` lookup จาก `m_documents.DOCUMENT_NAME_TH` หรือ `DOCUMENT_NAME_EN` ตามภาษา request
 - ระบบตรวจ active request เดิมด้วย `findLatestActiveRequestNotDelivered(mobileUserUuid, documentCode)`
+- ถ้ามี `idempotencyKey` ระบบ lookup request เดิมของ user/key ก่อนสร้าง request ใหม่
+- ถ้าเจอ `idempotencyKey` เดิมของ document เดิม ให้คืน request เดิมโดยไม่สร้างซ้ำ
+- ถ้าเจอ `idempotencyKey` เดิมแต่คนละ `documentCode` ให้คืน validation error `idempotencyKey`
 - ถ้าพบ active request เดิม:
   - ดึง request items ของ request เดิมด้วย owner scope
   - คืน `requestId`, `requestNo`, `documentCode`, `items`
@@ -137,6 +143,8 @@ Acceptance criteria:
 - request body รับเฉพาะ `documentCode` และ validate required/format/length
 - user ไม่สามารถสร้าง request ให้ user อื่นได้
 - active request เดิมต้องถูก reuse และไม่สร้าง duplicate draft
+- retry ด้วย `idempotencyKey` เดิมต้องคืน request เดิมและไม่สร้าง duplicate draft
+- `m_document_request` ต้องมี unique key `(mobile_user_uuid, idempotency_key)` เพื่อกัน concurrent duplicate
 - new request ต้องอยู่สถานะ `PAYMENT_PENDING`
 - amount และ `price_setting_id` ต้องมาจาก server-side price config
 - `mobile_number` และ `email` ใน `m_document_request` ต้องมาจาก `m_mobile_users` ผ่าน authenticated user
@@ -145,6 +153,7 @@ Acceptance criteria:
 - `request_no` ต้องมาจาก server-side running number
 - insert request/items/timeline ต้อง rollback พร้อมกันเมื่อขั้นตอนใดล้มเหลว
 - first create response ต้องคืน `requestId`, `requestNo`, `documentCode`, `documentName` และ `items`
+- response ต้องคืน `idempotencyKey` เมื่อ request ถูกสร้างหรือ reused จาก key นั้น
 - response ต้องคืน `mobileNumber` และ `email` จาก snapshot/authenticated user
 - response ต้องคืน `address` เป็น array ของ delivery address snapshot; ถ้าไม่มี address ให้คืน `[]`
 - item ที่เป็น `storageScope = PROFILE` ต้องคืน `documentStatus` ตามไฟล์ profile จริง เช่น `COMPLETE`, `MISSING`, `NOT_UPLOADED`, `NEED_FIX` หรือ `INCOMPLETE`
@@ -158,13 +167,14 @@ Evidence when done:
 - API example: `POST /v1/documents-renewals/requests/validate-and-create`
 - Test class: `DocumentServiceValidateRequestTest`
 - Files changed: `Routes`, `DocumentController`, `DocumentService`, `DocumentRepository`, `DocumentRenewalCreateRepository`, `DocumentRequestValidateRequest`, `DocumentRequestValidateResponse`, `DocumentRequestItemResponse`
-- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
+- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `90_15_migrate_document_request_idempotency_key.sql`, unique key `(mobile_user_uuid, idempotency_key)`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
 
 Request body:
 
 ```json
 {
-  "documentCode": "DOC001"
+  "documentCode": "DOC001",
+  "idempotencyKey": "renewal-doc001-attempt-1"
 }
 ```
 

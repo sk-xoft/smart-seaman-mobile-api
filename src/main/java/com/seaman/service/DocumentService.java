@@ -39,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletRequest;
@@ -530,10 +531,29 @@ public class DocumentService {
             inserted = true;
 
             String documentCode = request.getDocumentCode().trim().toUpperCase(Locale.ROOT);
+            String idempotencyKey = normalizeIdempotencyKey(request.getIdempotencyKey());
             long segmentStartedAt = System.nanoTime();
             DocumentEntity document = documentRepository.findByDocumentCode(documentCode);
             String documentName = documentName(document, documentCode);
             findDocumentMs = elapsedMs(segmentStartedAt);
+
+            if (idempotencyKey != null) {
+                segmentStartedAt = System.nanoTime();
+                DocumentRenewalRequestEntity idempotentRequest = documentRenewalCreateRepository
+                        .findByIdempotencyKey(usersEntity.getMobileUuid(), idempotencyKey);
+                activeRequestMs += elapsedMs(segmentStartedAt);
+                if (idempotentRequest != null) {
+                    if (!documentCode.equals(idempotentRequest.getDocumentCode())) {
+                        throw new BusinessException(AppStatus.INVALID_FORMAT, "idempotencyKey");
+                    }
+                    timingPath = "idempotent";
+                    segmentStartedAt = System.nanoTime();
+                    response = buildValidateCreateResponse(idempotentRequest, documentCode, documentName,
+                            usersEntity.getMobileUuid());
+                    validateItemsMs = elapsedMs(segmentStartedAt);
+                    return response;
+                }
+            }
 
             // ตรวจสอบการ renewal มีสถานะจัดส่งสำเร็จแล้วหรือไม่
             segmentStartedAt = System.nanoTime();
@@ -543,22 +563,9 @@ public class DocumentService {
             if (activeRequest != null) {
                 timingPath = "existing";
                 segmentStartedAt = System.nanoTime();
-                List<DocumentRequestItemEntity> existingItems = documentRenewalCreateRepository
-                        .findRequestItemsForValidate(activeRequest.getId(), usersEntity.getMobileUuid());
+                response = buildValidateCreateResponse(activeRequest, documentCode, documentName,
+                        usersEntity.getMobileUuid());
                 validateItemsMs = elapsedMs(segmentStartedAt);
-                if (existingItems == null || existingItems.isEmpty()) {
-                    throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
-                }
-                response.setRequestId(activeRequest.getId());
-                response.setRequestNo(activeRequest.getRequestNo());
-                response.setDocumentCode(documentCode);
-                response.setDocumentName(documentName);
-                response.setMobileNumber(activeRequest.getMobileNumber());
-                response.setEmail(activeRequest.getEmail());
-                response.setAddress(deliveryAddressSnapshot(activeRequest.getId(), usersEntity.getMobileUuid()));
-                segmentStartedAt = System.nanoTime();
-                response.setItems(mapDocumentRequestItems(existingItems));
-                mapItemsMs = elapsedMs(segmentStartedAt);
                 return response;
             }
 
@@ -590,10 +597,25 @@ public class DocumentService {
             String statusId = documentRenewalFoundationRepository
                     .findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING);
 
-            documentRenewalCreateRepository.insertRequest(requestId, requestNo,
-                    usersEntity.getMobileUuid(), usersEntity.getMobileNumber(), usersEntity.getEmail(),
-                    documentCode, statusId, price.getPriceSettingId(),
-                    address == null ? null : address.getId(), price.getTotal());
+            try {
+                documentRenewalCreateRepository.insertRequest(requestId, requestNo,
+                        usersEntity.getMobileUuid(), usersEntity.getMobileNumber(), usersEntity.getEmail(),
+                        documentCode, statusId, price.getPriceSettingId(),
+                        address == null ? null : address.getId(), price.getTotal(), idempotencyKey);
+            } catch (DuplicateKeyException ex) {
+                if (idempotencyKey == null) {
+                    throw ex;
+                }
+                DocumentRenewalRequestEntity idempotentRequest = documentRenewalCreateRepository
+                        .findByIdempotencyKey(usersEntity.getMobileUuid(), idempotencyKey);
+                if (idempotentRequest == null || !documentCode.equals(idempotentRequest.getDocumentCode())) {
+                    throw ex;
+                }
+                timingPath = "idempotent-duplicate";
+                response = buildValidateCreateResponse(idempotentRequest, documentCode, documentName,
+                        usersEntity.getMobileUuid());
+                return response;
+            }
             createRequestMs = elapsedMs(segmentStartedAt);
             // ตรวจสอบที่อยู่ ณ ปัจจุบันเป็นข้อมูล address ที่อยู่ปัจจุบันของผู้ใช้งาน
             if (address != null) {
@@ -623,6 +645,7 @@ public class DocumentService {
             mapItemsMs = elapsedMs(segmentStartedAt);
             response.setRequestId(requestId);
             response.setRequestNo(requestNo);
+            response.setIdempotencyKey(idempotencyKey);
 
         } catch (CommonException ce) {
             statusCode = ce.getCode();
@@ -645,6 +668,35 @@ public class DocumentService {
                     validateItemsMs, priceMs, addressMs, createRequestMs, insertItemsMs,
                     mapItemsMs, responseLogJsonMs, timingPath);
         }
+        return response;
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null) {
+            return null;
+        }
+        String normalized = idempotencyKey.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private DocumentRequestValidateResponse buildValidateCreateResponse(
+            DocumentRenewalRequestEntity request, String documentCode, String documentName,
+            String mobileUserUuid) {
+        List<DocumentRequestItemEntity> items = documentRenewalCreateRepository
+                .findRequestItemsForValidate(request.getId(), mobileUserUuid);
+        if (items == null || items.isEmpty()) {
+            throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
+        }
+        DocumentRequestValidateResponse response = new DocumentRequestValidateResponse();
+        response.setRequestId(request.getId());
+        response.setRequestNo(request.getRequestNo());
+        response.setDocumentCode(documentCode);
+        response.setDocumentName(documentName);
+        response.setIdempotencyKey(request.getIdempotencyKey());
+        response.setMobileNumber(request.getMobileNumber());
+        response.setEmail(request.getEmail());
+        response.setAddress(deliveryAddressSnapshot(request.getId(), mobileUserUuid));
+        response.setItems(mapDocumentRequestItems(items));
         return response;
     }
 
