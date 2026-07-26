@@ -4,6 +4,7 @@ import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.constant.Routes;
 import com.seaman.model.common.SuccessResponse;
+import com.seaman.model.response.DocumentResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRenewalStatusResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
@@ -144,6 +145,12 @@ public class DocumentRenewalController extends BaseController {
     @GetMapping(Routes.DOCUMENT_RENEWAL_STATUSES)
     public ResponseEntity<SuccessResponse<List<DocumentRenewalStatusResponse>>> statuses(HttpServletRequest request) {
         return ok(success(request, service.statuses()));
+    }
+
+    @Operation(summary = "List documents available for renewal")
+    @GetMapping({Routes.DOCUMENTS_RENEWALS, Routes.DOCUMENT_RENEWALS})
+    public ResponseEntity<SuccessResponse<List<DocumentResponse>>> documents(HttpServletRequest request) {
+        return ok(success(request, service.documents()));
     }
 
     @Operation(summary = "Get active document renewal price")

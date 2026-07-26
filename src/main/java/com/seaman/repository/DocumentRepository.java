@@ -53,6 +53,24 @@ public class DocumentRepository extends CommonRepository {
         return listAll;
     }
 
+    public List<DocumentEntity> findRenewalDocuments() {
+        List<DocumentEntity> listAll = null;
+        StringBuilder sql = new StringBuilder();
+        sql.append(" select * from m_documents ");
+        sql.append(" where DOCUMENT_STATUS = 'A' ");
+        sql.append(" and DOCUMENT_RENEWAL_FLAG in ('Y', 'YES') ");
+        sql.append(" order by DOCUMENT_SEQ ");
+
+        try {
+            listAll = template.query(sql.toString(), new MapSqlParameterSource(),
+                    new BeanPropertyRowMapper<>(DocumentEntity.class));
+        } catch (Exception ex) {
+            log.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
+        return listAll;
+    }
+
     @Cacheable(cacheNames = BusinessConstant.MASTER_DOCUMENT, key = "#documentCode", sync = true)
     public DocumentEntity findByDocumentCode(String documentCode) {
         List<DocumentEntity> rows;

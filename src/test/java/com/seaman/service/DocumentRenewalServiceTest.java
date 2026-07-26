@@ -1,23 +1,32 @@
 package com.seaman.service;
 
+import com.seaman.constant.AppSys;
+import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRenewalPriceEntity;
 import com.seaman.entity.DocumentRenewalStatusEntity;
 import com.seaman.exception.BusinessException;
+import com.seaman.model.response.DocumentResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRenewalStatusResponse;
+import com.seaman.repository.DocumentRepository;
 import com.seaman.repository.DocumentRenewalRepository;
 import org.junit.jupiter.api.Test;
 
+import javax.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class DocumentRenewalServiceTest {
     private final DocumentRenewalRepository repository = mock(DocumentRenewalRepository.class);
-    private final DocumentRenewalService service = new DocumentRenewalService(repository);
+    private final DocumentRepository documentRepository = mock(DocumentRepository.class);
+    private final HttpServletRequest httpServletRequest = mock(HttpServletRequest.class);
+    private final DocumentRenewalService service = new DocumentRenewalService(
+            repository, documentRepository, httpServletRequest);
 
     @Test
     void mapsCorrectionAndCancelledProgress() {
@@ -83,6 +92,22 @@ class DocumentRenewalServiceTest {
         assertThrows(BusinessException.class, () -> service.price(""));
         assertThrows(BusinessException.class, () -> service.price("DOC 001"));
         verifyNoInteractions(repository);
+    }
+
+    @Test
+    void listsRenewalDocumentsWithLocalizedName() {
+        DocumentEntity entity = new DocumentEntity();
+        entity.setDocumentCode("DOC001");
+        entity.setDocumentNameEn("Passport");
+        entity.setDocumentNameTh("Passport TH");
+        when(httpServletRequest.getHeader(AppSys.HEADER_ACCEPT_LANGUAGE)).thenReturn(AppSys.LANG_EN);
+        when(documentRepository.findRenewalDocuments()).thenReturn(Collections.singletonList(entity));
+
+        List<DocumentResponse> result = service.documents();
+
+        assertEquals("DOC001", result.get(0).getDocumentCode());
+        assertEquals("Passport", result.get(0).getDocumentName());
+        assertEquals("Passport TH", result.get(0).getDocumentNameTh());
     }
 
     private DocumentRenewalStatusEntity status(String nameEn) {

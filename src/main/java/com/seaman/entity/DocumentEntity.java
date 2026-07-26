@@ -16,6 +16,7 @@ public class DocumentEntity {
     private String documentDescription;
     private String documentType;
     private String documentDefaultFlag;
+    private String documentRenewalFlag;
     private String documentSeq;
     private String documentMobileFlag;
     private String documentCompanyCode;
