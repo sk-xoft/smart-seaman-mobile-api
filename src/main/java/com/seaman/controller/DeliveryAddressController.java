@@ -54,12 +54,24 @@ public class DeliveryAddressController extends BaseController {
         return ok(success(httpRequest, deliveryAddressService.create(request)));
     }
 
+    @Operation(summary = "สร้างที่อยู่จัดส่งสำหรับ renewal request")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "สร้างที่อยู่สำหรับ renewal สำเร็จ"),
+            @ApiResponse(responseCode = "400", description = "Request validation error")
+    })
+    @PostMapping(Routes.DELIVERY_ADDRESSES_RENEWAL)
+    public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> createForRenewal(
+            HttpServletRequest httpRequest, @PathVariable String requestNo,
+            @Valid @RequestBody DeliveryAddressRequest request) {
+        return ok(success(httpRequest, deliveryAddressService.createForRenewal(requestNo, request)));
+    }
+
     @Operation(summary = "แก้ไขที่อยู่จัดส่ง")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "แก้ไขที่อยู่สำเร็จ"),
             @ApiResponse(responseCode = "400", description = "Request validation error")
     })
-    @PutMapping(Routes.DELIVERY_ADDRESS)
+    @PutMapping(Routes.DELIVERY_ADDRESSES_RENEWAL)
     public ResponseEntity<SuccessResponse<DeliveryAddressResponse>> update(
             HttpServletRequest httpRequest, @PathVariable String addressId,
             @Valid @RequestBody DeliveryAddressRequest request) {

@@ -1,23 +1,19 @@
 package com.seaman.service;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.S3Object;
 import com.seaman.constant.AppStatus;
 import com.seaman.constant.AppSys;
 import com.seaman.entity.FormEntity;
 import com.seaman.entity.UsersEntity;
-import com.seaman.exception.BusinessException;
 import com.seaman.exception.CommonException;
 import com.seaman.model.response.FormResponse;
 import com.seaman.repository.FormRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 

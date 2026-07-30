@@ -2,7 +2,6 @@ package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
 import com.seaman.entity.FormEntity;
-import com.seaman.entity.ListSchoolTrainingEntity;
 import com.seaman.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

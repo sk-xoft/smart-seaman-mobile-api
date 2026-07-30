@@ -6,8 +6,8 @@ IMAGE_NAME="${IMAGE_NAME:-smart-seaman-mobile-api:latest}"
 HOST_PORT="${HOST_PORT:-30000}"
 CONTAINER_PORT="${CONTAINER_PORT:-8080}"
 
-ENV_FILE="${ENV_FILE:-/home/ssmuser/apps/config/mobile-api/non-prod/.env}"
-FIREBASE_FILE="${FIREBASE_FILE:-/home/ssmuser/apps/config/mobile-api/non-prod/smart-seaman-firebase.json}"
+ENV_FILE="${ENV_FILE:-/home/ssmuser/apps/config/mobile-api/prod/.env}"
+FIREBASE_FILE="${FIREBASE_FILE:-/home/ssmuser/apps/config/mobile-api/prod/smart-seaman-firebase.json}"
 LOG_DIR="${LOG_DIR:-/home/ssmuser/apps/logs/mobile-api}"
 FCM_CREDENTIAL_FILE="${FCM_CREDENTIAL_FILE:-/app/firebase.json}"
 

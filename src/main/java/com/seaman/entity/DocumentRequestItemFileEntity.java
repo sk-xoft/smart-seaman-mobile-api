@@ -9,6 +9,8 @@ import java.util.Date;
 public class DocumentRequestItemFileEntity {
     private String id;
     private String profileRequestItemId;
+    private String requestItemId;
+    private String documentMasterRequestItemCode;
     private String documentType;
     private String slotCode;
     private String storageKey;

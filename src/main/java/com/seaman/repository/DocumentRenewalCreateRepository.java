@@ -54,6 +54,24 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public DocumentRenewalRequestEntity findByIdempotencyKey(
+            String mobileUserUuid, String idempotencyKey) {
+        List<DocumentRenewalRequestEntity> rows = template.query(
+                "SELECT r.*, s.document_status_code AS status_code, "
+                        + "s.name_en AS status_name_en, s.name_th AS status_name_th, "
+                        + "s.css_color AS status_css_color "
+                        + "FROM m_document_request r "
+                        + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
+                        + "WHERE r.mobile_user_uuid = :mobileUserUuid "
+                        + "AND r.idempotency_key = :idempotencyKey "
+                        + "AND r.is_active = 'YES' "
+                        + "ORDER BY r.created_at DESC, r.id DESC LIMIT 1",
+                new MapSqlParameterSource().addValue("mobileUserUuid", mobileUserUuid)
+                        .addValue("idempotencyKey", idempotencyKey),
+                new BeanPropertyRowMapper<>(DocumentRenewalRequestEntity.class));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<DocumentRequestItemEntity> findRequestItemsForValidate(
             String requestId, String mobileUserUuid) {
         String sql = "SELECT i.id, r.mobile_user_uuid, r.document_code, "
@@ -160,19 +178,23 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
     public void insertRequest(String id, String requestNo, String mobileUserUuid,
                               String mobileNumber, String email,
                               String documentCode, String statusId, String priceSettingId,
-                              String deliveryAddressId, java.math.BigDecimal amount) {
+                              String deliveryAddressId, java.math.BigDecimal amount,
+                              String idempotencyKey) {
         int rows = template.update("INSERT INTO m_document_request "
                         + "(id, request_no, mobile_user_uuid, mobile_number, email, "
                         + "document_code, document_status_id, "
-                        + "price_setting_id, delivery_address_id, is_active, amount) "
+                        + "price_setting_id, delivery_address_id, is_active, amount, "
+                        + "idempotency_key) "
                         + "VALUES (:id, :requestNo, :mobileUserUuid, :mobileNumber, :email, "
                         + ":documentCode, :statusId, "
-                        + ":priceSettingId, :deliveryAddressId, 'YES', :amount)",
+                        + ":priceSettingId, :deliveryAddressId, 'YES', :amount, "
+                        + ":idempotencyKey)",
                 new MapSqlParameterSource().addValue("id", id).addValue("requestNo", requestNo)
                         .addValue("mobileUserUuid", mobileUserUuid).addValue("mobileNumber", mobileNumber)
                         .addValue("email", email).addValue("documentCode", documentCode)
                         .addValue("statusId", statusId).addValue("priceSettingId", priceSettingId)
-                        .addValue("deliveryAddressId", deliveryAddressId).addValue("amount", amount));
+                        .addValue("deliveryAddressId", deliveryAddressId).addValue("amount", amount)
+                        .addValue("idempotencyKey", idempotencyKey));
         requireOne(rows, "documentRenewalRequest");
     }
 
@@ -199,18 +221,65 @@ public class DocumentRenewalCreateRepository extends CommonRepository {
         requireOne(rows, "documentRenewalDeliveryAddressSnapshot");
     }
 
+    public int countDeliveryAddressSnapshot(String requestId, String mobileUserUuid) {
+        Integer count = template.queryForObject(
+                "SELECT COUNT(*) FROM m_document_request_delivery_address "
+                        + "WHERE request_id = :requestId AND mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("requestId", requestId)
+                        .addValue("mobileUserUuid", mobileUserUuid),
+                Integer.class);
+        return count == null ? 0 : count;
+    }
+
     public List<DeliveryAddressEntity> findDeliveryAddressSnapshot(
             String requestId, String mobileUserUuid) {
-        String sql = "SELECT source_delivery_address_id AS id, mobile_user_uuid, "
-                + "first_name, last_name, address_line, province, district, "
-                + "sub_district, postal_code, mobile_number "
-                + "FROM m_document_request_delivery_address "
-                + "WHERE request_id = :requestId AND mobile_user_uuid = :mobileUserUuid "
-                + "ORDER BY created_at DESC, id DESC";
+        String sql = "SELECT COALESCE(a.source_delivery_address_id, a.id) AS id, a.mobile_user_uuid, "
+                + "a.first_name, a.last_name, a.address_line, a.province, a.district, "
+                + "a.sub_district, a.postal_code, a.mobile_number, "
+                + "CONCAT_WS(' ', a.address_line, "
+                + "CONCAT('ตำบล', sd.name_in_thai), "
+                + "CONCAT('อำเภอ', d.name_in_thai), "
+                + "CONCAT('จังหวัด', p.name_in_thai), a.postal_code) AS description "
+                + "FROM m_document_request_delivery_address a "
+                + "LEFT JOIN provinces p ON p.code = a.province "
+                + "LEFT JOIN districts d ON d.code = a.district "
+                + "LEFT JOIN subdistricts sd ON sd.code = a.sub_district "
+                + "WHERE a.request_id = :requestId AND a.mobile_user_uuid = :mobileUserUuid "
+                + "ORDER BY a.created_at DESC, a.id DESC";
         return template.query(sql,
                 new MapSqlParameterSource().addValue("requestId", requestId)
                         .addValue("mobileUserUuid", mobileUserUuid),
                 new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
+    }
+
+    public DeliveryAddressEntity findDeliveryAddressSnapshotById(String id, String mobileUserUuid) {
+        List<DeliveryAddressEntity> rows = template.query(
+                "SELECT a.id, a.mobile_user_uuid, a.first_name, a.last_name, a.address_line, "
+                        + "a.province, a.district, a.sub_district, a.postal_code, a.mobile_number "
+                        + "FROM m_document_request_delivery_address a "
+                        + "WHERE a.id = :id AND a.mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("id", id)
+                        .addValue("mobileUserUuid", mobileUserUuid),
+                new BeanPropertyRowMapper<>(DeliveryAddressEntity.class));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public void updateDeliveryAddressSnapshot(DeliveryAddressEntity entity) {
+        int rows = template.update("UPDATE m_document_request_delivery_address "
+                        + "SET first_name = :firstName, last_name = :lastName, "
+                        + "address_line = :addressLine, province = :province, district = :district, "
+                        + "sub_district = :subDistrict, postal_code = :postalCode "
+                        + "WHERE id = :id AND mobile_user_uuid = :mobileUserUuid",
+                new MapSqlParameterSource().addValue("id", entity.getId())
+                        .addValue("mobileUserUuid", entity.getMobileUserUuid())
+                        .addValue("firstName", entity.getFirstName())
+                        .addValue("lastName", entity.getLastName())
+                        .addValue("addressLine", entity.getAddressLine())
+                        .addValue("province", entity.getProvince())
+                        .addValue("district", entity.getDistrict())
+                        .addValue("subDistrict", entity.getSubDistrict())
+                        .addValue("postalCode", entity.getPostalCode()));
+        requireOne(rows, "documentRenewalDeliveryAddressSnapshot");
     }
 
     public int insertRequestItems(String requestId, String documentCode) {

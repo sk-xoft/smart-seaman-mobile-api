@@ -90,7 +90,7 @@ class DocumentRenewalCreateServiceTest {
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
                 eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
                 eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
-                eq(new BigDecimal("1500.00")));
+                eq(new BigDecimal("1500.00")), isNull());
         verify(createRepository).insertDeliveryAddressSnapshot(
                 response.getRequestId(), address, "0812345678");
         verify(foundationRepository).appendTransaction(anyString(), eq(DocumentRenewalAction.CREATE),
@@ -118,7 +118,7 @@ class DocumentRenewalCreateServiceTest {
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
                 eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
                 eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
-                eq(new BigDecimal("1500.00")));
+                eq(new BigDecimal("1500.00")), isNull());
         verify(createRepository).insertDeliveryAddressSnapshot(
                 response.getRequestId(), address, "0812345678");
     }
@@ -153,7 +153,7 @@ class DocumentRenewalCreateServiceTest {
 
         assertThrows(BusinessException.class, () -> service.create(input));
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
         verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
     }
 
@@ -168,7 +168,7 @@ class DocumentRenewalCreateServiceTest {
 
         assertThrows(BusinessException.class, () -> service.create(input));
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any());
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
         verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
     }
 

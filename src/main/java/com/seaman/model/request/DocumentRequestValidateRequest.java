@@ -14,4 +14,8 @@ public class DocumentRequestValidateRequest {
     @Size(max = 10, message = "documentCode")
     @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "documentCode")
     private String documentCode;
+
+    @Size(max = 100, message = "idempotencyKey")
+    @Pattern(regexp = "^[A-Za-z0-9._:-]+$", message = "idempotencyKey")
+    private String idempotencyKey;
 }

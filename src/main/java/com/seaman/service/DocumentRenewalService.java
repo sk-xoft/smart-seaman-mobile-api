@@ -1,15 +1,20 @@
 package com.seaman.service;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.AppSys;
+import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRenewalPriceEntity;
 import com.seaman.entity.DocumentRenewalStatusEntity;
 import com.seaman.exception.BusinessException;
+import com.seaman.model.response.DocumentResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRenewalStatusResponse;
+import com.seaman.repository.DocumentRepository;
 import com.seaman.repository.DocumentRenewalRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
@@ -19,9 +24,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DocumentRenewalService {
     private final DocumentRenewalRepository repository;
+    private final DocumentRepository documentRepository;
+    private final HttpServletRequest httpServletRequest;
 
     public List<DocumentRenewalStatusResponse> statuses() {
         return repository.findActiveStatuses().stream().map(this::mapStatus).collect(Collectors.toList());
+    }
+
+    public List<DocumentResponse> documents() {
+        return documentRepository.findRenewalDocuments().stream()
+                .map(this::mapDocument)
+                .collect(Collectors.toList());
     }
 
     public DocumentRenewalPriceResponse price(String documentCode) {
@@ -89,5 +102,16 @@ public class DocumentRenewalService {
         if ("Delivering".equals(nameEn)) return 4;
         if ("Delivered".equals(nameEn)) return 5;
         return null;
+    }
+
+    private DocumentResponse mapDocument(DocumentEntity entity) {
+        String language = httpServletRequest.getHeader(AppSys.HEADER_ACCEPT_LANGUAGE);
+        DocumentResponse response = new DocumentResponse();
+        response.setDocumentCode(entity.getDocumentCode());
+        response.setDocumentName(AppSys.LANG_EN.equalsIgnoreCase(language)
+                ? entity.getDocumentNameEn()
+                : entity.getDocumentNameTh());
+        response.setDocumentNameTh(entity.getDocumentNameTh());
+        return response;
     }
 }

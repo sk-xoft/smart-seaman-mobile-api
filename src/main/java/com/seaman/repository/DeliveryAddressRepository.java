@@ -66,9 +66,16 @@ public class DeliveryAddressRepository extends CommonRepository {
 
     public List<DeliveryAddressEntity> findActiveDefaults(String mobileUserUuid) {
         return template.query(
-                "SELECT da.*, mu.MOBILE_NUMBER AS mobile_number "
+                "SELECT da.*, mu.MOBILE_NUMBER AS mobile_number, "
+                        + "CONCAT_WS(' ', da.address_line, "
+                        + "CONCAT('ตำบล', sd.name_in_thai), "
+                        + "CONCAT('อำเภอ', d.name_in_thai), "
+                        + "CONCAT('จังหวัด', p.name_in_thai), da.postal_code) AS description "
                         + "FROM m_delivery_address da "
                         + "INNER JOIN m_mobile_users mu ON mu.MOBILE_UUID = da.mobile_user_uuid "
+                        + "LEFT JOIN provinces p ON p.code = da.province "
+                        + "LEFT JOIN districts d ON d.code = da.district "
+                        + "LEFT JOIN subdistricts sd ON sd.code = da.sub_district "
                         + "WHERE da.mobile_user_uuid = :mobileUserUuid "
                         + "AND da.is_default = 1 AND da.is_active = 'YES' "
                         + "ORDER BY da.updated_at DESC, da.id",

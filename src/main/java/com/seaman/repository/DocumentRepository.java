@@ -1,9 +1,11 @@
 package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.BusinessConstant;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.exception.BusinessException;
+import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
@@ -51,6 +53,25 @@ public class DocumentRepository extends CommonRepository {
         return listAll;
     }
 
+    public List<DocumentEntity> findRenewalDocuments() {
+        List<DocumentEntity> listAll = null;
+        StringBuilder sql = new StringBuilder();
+        sql.append(" select * from m_documents ");
+        sql.append(" where DOCUMENT_STATUS = 'A' ");
+        sql.append(" and DOCUMENT_RENEWAL_FLAG in ('Y', 'YES') ");
+        sql.append(" order by DOCUMENT_SEQ ");
+
+        try {
+            listAll = template.query(sql.toString(), new MapSqlParameterSource(),
+                    new BeanPropertyRowMapper<>(DocumentEntity.class));
+        } catch (Exception ex) {
+            log.error("{}", ex.getMessage());
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, ex.getMessage());
+        }
+        return listAll;
+    }
+
+    @Cacheable(cacheNames = BusinessConstant.MASTER_DOCUMENT, key = "#documentCode", sync = true)
     public DocumentEntity findByDocumentCode(String documentCode) {
         List<DocumentEntity> rows;
         try {
@@ -97,7 +118,16 @@ public class DocumentRepository extends CommonRepository {
         List<DocumentEntity> listAll = null;
 
         StringBuilder sql = new StringBuilder();
-        sql.append("select md.* , mc.CERT_START_DATE , mc.CERT_END_DATE, mc.CERT_FILE, mc.ORIGINAL_FILE_NAME as CERT_FILE_NAME from m_documents md");
+        sql.append("select md.* , mc.CERT_START_DATE , mc.CERT_END_DATE, mc.CERT_FILE, mc.ORIGINAL_FILE_NAME as CERT_FILE_NAME, ");
+        sql.append(" case when exists ( ");
+        sql.append(" select 1 from m_document_request dr ");
+        sql.append(" inner join m_document_status ds on ds.id = dr.document_status_id ");
+        sql.append(" where dr.mobile_user_uuid = :userId ");
+        sql.append(" and dr.document_code = md.DOCUMENT_CODE COLLATE utf8mb4_general_ci ");
+        sql.append(" and dr.is_active = 'YES' ");
+        sql.append(" and ds.document_status_code not in ('DELIVERED', 'CANCELLED') ");
+        sql.append(" ) then 'Y' else 'N' end as DOCUMENT_RENEWAL_PROCESSING_FLAG ");
+        sql.append(" from m_documents md");
         sql.append(" left join m_certificates mc on mc.CERT_DOCUMENT_CODE = md.DOCUMENT_CODE");
         sql.append(" where");
         sql.append(" md.DOCUMENT_STATUS = 'A'");

@@ -72,7 +72,7 @@ public class DocumentRenewalCreateService {
 
         createRepository.insertRequest(requestId, requestNo, user.getMobileUuid(),
                 user.getMobileNumber(), user.getEmail(), documentCode, statusId,
-                price.getPriceSettingId(), address.getId(), price.getTotal());
+                price.getPriceSettingId(), address.getId(), price.getTotal(), null);
         createRepository.insertDeliveryAddressSnapshot(requestId, address, user.getMobileNumber());
         int itemCount = createRepository.insertRequestItems(requestId, documentCode);
         if (itemCount != requiredCount) {

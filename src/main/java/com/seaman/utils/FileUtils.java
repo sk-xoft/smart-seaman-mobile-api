@@ -1,8 +1,6 @@
 package com.seaman.utils;
 
 import com.amazonaws.util.Base64;
-import org.springframework.stereotype.Component;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

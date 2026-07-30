@@ -3,7 +3,7 @@
 อ้างอิง:
 - Requirement: `documents/mvp1/document_renewal_figma_spec.md`
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
-- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`
+- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`
 
 อัปเดตล่าสุด: 2026-07-30
 ผู้รับผิดชอบ: Backend
@@ -50,6 +50,10 @@ Progress: 20/20 tasks
 | 17 | [x] | Update mobile number with history | Backend | `POST /v1/profile-update`, `ProfileMobileNumberUpdateTest` | - |
 | 18 | [x] | Snapshot delivery address per renewal request | Backend/DBA | `m_document_request_delivery_address`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest` | - |
 | 19 | [x] | Preview one renewal supporting document item | Backend | `GET /v1/document-renewals/items/preview`, `DocumentRenewalDetailServiceTest`, `DocumentRenewalControllerTest` | - |
+| 19 | [x] | Update renewal request mobile number snapshot | Backend | `PUT /v1/documents-renewals/requests/{requestNo}/mobile`, `DocumentRenewalMobileServiceTest` | - |
+| 20 | [x] | Idempotency for validate-and-create draft creation | Backend/DBA | `idempotency_key`, `90_15_migrate_document_request_idempotency_key.sql`, `DocumentServiceValidateRequestTest` | - |
+| 21 | [x] | Close-to-expiration certification list renewal indicators | Backend | `GET /v1/documents/certification/to-expiration?offSet=0`, `DocumentControllerTest` | - |
+| 22 | [x] | Create delivery address snapshot by renewal request | Backend | `POST /v1/delivery-addresses/{requestNoOrId}`, `DeliveryAddressServiceTest` | - |
 
 ## Supporting Status
 
@@ -64,6 +68,101 @@ Progress: 20/20 tasks
 
 ## Task Breakdown
 
+### MR-MOB-21: Close-To-Expiration Certification List Renewal Indicators
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.5 MD
+Priority: High
+
+Goal:
+- เพิ่มข้อมูลสำหรับหน้าเอกสารใกล้หมดอายุ เพื่อให้ mobile แสดงได้ว่า certificate หมดอายุแล้วหรือยัง และ document code นั้นกำลังมีคำขอต่อเอกสารที่ยังดำเนินการอยู่หรือไม่
+
+Scope:
+- API `GET /v1/documents/certification/to-expiration?offSet={n}`
+- ใช้ authenticated user จาก request context เท่านั้น
+- คืนรายการ certificate ของ user ที่ `CERT_END_DATE <= NOW() + INTERVAL 18 MONTH`
+- เพิ่ม field `documentRenewalFlag` จาก `m_documents.DOCUMENT_RENEWAL_FLAG`
+- เพิ่ม field `certExpiredFlag` จากการคำนวณ `certEndDate` เทียบวันปัจจุบันตาม timezone `Asia/Bangkok`
+- เพิ่ม field `documentRenewalProcessingFlag` จากการตรวจ `m_document_request`
+- คง field `documentRenewalRequestFlag` ไว้เป็น alias ของ `documentRenewalProcessingFlag` เพื่อ backward compatibility
+
+Out of scope:
+- การสร้าง renewal request
+- การ validate required renewal documents
+- การเปลี่ยนสถานะ renewal request
+- การกรองรายการด้วย `DOCUMENT_RENEWAL_FLAG`
+
+Implementation checklist:
+- [x] Controller / endpoint เดิม
+- [x] Repository / SQL เพิ่ม renewal processing indicator
+- [x] Response field เพิ่มใน `DocumentEntity`
+- [x] Expired calculation ใน service
+- [x] cURL example
+- [x] Compile/test verification
+
+Business logic:
+- `offSet` เป็นตำแหน่งเริ่มต้นของ pagination แบบ 0-based
+- API คืน `itemTotal`, `last` และ `items[]`
+- `certExpiredFlag = "Y"` เมื่อ `certEndDate` น้อยกว่าวันปัจจุบันตาม timezone `Asia/Bangkok`
+- ถ้า `certEndDate = "2027-12-31 00:00:00"` ระบบ parse เฉพาะ date part `2027-12-31` ก่อนคำนวณ
+- `certExpiredFlag = "N"` เมื่อ certificate ยังไม่หมดอายุ หรือไม่มี `certEndDate`
+- `documentRenewalProcessingFlag = "Y"` เมื่อพบ row ใน `m_document_request` ที่:
+  - `mobile_user_uuid` ตรงกับ authenticated user
+  - `document_code` ตรงกับ `m_documents.DOCUMENT_CODE`
+  - `is_active = 'YES'`
+  - status จาก `m_document_status.document_status_code` ไม่ใช่ `DELIVERED` และไม่ใช่ `CANCELLED`
+- `documentRenewalProcessingFlag = "N"` เมื่อไม่พบคำขอต่อเอกสารที่ยังดำเนินการอยู่
+- `documentRenewalRequestFlag` set ค่าเท่ากับ `documentRenewalProcessingFlag`
+- API ไม่ filter ด้วย `DOCUMENT_RENEWAL_FLAG`; field นี้ใช้เพื่อให้ client ตัดสินใจแสดง action/CTA เอง
+
+Response fields ที่เกี่ยวข้อง:
+- `certStartDate`: วันที่เริ่มต้น certificate format `yyyy-MM-dd`
+- `certEndDate`: วันที่หมดอายุ certificate format `yyyy-MM-dd`
+- `disYear`, `disMonth`, `disDay`: จำนวนเวลาคงเหลือที่คำนวณจาก `certEndDate`
+- `certExpiredFlag`: `"Y"`/`"N"`
+- `documentRenewalFlag`: master flag จาก `m_documents`
+- `documentRenewalProcessingFlag`: `"Y"`/`"N"` บอกว่ามี renewal request ที่ยังดำเนินการอยู่
+- `documentRenewalRequestFlag`: alias ของ `documentRenewalProcessingFlag`
+
+API example: `GET /v1/documents/certification/to-expiration?offSet=0`
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/documents/certification/to-expiration?offSet=0" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+Example response:
+
+```json
+{
+  "code": "0000",
+  "description": "success",
+  "data": {
+    "itemTotal": 1,
+    "last": true,
+    "items": [
+      {
+        "documentCode": "DOC001",
+        "documentNameTh": "เอกสารตัวอย่าง",
+        "documentNameEn": "Sample Document",
+        "certStartDate": "2024-01-01",
+        "certEndDate": "2027-12-31",
+        "disYear": "1",
+        "disMonth": "5",
+        "disDay": "5",
+        "certExpiredFlag": "N",
+        "documentRenewalFlag": "Y",
+        "documentRenewalProcessingFlag": "Y",
+        "documentRenewalRequestFlag": "Y"
+      }
+    ]
+  }
+}
+```
+
 ### MR-MOB-00: Validate And Create Renewal Request Draft
 
 Status: [x] Done
@@ -77,6 +176,7 @@ Goal:
 Scope:
 - API `POST /v1/documents-renewals/requests/validate-and-create`
 - รับ `documentCode` จาก request body และ normalize เป็น uppercase
+- รับ optional `idempotencyKey` จาก request body เพื่อกัน client retry แล้วสร้าง request draft ซ้ำ
 - ใช้ `mobile_user_uuid` จาก authenticated user เท่านั้น
 - คืน `documentName` จาก `m_documents` ตามภาษา request (`Accept-Language`) โดย fallback เป็น `documentCode`
 - ถ้ามี active renewal request ของ user/document ที่ยังไม่ delivered ให้คืน request เดิมและ request items เดิม โดยไม่สร้างซ้ำ
@@ -105,12 +205,16 @@ Implementation checklist:
 
 Business logic:
 - client ส่งแค่ `documentCode`; ห้ามส่ง `mobileUserUuid`, ราคา, status หรือ request number จาก client
+- client สามารถส่ง optional `idempotencyKey`; ถ้า retry action เดิมต้องส่ง key เดิม
 - server อ่าน authenticated user จาก `userObject` ใน request context
 - server snapshot `mobile_number` และ `email` จาก authenticated user ลง `m_document_request`
 - server หา default active delivery address ของ user; ถ้ามีให้ snapshot ลง `m_document_request_delivery_address`, ถ้าไม่มีให้ไม่สร้าง snapshot และไม่ error
 - `documentCode` ถูก `trim()` และแปลงเป็น uppercase ก่อนใช้ query
 - `documentName` lookup จาก `m_documents.DOCUMENT_NAME_TH` หรือ `DOCUMENT_NAME_EN` ตามภาษา request
 - ระบบตรวจ active request เดิมด้วย `findLatestActiveRequestNotDelivered(mobileUserUuid, documentCode)`
+- ถ้ามี `idempotencyKey` ระบบ lookup request เดิมของ user/key ก่อนสร้าง request ใหม่
+- ถ้าเจอ `idempotencyKey` เดิมของ document เดิม ให้คืน request เดิมโดยไม่สร้างซ้ำ
+- ถ้าเจอ `idempotencyKey` เดิมแต่คนละ `documentCode` ให้คืน validation error `idempotencyKey`
 - ถ้าพบ active request เดิม:
   - ดึง request items ของ request เดิมด้วย owner scope
   - คืน `requestId`, `requestNo`, `documentCode`, `items`
@@ -137,6 +241,8 @@ Acceptance criteria:
 - request body รับเฉพาะ `documentCode` และ validate required/format/length
 - user ไม่สามารถสร้าง request ให้ user อื่นได้
 - active request เดิมต้องถูก reuse และไม่สร้าง duplicate draft
+- retry ด้วย `idempotencyKey` เดิมต้องคืน request เดิมและไม่สร้าง duplicate draft
+- `m_document_request` ต้องมี unique key `(mobile_user_uuid, idempotency_key)` เพื่อกัน concurrent duplicate
 - new request ต้องอยู่สถานะ `PAYMENT_PENDING`
 - amount และ `price_setting_id` ต้องมาจาก server-side price config
 - `mobile_number` และ `email` ใน `m_document_request` ต้องมาจาก `m_mobile_users` ผ่าน authenticated user
@@ -145,6 +251,7 @@ Acceptance criteria:
 - `request_no` ต้องมาจาก server-side running number
 - insert request/items/timeline ต้อง rollback พร้อมกันเมื่อขั้นตอนใดล้มเหลว
 - first create response ต้องคืน `requestId`, `requestNo`, `documentCode`, `documentName` และ `items`
+- response ต้องคืน `idempotencyKey` เมื่อ request ถูกสร้างหรือ reused จาก key นั้น
 - response ต้องคืน `mobileNumber` และ `email` จาก snapshot/authenticated user
 - response ต้องคืน `address` เป็น array ของ delivery address snapshot; ถ้าไม่มี address ให้คืน `[]`
 - item ที่เป็น `storageScope = PROFILE` ต้องคืน `documentStatus` ตามไฟล์ profile จริง เช่น `COMPLETE`, `MISSING`, `NOT_UPLOADED`, `NEED_FIX` หรือ `INCOMPLETE`
@@ -158,13 +265,14 @@ Evidence when done:
 - API example: `POST /v1/documents-renewals/requests/validate-and-create`
 - Test class: `DocumentServiceValidateRequestTest`
 - Files changed: `Routes`, `DocumentController`, `DocumentService`, `DocumentRepository`, `DocumentRenewalCreateRepository`, `DocumentRequestValidateRequest`, `DocumentRequestValidateResponse`, `DocumentRequestItemResponse`
-- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
+- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `90_15_migrate_document_request_idempotency_key.sql`, unique key `(mobile_user_uuid, idempotency_key)`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
 
 Request body:
 
 ```json
 {
-  "documentCode": "DOC001"
+  "documentCode": "DOC001",
+  "idempotencyKey": "renewal-doc001-attempt-1"
 }
 ```
 
@@ -735,16 +843,20 @@ Estimate: 2 MD
 Priority: High
 
 Goal:
-- mobile user แก้ไฟล์ supporting document ใน correction flow ได้อย่างปลอดภัย
+- mobile user upload หรือแก้ไฟล์ supporting document ของ renewal request ได้อย่างปลอดภัย
 
 Scope:
 - `POST /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file`
 - multipart fields `documentType`, `slotCode`, `file`
-- อนุญาตเฉพาะ request status `Pending Applicant Correction` และ item status `FIX`
+- อนุญาต request status `Payment Pending` สำหรับ unpaid draft upload
+- อนุญาต request status `Pending Applicant Correction` เฉพาะ item status `FIX`
+- lookup `storage_scope` จาก `m_document_master_request_item`
+- ถ้า `storage_scope = REQUEST` ให้ insert/update `m_document_request_item_files`
+- ถ้า `storage_scope = PROFILE` ให้ insert/update `m_document_profile_request_item`
 - reuse MIME/size validation, UUID storage key และ transaction-aware object cleanup
 
 Out of scope:
-- profile document first-time upload
+- storage scope อื่นนอกเหนือจาก `REQUEST` และ `PROFILE`
 
 Implementation checklist:
 - [x] Controller / endpoint
@@ -757,7 +869,12 @@ Implementation checklist:
 - [x] cURL example
 
 Acceptance criteria:
-- user แก้ file ได้เฉพาะ state ที่อนุญาต
+- user upload file ได้เฉพาะ state ที่อนุญาต
+- response ต้องคืน `requestId` และ `requestNo` ของ renewal request ที่ upload
+- `PAYMENT_PENDING` ต้อง upload ได้ทั้ง `REQUEST` และ `PROFILE` ตาม `storage_scope`
+- `PENDING_APPLICANT_CORRECTION` ต้อง upload ได้เฉพาะ item ที่ `approve_status = FIX`
+- item `storage_scope = REQUEST` เช่น `MRI004` ต้องบันทึกไฟล์ลง `m_document_request_item_files`
+- item `storage_scope = PROFILE` เช่น `MRI001` ต้องบันทึกไฟล์ลง `m_document_profile_request_item`
 - DB ไม่ชี้ไฟล์ใหม่หาก upload ล้มเหลว
 - DB rollback หลัง upload ต้อง cleanup orphan object
 - ไม่ใช้ชื่อไฟล์จาก client เป็น storage key โดยตรง
@@ -1034,6 +1151,7 @@ Scope:
 - validate required fields, length, postal code และ address hierarchy
 - lock user row and active address rows สำหรับ default mutation
 - generated column/unique key `uq_delivery_address_active_default`
+- `PUT /v1/delivery-addresses/{addressId}` รองรับทั้ง id จาก `m_delivery_address` และ snapshot id จาก `m_document_request_delivery_address`
 
 Out of scope:
 - delete delivery address
@@ -1056,6 +1174,7 @@ Acceptance criteria:
 - active default address มีได้ไม่เกินหนึ่งรายการต่อ user
 - default replacement ต้อง atomic
 - update address ที่ไม่มีอยู่, เป็นของ user อื่น หรือ inactive ต้องไม่แก้ไขข้อมูล
+- update ด้วย snapshot id ต้องแก้เฉพาะ `m_document_request_delivery_address` ของ authenticated user
 
 Evidence when done:
 - DB script: `90_05_migrate_delivery_address_default_guard.sql`
@@ -1090,6 +1209,70 @@ curl --request PUT \
     "firstName": "ศรัญญู",
     "lastName": "แก้วโสภา",
     "addressLine": "99 ม. 1",
+    "province": "39",
+    "district": "3902",
+    "subDistrict": "390202",
+    "postalCode": "39170",
+    "isDefault": true
+  }'
+```
+
+### MR-MOB-22: Create Delivery Address Snapshot By Renewal Request
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: High
+
+Goal:
+- mobile user บันทึกที่อยู่จัดส่งให้ renewal request ที่มีอยู่ โดย snapshot ลง request นั้น และสร้าง `m_delivery_address` ให้ user เฉพาะกรณี user ยังไม่มี active delivery address
+
+Scope:
+- `POST /v1/delivery-addresses/{requestNoOrId}`
+- path parameter รับได้ทั้ง `m_document_request.request_no` และ UUID `m_document_request.id`
+- validate required fields, length, postal code และ address hierarchy แบบเดียวกับ create delivery address ปกติ
+- lock renewal request ด้วย `requestNo` + authenticated `mobile_user_uuid`
+- ตรวจ `m_delivery_address` ด้วย `mobile_user_uuid`; ถ้าไม่มี active address ให้ insert address ใหม่เป็น default
+- insert snapshot ลง `m_document_request_delivery_address`
+- reject ถ้า renewal request มี delivery address snapshot อยู่แล้ว
+
+Out of scope:
+- update snapshot เดิม
+- delete delivery address
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO reuse
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Acceptance criteria:
+- user ไม่สามารถสร้าง snapshot ให้ renewal request ของ user อื่น
+- ถ้า user ไม่มี active row ใน `m_delivery_address` ต้อง insert address ใหม่ด้วย `mobile_user_uuid` ของ authenticated user
+- ถ้า user มี active row ใน `m_delivery_address` อยู่แล้ว ต้องไม่สร้าง duplicate address จาก endpoint นี้
+- ต้อง insert `m_document_request_delivery_address` ด้วย `request_id` ของ `requestNo` ที่ส่งมา
+- request เดิมที่มี snapshot แล้วต้องถูก reject เพื่อไม่ชน unique key `uq_docreq_delivery_address_request`
+
+Evidence when done:
+- Test classes: `DeliveryAddressControllerTest`, `DeliveryAddressServiceTest`, `DocumentRenewalCreateRepositoryTest`
+- API example: `POST /v1/delivery-addresses/{requestNoOrId}`
+
+```bash
+curl --request POST \
+  --url "${base_url}/v1/delivery-addresses/${request_no_or_id}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "firstName": "ศรัญญู",
+    "lastName": "แก้วโสภา",
+    "addressLine": "16 ม. 8",
     "province": "39",
     "district": "3902",
     "subDistrict": "390202",
@@ -1270,6 +1453,97 @@ curl --request POST \
   }'
 ```
 
+### MR-MOB-19: Update Renewal Request Mobile Number Snapshot
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.5 MD
+Priority: High
+
+Goal:
+- ให้ mobile app แก้เบอร์มือถือสำหรับ renewal request ที่ถูก snapshot ไว้แล้ว โดยไม่แก้ profile หลักของ user
+
+Scope:
+- API `PUT /v1/documents-renewals/requests/{requestNo}/mobile`
+- รับ `mobileNumber` จาก request body
+- ใช้ authenticated user จาก request context เพื่อ scope ownership
+- lock renewal request ด้วย `requestNo` + `mobile_user_uuid` และ `is_active = 'YES'`
+- update `m_document_request.mobile_number`
+- update `m_document_request_delivery_address.mobile_number` ของ request เดียวกัน
+
+Out of scope:
+- เปลี่ยน `m_mobile_users.MOBILE_NUMBER`
+- insert `m_mobile_number_history`
+- เปลี่ยนข้อมูลที่อยู่ เช่น province/district/subDistrict/postalCode
+- admin update flow
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Business logic:
+- client ส่งเฉพาะ `mobileNumber`
+- `mobileNumber` ต้องเป็นเบอร์ไทย 10 หลักขึ้นต้นด้วย `0`
+- server อ่าน `mobile_user_uuid` จาก authenticated user เท่านั้น
+- request ต้องเป็น active renewal request ที่เป็นของ user ที่ login
+- update `m_document_request.mobile_number` เป็นค่าใหม่เสมอเมื่อ request ถูกต้อง
+- update `m_document_request_delivery_address.mobile_number` ด้วยค่าเดียวกัน
+- ถ้า request ไม่มี delivery address snapshot ให้ rollback เพราะ endpoint นี้ต้อง update ทั้ง `m_document_request` และ `m_document_request_delivery_address`
+- ทุก update อยู่ใน transaction เดียวกัน
+
+Acceptance criteria:
+- user แก้ mobile number ของ renewal request ตัวเองได้
+- user แก้ renewal request ของ user อื่นไม่ได้
+- invalid mobile number ถูก reject ก่อน update
+- `m_document_request.mobile_number` ถูก update ตาม request body
+- `m_document_request_delivery_address.mobile_number` ถูก update ตาม request body
+- ถ้าไม่มี address snapshot ต้อง rollback โดยไม่มี partial update ใน `m_document_request`
+
+Evidence when done:
+- API example: `PUT /v1/documents-renewals/requests/{requestNo}/mobile`
+- Test classes: `DocumentRenewalMobileServiceTest`, `DocumentRenewalControllerTest`, `DocumentRenewalFoundationRepositoryTest`
+- Files changed: `Routes`, `DocumentRenewalController`, `DocumentRenewalMobileService`, `DocumentRenewalFoundationRepository`, `DocumentRenewalMobileRequest`, `DocumentRenewalMobileResponse`
+
+Request body:
+
+```json
+{
+  "mobileNumber": "0821549970"
+}
+```
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestNo": "260700001",
+    "mobileNumber": "0821549970"
+  }
+}
+```
+
+```bash
+curl --request PUT \
+  --url "${base_url}/v1/documents-renewals/requests/260700001/mobile" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Content-Type: application/json" \
+  --header "Accept-Language: TH" \
+  --data '{
+    "mobileNumber": "0821549970"
+  }'
+```
+
 ## Remaining Work
 
 | Priority | Task | Why it remains | Next action | Blocker |
@@ -1309,6 +1583,7 @@ Operational งานที่อยู่นอก implementation scope เช�
 11. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 12. MR-MOB-12 contract/integration/concurrency tests
 13. MR-MOB-17 atomic mobile-number update และ change history
+14. MR-MOB-19 renewal request mobile snapshot update
 
 ## Evidence Checked
 
@@ -1334,6 +1609,9 @@ Operational งานที่อยู่นอก implementation scope เช�
 - `src/main/java/com/seaman/controller/ProfileController.java`
 - `src/main/java/com/seaman/service/ProfileService.java`
 - `src/main/java/com/seaman/repository/UserRepository.java`
+- `src/main/java/com/seaman/controller/DocumentRenewalController.java`
+- `src/main/java/com/seaman/service/DocumentRenewalMobileService.java`
+- `src/main/java/com/seaman/repository/DocumentRenewalFoundationRepository.java`
 - `documents/non_prod_db_schema.md`
 
 ## Assumptions

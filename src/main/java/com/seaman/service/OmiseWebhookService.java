@@ -14,6 +14,8 @@ import com.seaman.model.external.response.OmiseChargeResponse;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRenewalPaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
@@ -30,6 +32,8 @@ import java.util.Date;
 @Service
 @RequiredArgsConstructor
 public class OmiseWebhookService {
+    private static final Logger log = LoggerFactory.getLogger(OmiseWebhookService.class);
+
     private final ObjectMapper objectMapper;
     private final OmisePaymentClient omiseClient;
     private final DocumentRenewalPaymentService paymentService;
@@ -45,16 +49,23 @@ public class OmiseWebhookService {
     public void handle(String rawBody, String signature, String timestamp) {
         JsonNode event = parse(rawBody);
         String key = text(event, "key");
+        String eventId = text(event, "id");
+        log.info("Omise webhook received: eventId={}, key={}, hasSignature={}, hasTimestamp={}",
+                eventId, key, signature != null, timestamp != null);
         if (!"charge.complete".equals(key)) {
+            log.info("Omise webhook ignored: eventId={}, key={}", eventId, key);
             return;
         }
         verifySignature(rawBody, signature, timestamp);
         String chargeId = text(event.path("data"), "id");
         if (chargeId == null || chargeId.trim().isEmpty()) {
+            log.warn("Omise webhook invalid charge id: eventId={}, key={}", eventId, key);
             throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseChargeId");
         }
 
         OmiseChargeResponse verified = omiseClient.retrieveCharge(chargeId);
+        log.info("Omise webhook charge verified: eventId={}, chargeId={}, providerStatus={}, livemode={}",
+                eventId, verified.getId(), verified.getStatus(), verified.getLivemode());
         PaymentTransactionEntity payment =
                 paymentRepository.lockByProviderChargeId(verified.getId());
         payment.setStatus(paymentService.normalizeStatus(verified.getStatus()));
@@ -73,14 +84,24 @@ public class OmiseWebhookService {
             payment.setFailedAt(new Date());
         }
         paymentRepository.updateFromProvider(payment);
+        log.info("Omise webhook payment updated: eventId={}, chargeId={}, paymentId={}, "
+                        + "requestId={}, requestNo={}, status={}, providerStatus={}",
+                eventId, verified.getId(), payment.getId(), payment.getRequestId(),
+                payment.getRequestNo(), payment.getStatus(), payment.getProviderStatus());
 
         if (!"SUCCESS".equals(payment.getStatus())) {
+            log.info("Omise webhook no request transition: eventId={}, chargeId={}, paymentStatus={}",
+                    eventId, verified.getId(), payment.getStatus());
             return;
         }
         DocumentRenewalRequestEntity request =
                 foundationRepository.lockRequest(payment.getRequestId());
         if (!DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn()
                 .equals(request.getStatusNameEn())) {
+            log.info("Omise webhook duplicate/late success skipped: eventId={}, chargeId={}, "
+                            + "requestId={}, requestNo={}, currentStatus={}",
+                    eventId, verified.getId(), request.getId(), request.getRequestNo(),
+                    request.getStatusNameEn());
             return;
         }
         String targetStatusId = foundationRepository.findActiveStatusId(
@@ -94,16 +115,24 @@ public class OmiseWebhookService {
                 "Payment succeeded by Omise webhook", null);
         eventPublisher.publishEvent(new DocumentRenewalPaymentSucceededEvent(
                 request.getMobileUserUuid(), request.getRequestNo()));
+        log.info("Omise webhook request transitioned: eventId={}, chargeId={}, requestId={}, "
+                        + "requestNo={}, fromStatus={}, toStatus={}",
+                eventId, verified.getId(), request.getId(), request.getRequestNo(),
+                DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn(),
+                DocumentRenewalStatus.PENDING_DOCUMENT_REVIEW.getMasterNameEn());
     }
 
     private void verifySignature(String rawBody, String signature, String timestamp) {
         if (webhookSecret == null || webhookSecret.trim().isEmpty()) {
             if (isProdProfile()) {
+                log.warn("Omise webhook signature rejected: missing secret in prod");
                 throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
             }
+            log.info("Omise webhook signature skipped: webhook secret not configured outside prod");
             return;
         }
         if (signature == null || timestamp == null) {
+            log.warn("Omise webhook signature rejected: missing signature headers");
             throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
         }
         try {
@@ -120,8 +149,11 @@ public class OmiseWebhookService {
                 }
             }
         } catch (Exception ex) {
+            log.warn("Omise webhook signature rejected: verification error={}",
+                    ex.getClass().getSimpleName());
             throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
         }
+        log.warn("Omise webhook signature rejected: digest mismatch");
         throw new BusinessException(AppStatus.INVALID_FORMAT, "omiseSignature");
     }
 

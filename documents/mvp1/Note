@@ -1,6 +1,28 @@
+
+## 26 Jul
+    ->
+    GET /documents-renewals
+    new APi list m_documents where DOCUMENT_RENEWAL_FLAG IN ('Y' , 'YES')
+
+    ->
+    GET
+    documents/certification/to-expiration
+
+
+    {
+  "username": "33kanuengnit33@gmail.com",
+  "password": "password2"
+}
+
+{
+  "username": "sk.xoft@gmail.com",
+  "password": "P@ssword"
+}
+
+
 ## 18 Jul
     -> Update document sea record ต่อการ ต่ออายุเอกสารนั้น ๆ
-    -> ถ้าไม่มี Address ให้และ Mobile Number / first_name, last_name เป็น 
+    -> ถ้าไม่มี Address ให้และ Mobile Number / first_name, last_name เป็น
 
 ## 24 Jun
 
@@ -27,5 +49,3 @@ table : document_req 1 > G(ประชาชน,รูปถ่าย) > user_p
     action 12/2027            -3) A 12/2028 ->  จัดสำเร็จ (ประชาชน,รูปถ่าย)
 
 ---------------------------------------------
-
-

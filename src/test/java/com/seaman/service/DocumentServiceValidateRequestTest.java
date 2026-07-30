@@ -3,6 +3,7 @@ package com.seaman.service;
 import com.amazonaws.services.s3.AmazonS3;
 import com.seaman.constant.DocumentRenewalAction;
 import com.seaman.constant.DocumentRenewalStatus;
+import com.seaman.entity.CertificateEntity;
 import com.seaman.entity.DeliveryAddressEntity;
 import com.seaman.entity.DocumentEntity;
 import com.seaman.entity.DocumentRenewalRequestEntity;
@@ -80,6 +81,10 @@ class DocumentServiceValidateRequestTest {
         document.setDocumentNameTh("ประกาศนียบัตรลูกเรือ");
         document.setDocumentNameEn("Seafarer Certificate");
         when(documentRepository.findByDocumentCode("DOC001")).thenReturn(document);
+        CertificateEntity certificate = new CertificateEntity();
+        certificate.setCertEndDate("2027-12-31 00:00:00");
+        lenient().when(certificateRepository.findByUsersAndCertCodeList("mobile-user-uuid", "DOC001"))
+                .thenReturn(Collections.singletonList(certificate));
         lenient().when(renewalRequestItemFileRepository.findFiles(anyString()))
                 .thenReturn(Collections.<DocumentRequestItemFileEntity>emptyList());
         lenient().when(renewalRequestItemFileService.mapFiles(anyList()))
@@ -94,6 +99,7 @@ class DocumentServiceValidateRequestTest {
         defaultAddress.setDistrict("Bang Rak");
         defaultAddress.setSubDistrict("Si Lom");
         defaultAddress.setPostalCode("10500");
+        defaultAddress.setDescription("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500");
         request = new DocumentRequestValidateRequest();
         request.setDocumentCode("doc001");
     }
@@ -108,24 +114,49 @@ class DocumentServiceValidateRequestTest {
 
         assertEquals("DOC001", response.getDocumentCode());
         assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentName());
+        assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentNameTh());
+        assertEquals("Seafarer Certificate", response.getDocumentNameEn());
+        assertEquals("2027-12-31", response.getCertEndDate());
         assertEquals("MISSING", response.getItems().get(0).getDocumentStatus());
         assertEquals("request-id", response.getRequestId());
         assertEquals("260700001", response.getRequestNo());
+        assertEquals(null, response.getIdempotencyKey());
         assertEquals("0812345678", response.getMobileNumber());
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
         assertEquals("default-address-id", response.getAddress().get(0).getId());
         assertEquals("Somchai", response.getAddress().get(0).getFirstName());
         assertEquals("0812345678", response.getAddress().get(0).getMobileNumber());
+        assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         verify(createRepository).insertRequest("request-id", "260700001",
                 "mobile-user-uuid", "0812345678", "crew@example.com", "DOC001",
-                "payment-status-id", "price-setting-id", "default-address-id", new BigDecimal("1500.00"));
+                "payment-status-id", "price-setting-id", "default-address-id",
+                new BigDecimal("1500.00"), null);
         verify(createRepository).insertDeliveryAddressSnapshot(
                 "request-id", defaultAddress, "0812345678");
         verify(createRepository).insertRequestItems("request-id", "DOC001");
         verify(foundationRepository).appendTransaction("request-id", DocumentRenewalAction.CREATE,
                 null, DocumentRenewalStatus.PAYMENT_PENDING, "Unpaid draft created",
                 "mobile-user-uuid");
+    }
+
+    @Test
+    void createsPaymentPendingRequestWithIdempotencyKeyInResponse() {
+        request.setIdempotencyKey("renewal-doc001-attempt-1");
+        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
+                .thenReturn(Collections.singletonList(item("PROFILE", "MISSING")));
+        stubRequestCreation(1, Collections.singletonList(item("PROFILE", "MISSING")));
+
+        DocumentRequestValidateResponse response = service.validateAndCreateDocumentRenewalsItems(request);
+
+        assertEquals("request-id", response.getRequestId());
+        assertEquals("260700001", response.getRequestNo());
+        assertEquals("renewal-doc001-attempt-1", response.getIdempotencyKey());
+        verify(createRepository).insertRequest("request-id", "260700001",
+                "mobile-user-uuid", "0812345678", "crew@example.com", "DOC001",
+                "payment-status-id", "price-setting-id", "default-address-id",
+                new BigDecimal("1500.00"), "renewal-doc001-attempt-1");
     }
 
     @Test
@@ -140,11 +171,14 @@ class DocumentServiceValidateRequestTest {
 
         assertEquals("request-id", response.getRequestId());
         assertEquals("260700001", response.getRequestNo());
+        assertEquals(null, response.getIdempotencyKey());
         assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentName());
         assertEquals("0812345678", response.getMobileNumber());
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
         assertEquals("default-address-id", response.getAddress().get(0).getId());
+        assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         assertEquals(2, response.getItems().size());
         assertEquals("MRI002", response.getItems().get(0).getDocumentMasterRequestItemCode());
         assertEquals("COMPLETE", response.getItems().get(0).getDocumentStatus());
@@ -152,7 +186,8 @@ class DocumentServiceValidateRequestTest {
         assertEquals("MISSING", response.getItems().get(1).getDocumentStatus());
         verify(createRepository).insertRequest("request-id", "260700001",
                 "mobile-user-uuid", "0812345678", "crew@example.com", "DOC001",
-                "payment-status-id", "price-setting-id", "default-address-id", new BigDecimal("1500.00"));
+                "payment-status-id", "price-setting-id", "default-address-id",
+                new BigDecimal("1500.00"), null);
         verify(createRepository).insertDeliveryAddressSnapshot(
                 "request-id", defaultAddress, "0812345678");
         verify(createRepository).insertRequestItems("request-id", "DOC001");
@@ -167,6 +202,7 @@ class DocumentServiceValidateRequestTest {
         existing.setId("existing-request-id");
         existing.setRequestNo("260700099");
         existing.setStatusCode("PENDING_DOCUMENT_REVIEW");
+        existing.setIdempotencyKey("existing-key");
         existing.setMobileNumber("0899999999");
         existing.setEmail("snapshot@example.com");
         when(createRepository.findLatestActiveRequestNotDelivered("mobile-user-uuid", "DOC001"))
@@ -176,6 +212,7 @@ class DocumentServiceValidateRequestTest {
         DeliveryAddressEntity snapshotAddress = deliveryAddress("snapshot-address-id");
         snapshotAddress.setMobileNumber("0899999999");
         snapshotAddress.setFirstName("Snapshot");
+        snapshotAddress.setDescription("2 Snapshot Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500");
         when(createRepository.findDeliveryAddressSnapshot("existing-request-id", "mobile-user-uuid"))
                 .thenReturn(Collections.singletonList(snapshotAddress));
 
@@ -183,23 +220,60 @@ class DocumentServiceValidateRequestTest {
 
         assertEquals("DOC001", response.getDocumentCode());
         assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentName());
+        assertEquals("ประกาศนียบัตรลูกเรือ", response.getDocumentNameTh());
+        assertEquals("Seafarer Certificate", response.getDocumentNameEn());
+        assertEquals("2027-12-31", response.getCertEndDate());
         assertEquals("existing-request-id", response.getRequestId());
         assertEquals("260700099", response.getRequestNo());
+        assertEquals("existing-key", response.getIdempotencyKey());
         assertEquals("0899999999", response.getMobileNumber());
         assertEquals("snapshot@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
         assertEquals("snapshot-address-id", response.getAddress().get(0).getId());
         assertEquals("Snapshot", response.getAddress().get(0).getFirstName());
         assertEquals("0899999999", response.getAddress().get(0).getMobileNumber());
+        assertEquals("2 Snapshot Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
+                response.getAddress().get(0).getDescription());
         assertEquals("MISSING", response.getItems().get(0).getDocumentStatus());
         verify(documentRepository, never()).findMissingItemsByUserAndDocumentCode(anyString(), anyString());
         verify(renewalService, never()).price(anyString());
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
+                anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any());
         verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
         verify(createRepository, never()).insertRequestItems(anyString(), anyString());
         verify(foundationRepository, never()).appendTransaction(anyString(), any(),
                 any(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void returnsExistingRequestForSameIdempotencyKeyInsteadOfCreatingAgain() {
+        request.setIdempotencyKey("renewal-doc001-attempt-1");
+        DocumentRenewalRequestEntity existing = new DocumentRenewalRequestEntity();
+        existing.setId("idempotent-request-id");
+        existing.setRequestNo("260700088");
+        existing.setDocumentCode("DOC001");
+        existing.setIdempotencyKey("renewal-doc001-attempt-1");
+        existing.setMobileNumber("0877777777");
+        existing.setEmail("idem@example.com");
+        when(createRepository.findByIdempotencyKey("mobile-user-uuid", "renewal-doc001-attempt-1"))
+                .thenReturn(existing);
+        when(createRepository.findRequestItemsForValidate("idempotent-request-id", "mobile-user-uuid"))
+                .thenReturn(Collections.singletonList(item("PROFILE", "COMPLETE")));
+
+        DocumentRequestValidateResponse response = service.validateAndCreateDocumentRenewalsItems(request);
+
+        assertEquals("idempotent-request-id", response.getRequestId());
+        assertEquals("260700088", response.getRequestNo());
+        assertEquals("renewal-doc001-attempt-1", response.getIdempotencyKey());
+        assertEquals("DOC001", response.getDocumentCode());
+        assertEquals("0877777777", response.getMobileNumber());
+        assertEquals("idem@example.com", response.getEmail());
+        assertEquals("COMPLETE", response.getItems().get(0).getDocumentStatus());
+        verify(createRepository, never()).findLatestActiveRequestNotDelivered(anyString(), anyString());
+        verify(documentRepository, never()).findMissingItemsByUserAndDocumentCode(anyString(), anyString());
+        verify(renewalService, never()).price(anyString());
+        verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -223,12 +297,13 @@ class DocumentServiceValidateRequestTest {
         DocumentRequestValidateResponse response = service.validateAndCreateDocumentRenewalsItems(request);
 
         assertEquals("request-id", response.getRequestId());
+        assertEquals(null, response.getIdempotencyKey());
         assertEquals("0812345678", response.getMobileNumber());
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(0, response.getAddress().size());
         verify(createRepository).insertRequest("request-id", "260700001",
                 "mobile-user-uuid", "0812345678", "crew@example.com", "DOC001",
-                "payment-status-id", "price-setting-id", null, new BigDecimal("1500.00"));
+                "payment-status-id", "price-setting-id", null, new BigDecimal("1500.00"), null);
         verify(createRepository, never()).insertDeliveryAddressSnapshot(anyString(), any(), anyString());
         verify(createRepository).insertRequestItems("request-id", "DOC001");
     }

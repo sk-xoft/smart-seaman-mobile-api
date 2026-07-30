@@ -3,8 +3,10 @@ package com.seaman.controller;
 import com.seaman.constant.AppStatus;
 import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
+import com.seaman.model.request.DocumentRenewalMobileRequest;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
+import com.seaman.model.response.DocumentRenewalMobileResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRenewalResubmitResponse;
@@ -20,6 +22,7 @@ import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalListService;
 import com.seaman.service.DocumentRenewalTimelineService;
 import com.seaman.service.DocumentRenewalDetailService;
+import com.seaman.service.DocumentRenewalMobileService;
 import com.seaman.service.DocumentRenewalPaymentService;
 import com.seaman.service.DocumentRenewalService;
 import com.seaman.service.MessageCodeService;
@@ -54,7 +57,7 @@ class DocumentRenewalControllerTest {
         when(renewal.statuses()).thenReturn(List.of(status));
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<List<DocumentRenewalStatusResponse>>> response =
                 controller.statuses(request);
@@ -80,7 +83,7 @@ class DocumentRenewalControllerTest {
         when(renewal.price("DOC001")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalPriceResponse>> response =
                 controller.price(request, "DOC001");
@@ -108,7 +111,7 @@ class DocumentRenewalControllerTest {
         when(create.create(input)).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalCreateResponse>> response =
                 controller.create(request, input);
@@ -136,7 +139,7 @@ class DocumentRenewalControllerTest {
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller =
                 new DocumentRenewalController(
-                        renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                        renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRequestItemUploadResponse>> response =
                 controller.uploadItemFile(request, "260700001", "MRI002", "GENERAL", "MAIN", file);
@@ -164,13 +167,43 @@ class DocumentRenewalControllerTest {
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller =
                 new DocumentRenewalController(
-                        renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                        renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalResubmitResponse>> response =
                 controller.resubmit(request, "260700001");
 
         assertEquals("260700001", response.getBody().getData().getRequestNo());
         verify(resubmit).resubmit("260700001");
+    }
+
+    @Test
+    void updateMobileDelegatesByRequestNumberAndBody() {
+        DocumentRenewalService renewal = mock(DocumentRenewalService.class);
+        MessageCodeService messages = mock(MessageCodeService.class);
+        DocumentRenewalCreateService create = mock(DocumentRenewalCreateService.class);
+        DocumentRenewalItemFileService files = mock(DocumentRenewalItemFileService.class);
+        DocumentRenewalResubmitService resubmit = mock(DocumentRenewalResubmitService.class);
+        DocumentRenewalListService list = mock(DocumentRenewalListService.class);
+        DocumentRenewalTimelineService timeline = mock(DocumentRenewalTimelineService.class);
+        DocumentRenewalDetailService detail = mock(DocumentRenewalDetailService.class);
+        DocumentRenewalPaymentService payment = mock(DocumentRenewalPaymentService.class);
+        DocumentRenewalMobileService mobile = mock(DocumentRenewalMobileService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        DocumentRenewalMobileRequest input = new DocumentRenewalMobileRequest();
+        input.setMobileNumber("0821549970");
+        DocumentRenewalMobileResponse data =
+                new DocumentRenewalMobileResponse("260700001", "0821549970");
+        when(mobile.update("260700001", input)).thenReturn(data);
+        when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
+        DocumentRenewalController controller =
+                new DocumentRenewalController(
+                        renewal, messages, create, files, resubmit, list, timeline, detail, payment, mobile);
+
+        ResponseEntity<SuccessResponse<DocumentRenewalMobileResponse>> response =
+                controller.updateMobile(request, "260700001", input);
+
+        assertEquals("0821549970", response.getBody().getData().getMobileNumber());
+        verify(mobile).update("260700001", input);
     }
 
     @Test
@@ -191,7 +224,7 @@ class DocumentRenewalControllerTest {
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller =
                 new DocumentRenewalController(
-                        renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                        renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<PageDocumentRenewalResponse>> response =
                 controller.myRequests(request, 10);
@@ -217,7 +250,7 @@ class DocumentRenewalControllerTest {
         when(timeline.timeline("260700001")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalTimelineResponse>> response =
                 controller.timeline(request, "260700001");
@@ -243,7 +276,7 @@ class DocumentRenewalControllerTest {
         when(detail.detail("260700001")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalDetailResponse>> response =
                 controller.detail(request, "260700001");
@@ -322,7 +355,7 @@ class DocumentRenewalControllerTest {
                 "11111111-1111-1111-1111-111111111111")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalPaymentResponse>> response =
                 controller.paymentStatus(request, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -354,7 +387,7 @@ class DocumentRenewalControllerTest {
         when(payment.create("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input)).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment, mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalPaymentResponse>> response =
                 controller.createPayment(request, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", input);

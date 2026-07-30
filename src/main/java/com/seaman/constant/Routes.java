@@ -22,7 +22,7 @@ public class Routes {
     public static final String MASTER_DISTRICTS = "/master/districts";
     public static final String MASTER_SUBDISTRICTS = "/master/subdistricts";
     public static final String DELIVERY_ADDRESSES = "/delivery-addresses";
-    public static final String DELIVERY_ADDRESS = "/delivery-addresses/{addressId}";
+    public static final String DELIVERY_ADDRESSES_RENEWAL = "/delivery-addresses/{requestNo}";
     public static final String DOCUMENTS_LIST_COT = "/documents/certification/COT";
     public static final String SCHOOL_TRAINING_LIST = "/school-trainings";
     public static final String SCHOOL_TRAINING_DETAIL = "/school-trainings/detail";
@@ -59,6 +59,8 @@ public class Routes {
     public static final String POLICY = "/privacy_policy";
 
     public static final String VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST = "/documents-renewals/requests/validate-and-create";
+    public static final String DOCUMENTS_RENEWALS = "/documents-renewals";
+    public static final String DOCUMENT_RENEWAL_REQUEST_MOBILE = "/documents-renewals/requests/{requestNo}/mobile";
     public static final String DOCUMENT_RENEWAL_STATUSES = "/document-renewals/statuses";
     public static final String DOCUMENT_RENEWAL_PRICES = "/document-renewals/prices";
     public static final String DOCUMENT_RENEWALS = "/document-renewals";

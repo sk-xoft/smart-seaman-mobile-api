@@ -84,7 +84,8 @@ class DocumentRenewalCreateRepositoryTest {
 
         repository.insertRequest("request-id", "260700001", "user-uuid",
                 "0812345678", "crew@example.com", "DOC001", "status-id",
-                "price-setting-id", "address-id", new java.math.BigDecimal("1500.00"));
+                "price-setting-id", "address-id", new java.math.BigDecimal("1500.00"),
+                "idem-001");
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> parameters =
@@ -92,8 +93,33 @@ class DocumentRenewalCreateRepositoryTest {
         verify(template).update(sql.capture(), parameters.capture());
         assertTrue(sql.getValue().contains("mobile_number"));
         assertTrue(sql.getValue().contains("email"));
+        assertTrue(sql.getValue().contains("idempotency_key"));
         assertEquals("0812345678", parameters.getValue().getValue("mobileNumber"));
         assertEquals("crew@example.com", parameters.getValue().getValue("email"));
+        assertEquals("idem-001", parameters.getValue().getValue("idempotencyKey"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void idempotencyLookupScopesByUserAndActiveRequest() {
+        DocumentRenewalRequestEntity row = new DocumentRenewalRequestEntity();
+        row.setId("request-id");
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(row));
+
+        DocumentRenewalRequestEntity result =
+                repository.findByIdempotencyKey("user-uuid", "idem-001");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertEquals("request-id", result.getId());
+        assertTrue(sql.getValue().contains("r.idempotency_key = :idempotencyKey"));
+        assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("r.is_active = 'YES'"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+        assertEquals("idem-001", parameters.getValue().getValue("idempotencyKey"));
     }
 
     @Test
@@ -131,6 +157,25 @@ class DocumentRenewalCreateRepositoryTest {
         assertEquals("0812345678", parameters.getValue().getValue("mobileNumber"));
     }
 
+    @Test
+    void countDeliveryAddressSnapshotScopesByRequestAndOwner() {
+        when(template.queryForObject(anyString(), any(MapSqlParameterSource.class), any(Class.class)))
+                .thenReturn(1);
+
+        int count = repository.countDeliveryAddressSnapshot("request-id", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).queryForObject(sql.capture(), parameters.capture(), any(Class.class));
+        assertEquals(1, count);
+        assertTrue(sql.getValue().contains("FROM m_document_request_delivery_address"));
+        assertTrue(sql.getValue().contains("request_id = :requestId"));
+        assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
+        assertEquals("request-id", parameters.getValue().getValue("requestId"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     void findDeliveryAddressSnapshotUsesRequestAndOwnerScope() {
@@ -148,8 +193,62 @@ class DocumentRenewalCreateRepositoryTest {
         assertTrue(sql.getValue().contains("FROM m_document_request_delivery_address"));
         assertTrue(sql.getValue().contains("request_id = :requestId"));
         assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
-        assertTrue(sql.getValue().contains("source_delivery_address_id AS id"));
+        assertTrue(sql.getValue().contains("COALESCE(a.source_delivery_address_id, a.id) AS id"));
+        assertTrue(sql.getValue().contains("AS description"));
+        assertTrue(sql.getValue().contains("LEFT JOIN provinces p"));
+        assertTrue(sql.getValue().contains("LEFT JOIN districts d"));
+        assertTrue(sql.getValue().contains("LEFT JOIN subdistricts sd"));
         assertEquals("request-id", parameters.getValue().getValue("requestId"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void findDeliveryAddressSnapshotByIdScopesByOwner() {
+        DeliveryAddressEntity row = new DeliveryAddressEntity();
+        row.setId("snapshot-id");
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(row));
+
+        DeliveryAddressEntity result =
+                repository.findDeliveryAddressSnapshotById("snapshot-id", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertEquals("snapshot-id", result.getId());
+        assertTrue(sql.getValue().contains("FROM m_document_request_delivery_address"));
+        assertTrue(sql.getValue().contains("a.id = :id"));
+        assertTrue(sql.getValue().contains("a.mobile_user_uuid = :mobileUserUuid"));
+        assertEquals("snapshot-id", parameters.getValue().getValue("id"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+    }
+
+    @Test
+    void updateDeliveryAddressSnapshotScopesByIdAndOwner() {
+        when(template.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
+        DeliveryAddressEntity entity = new DeliveryAddressEntity();
+        entity.setId("snapshot-id");
+        entity.setMobileUserUuid("user-uuid");
+        entity.setFirstName("Somchai");
+        entity.setLastName("Seaman");
+        entity.setAddressLine("2 Ocean Road");
+        entity.setProvince("39");
+        entity.setDistrict("3902");
+        entity.setSubDistrict("390202");
+        entity.setPostalCode("39170");
+
+        repository.updateDeliveryAddressSnapshot(entity);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).update(sql.capture(), parameters.capture());
+        assertTrue(sql.getValue().contains("UPDATE m_document_request_delivery_address"));
+        assertTrue(sql.getValue().contains("WHERE id = :id AND mobile_user_uuid = :mobileUserUuid"));
+        assertEquals("snapshot-id", parameters.getValue().getValue("id"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+        assertEquals("2 Ocean Road", parameters.getValue().getValue("addressLine"));
     }
 }
