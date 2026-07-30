@@ -302,7 +302,8 @@ class DocumentRenewalControllerTest {
         when(detail.previewItem("260700001", "MRI002")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment,
+                mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> response =
                 controller.previewItem(request, "260700001", "MRI002");
@@ -328,7 +329,8 @@ class DocumentRenewalControllerTest {
         when(detail.previewItem("260700001", "MRI002")).thenReturn(data);
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
-                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment,
+                mock(DocumentRenewalMobileService.class));
 
         ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> response =
                 controller.previewItemByQuery(request, "260700001", "MRI002");
