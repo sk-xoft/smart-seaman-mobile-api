@@ -65,6 +65,8 @@ public class Routes {
     public static final String DOCUMENT_RENEWALS_MY = "/document-renewals/my";
     public static final String DOCUMENT_RENEWAL_DETAIL = "/document-renewals/{requestNo}";
     public static final String DOCUMENT_RENEWAL_TIMELINE = "/document-renewals/{requestNo}/timeline";
+    public static final String DOCUMENT_RENEWAL_ITEM_PREVIEW_BY_QUERY = "/document-renewals/items/preview";
+    public static final String DOCUMENT_RENEWAL_ITEM_PREVIEW = "/document-renewals/{requestNo}/items/{documentRequestItemCode}/preview";
     public static final String DOCUMENT_RENEWAL_ITEM_FILE = "/document-renewals/{requestNo}/items/{documentRequestItemCode}/file";
     public static final String DOCUMENT_RENEWAL_RESUBMIT = "/document-renewals/{requestNo}/resubmit";
     public static final String DOCUMENT_RENEWAL_PAYMENTS = "/document-renewals/{requestId}/payments";

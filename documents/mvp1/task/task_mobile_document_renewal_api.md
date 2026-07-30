@@ -5,10 +5,10 @@
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
 - DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`
 
-อัปเดตล่าสุด: 2026-07-25
+อัปเดตล่าสุด: 2026-07-30
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 19/19 tasks
+Progress: 20/20 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -49,6 +49,7 @@ Progress: 19/19 tasks
 | 16 | [x] | Get default delivery address | Backend | `GET /v1/delivery-addresses`, `DeliveryAddressControllerTest` | - |
 | 17 | [x] | Update mobile number with history | Backend | `POST /v1/profile-update`, `ProfileMobileNumberUpdateTest` | - |
 | 18 | [x] | Snapshot delivery address per renewal request | Backend/DBA | `m_document_request_delivery_address`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest` | - |
+| 19 | [x] | Preview one renewal supporting document item | Backend | `GET /v1/document-renewals/items/preview`, `DocumentRenewalDetailServiceTest`, `DocumentRenewalControllerTest` | - |
 
 ## Supporting Status
 
@@ -565,6 +566,121 @@ Evidence when done:
 ```bash
 curl --request GET \
   --url "${base_url}/v1/document-renewals/${request_no}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+### MR-MOB-19: Preview One Renewal Supporting Document Item
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.5 MD
+Priority: High
+
+Goal:
+- mobile user preview เอกสารประกอบ renewal request ราย item ด้วย `request_no` และ `request_master_items_code`
+
+Scope:
+- `GET /v1/document-renewals/items/preview?request_no={requestNo}&request_master_items_code={itemCode}`
+- optional path-style endpoint `GET /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/preview`
+- owner-scoped lookup จาก `m_document_request` และ `m_document_request_items`
+- คืน metadata ของ item และไฟล์ preview จาก source table ที่ถูกต้องตาม `storageScope`
+- ถ้า `storageScope = PROFILE` ให้ดึงไฟล์จาก `m_document_profile_request_item`
+- ถ้า `storageScope = REQUEST` ให้ดึงไฟล์จาก `m_document_request_item_files`
+- ไฟล์ที่ upload แล้วคืน short-lived S3 presigned URL สำหรับ preview
+
+Out of scope:
+- admin preview
+- upload/replace file
+- streaming binary file ผ่าน API backend
+
+Implementation checklist:
+- [x] Route constants
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Validation
+- [x] Owner scope / authorization by authenticated user
+- [x] Focused test
+- [x] cURL example
+
+Business logic:
+- client ส่ง `request_no` และ `request_master_items_code` ผ่าน query parameter
+- server normalize `request_no` เป็น uppercase และ validate format `[A-Za-z0-9_-]`, max length 20
+- server normalize `request_master_items_code` เป็น uppercase และ validate format `[A-Za-z0-9_]`, max length 10
+- server อ่าน `mobile_user_uuid` จาก authenticated `userObject`
+- repository query ต้อง join `m_document_request_items` กับ `m_document_request` และ filter `r.mobile_user_uuid = :mobileUserUuid`
+- ถ้า request/item ไม่ใช่ของ user ปัจจุบัน หรือไม่พบข้อมูล ให้คืน `DATA_NOT_FOUND` ใน field `documentRenewalRequestItem`
+- response ใช้ shape เดียวกับ detail item เพื่อให้ mobile reuse UI ได้
+- ไม่คืน permanent object-storage key; preview URL ต้องเป็น presigned URL อายุสั้น
+
+Acceptance criteria:
+- user preview ได้เฉพาะ item ใน renewal request ของตัวเอง
+- ระบุ item ด้วย `request_master_items_code` ที่ map กับ `m_document_request_items.document_master_request_item_code`
+- response ต้องมี `itemId`, `documentRequestItemCode`, `storageScope`, `documentName`, `sortOrder`, `fileUploaded`, `checkResult`, `checkNote`, `isUpdated`, `files`
+- `storageScope = PROFILE` ต้องอ่านไฟล์จาก `m_document_profile_request_item`
+- `storageScope = REQUEST` ต้องอ่านไฟล์จาก `m_document_request_item_files`
+- `files[]` ต้องมี `fileId`, `documentType`, `slotCode`, `originalFileName`, `mimeType`, `fileSize`, `fileUploadedAt`, `fileUrl`, `isUpdated`
+- `fileUrl` แสดงเฉพาะไฟล์ที่ `file_uploaded = 1` และมี storage key
+- invalid `request_no` หรือ `request_master_items_code` ต้อง reject ก่อน query database
+
+Evidence when done:
+- API example: `GET /v1/document-renewals/items/preview`
+- Optional API example: `GET /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/preview`
+- Test classes: `DocumentRenewalControllerTest`, `DocumentRenewalDetailServiceTest`, `DocumentRenewalFoundationRepositoryTest`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentRenewalControllerTest,DocumentRenewalDetailServiceTest,DocumentRenewalFoundationRepositoryTest` passed, `Tests run: 25, Failures: 0, Errors: 0, Skipped: 0`
+- Files changed: `Routes`, `DocumentRenewalController`, `DocumentRenewalDetailService`, `DocumentRenewalFoundationRepository`
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "itemId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "documentRequestItemCode": "MRI002",
+    "storageScope": "PROFILE",
+    "documentName": "รูปถ่าย",
+    "sortOrder": 2,
+    "fileUploaded": true,
+    "checkResult": "fix",
+    "checkNote": "รูปไม่ชัด",
+    "isUpdated": true,
+    "files": [
+      {
+        "fileId": "11111111-2222-3333-4444-555555555555",
+        "documentType": "GENERAL",
+        "slotCode": "MAIN",
+        "originalFileName": "photo.pdf",
+        "mimeType": "application/pdf",
+        "fileSize": 123456,
+        "fileUploadedAt": "30/07/2026 23:14",
+        "fileUrl": "https://smart-seaman-bucket.sgp1.digitaloceanspaces.com/...",
+        "isUpdated": true
+      }
+    ]
+  }
+}
+```
+
+ตัวอย่าง cURL แบบ query parameters:
+
+```bash
+curl --request GET \
+  --get \
+  --url "${base_url}/v1/document-renewals/items/preview" \
+  --data-urlencode "request_no=${request_no}" \
+  --data-urlencode "request_master_items_code=${request_master_items_code}" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+ตัวอย่าง cURL แบบ path parameters:
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/${request_no}/items/${request_master_items_code}/preview" \
   --header "Authorization: Bearer ${access_token}" \
   --header "Accept-Language: TH"
 ```
@@ -1189,7 +1305,7 @@ Operational งานที่อยู่นอก implementation scope เช�
 7. MR-MOB-14 create/update delivery address APIs และ MR-MOB-16 get default delivery address
 8. MR-MOB-04 create request
 9. MR-MOB-08 renewal item upload และ MR-MOB-09 resubmit โดย reuse file validation/storage component จาก MR-MOB-15
-10. MR-MOB-05 list, MR-MOB-06 detail และ MR-MOB-07 timeline
+10. MR-MOB-05 list, MR-MOB-06 detail, MR-MOB-19 preview item และ MR-MOB-07 timeline
 11. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 12. MR-MOB-12 contract/integration/concurrency tests
 13. MR-MOB-17 atomic mobile-number update และ change history
@@ -1198,8 +1314,11 @@ Operational งานที่อยู่นอก implementation scope เช�
 
 - `src/main/java/com/seaman/constant/Routes.java`
 - `src/main/java/com/seaman/controller/DocumentController.java`
+- `src/main/java/com/seaman/controller/DocumentRenewalController.java`
 - `src/main/java/com/seaman/service/DocumentService.java`
+- `src/main/java/com/seaman/service/DocumentRenewalDetailService.java`
 - `src/main/java/com/seaman/repository/DocumentRepository.java`
+- `src/main/java/com/seaman/repository/DocumentRenewalFoundationRepository.java`
 - `src/main/java/com/seaman/entity/DocumentRequestItemEntity.java`
 - `src/main/java/com/seaman/model/response/DocumentRequestItemResponse.java`
 - `documents/mvp1/script/01_create_mvp1_tables.sql`

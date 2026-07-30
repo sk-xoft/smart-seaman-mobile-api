@@ -71,6 +71,29 @@ class DocumentRenewalFoundationRepositoryTest {
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void findsOwnedItemByRequestNumberAndDocumentItemCodeWithoutLock() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(new RenewalRequestItemEntity()));
+
+        repository.findOwnedRequestItem("260700001", "MRI002", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(template).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertTrue(sql.getValue().contains("r.request_no = :requestNo"));
+        assertTrue(sql.getValue().contains(
+                "i.document_master_request_item_code = :documentRequestItemCode"));
+        assertTrue(sql.getValue().contains("r.mobile_user_uuid = :mobileUserUuid"));
+        assertTrue(sql.getValue().contains("m_document_request_items i"));
+        assertTrue(!sql.getValue().contains("FOR UPDATE"));
+        assertEquals("260700001", parameters.getValue().getValue("requestNo"));
+        assertEquals("MRI002", parameters.getValue().getValue("documentRequestItemCode"));
+        assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
+    }
+
     @Test
     void correctionCompletenessRequiresUpdatedValidProfileFiles() {
         when(template.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))

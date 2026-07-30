@@ -12,6 +12,7 @@ import com.seaman.model.response.DocumentRenewalStatusResponse;
 import com.seaman.model.response.PageDocumentRenewalResponse;
 import com.seaman.model.response.DocumentRenewalTimelineResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
+import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.model.response.DocumentRenewalPaymentResponse;
 import com.seaman.service.DocumentRenewalCreateService;
 import com.seaman.service.DocumentRenewalItemFileService;
@@ -249,6 +250,58 @@ class DocumentRenewalControllerTest {
 
         assertEquals("260700001", response.getBody().getData().getRequestNo());
         verify(detail).detail("260700001");
+    }
+
+    @Test
+    void previewItemDelegatesByRequestNumberAndItemCode() {
+        DocumentRenewalService renewal = mock(DocumentRenewalService.class);
+        MessageCodeService messages = mock(MessageCodeService.class);
+        DocumentRenewalCreateService create = mock(DocumentRenewalCreateService.class);
+        DocumentRenewalItemFileService files = mock(DocumentRenewalItemFileService.class);
+        DocumentRenewalResubmitService resubmit = mock(DocumentRenewalResubmitService.class);
+        DocumentRenewalListService list = mock(DocumentRenewalListService.class);
+        DocumentRenewalTimelineService timeline = mock(DocumentRenewalTimelineService.class);
+        DocumentRenewalDetailService detail = mock(DocumentRenewalDetailService.class);
+        DocumentRenewalPaymentService payment = mock(DocumentRenewalPaymentService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        DocumentRenewalDetailItemResponse data = new DocumentRenewalDetailItemResponse();
+        data.setDocumentRequestItemCode("MRI002");
+        when(detail.previewItem("260700001", "MRI002")).thenReturn(data);
+        when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
+        DocumentRenewalController controller = new DocumentRenewalController(
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+
+        ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> response =
+                controller.previewItem(request, "260700001", "MRI002");
+
+        assertEquals("MRI002", response.getBody().getData().getDocumentRequestItemCode());
+        verify(detail).previewItem("260700001", "MRI002");
+    }
+
+    @Test
+    void previewItemByQueryDelegatesRequestNoAndMasterItemCode() {
+        DocumentRenewalService renewal = mock(DocumentRenewalService.class);
+        MessageCodeService messages = mock(MessageCodeService.class);
+        DocumentRenewalCreateService create = mock(DocumentRenewalCreateService.class);
+        DocumentRenewalItemFileService files = mock(DocumentRenewalItemFileService.class);
+        DocumentRenewalResubmitService resubmit = mock(DocumentRenewalResubmitService.class);
+        DocumentRenewalListService list = mock(DocumentRenewalListService.class);
+        DocumentRenewalTimelineService timeline = mock(DocumentRenewalTimelineService.class);
+        DocumentRenewalDetailService detail = mock(DocumentRenewalDetailService.class);
+        DocumentRenewalPaymentService payment = mock(DocumentRenewalPaymentService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        DocumentRenewalDetailItemResponse data = new DocumentRenewalDetailItemResponse();
+        data.setDocumentRequestItemCode("MRI002");
+        when(detail.previewItem("260700001", "MRI002")).thenReturn(data);
+        when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
+        DocumentRenewalController controller = new DocumentRenewalController(
+                renewal, messages, create, files, resubmit, list, timeline, detail, payment);
+
+        ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> response =
+                controller.previewItemByQuery(request, "260700001", "MRI002");
+
+        assertEquals("MRI002", response.getBody().getData().getDocumentRequestItemCode());
+        verify(detail).previewItem("260700001", "MRI002");
     }
 
     @Test

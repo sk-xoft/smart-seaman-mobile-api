@@ -69,6 +69,15 @@ Spring Boot 2.6.2 REST API (Java 25) for maritime training and certification man
 - Public endpoints: login, registration, master data, app link verification (`apple-app-site-association.json`, `assetlinks.json`)
 - BCrypt password encoding
 
+## API Change Rule
+
+Every time an API is created or updated:
+- Update the related documentation under `documents/`, especially task/API files such as `documents/mvp1/task/task_mobile_document_renewal_api.md` when the change belongs to MVP1 document renewal.
+- Document the endpoint method/path, required headers, path/query parameters, request body, response shape, validation rules, authorization/owner-scope behavior, error behavior, and cURL example using `${base_url}` and `${access_token}`.
+- Update the task status/progress/evidence sections when the API task is done, including the focused test class and latest test command/result.
+- Add or update focused tests for controller/service/repository behavior before marking the documentation task as `[x]`.
+- If the API changes database tables, columns, indexes, constraints, seed data, or migration scripts, also update the matching schema docs and SQL task references.
+
 ## Database
 
 MySQL with no Flyway/Liquibase — schema managed manually. SQL view definitions live in `src/main/resources/SQL/CreateView.sql`:

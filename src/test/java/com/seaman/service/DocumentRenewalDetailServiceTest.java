@@ -12,6 +12,7 @@ import com.seaman.entity.RenewalRequestItemEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
+import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.repository.DocumentRenewalDetailRepository;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRenewalRequestItemFileRepository;
@@ -143,6 +144,75 @@ class DocumentRenewalDetailServiceTest {
         assertEquals("https://storage.example/request-signed",
                 response.getItems().get(0).getFiles().get(0).getFileUrl());
         verifyNoInteractions(fileRepository);
+    }
+
+    @Test
+    void previewsOneProfileScopedItemByRequestNumberAndMasterItemCode() throws Exception {
+        RenewalRequestItemEntity item = new RenewalRequestItemEntity();
+        item.setId("item-id");
+        item.setDocumentMasterRequestItemCode("MRI002");
+        item.setStorageScope("PROFILE");
+        item.setDocumentNameTh("รูปถ่าย");
+        item.setSortOrder(2);
+        item.setApproveStatus("FIX");
+        item.setNote("รูปไม่ชัด");
+        when(foundationRepository.findOwnedRequestItem("260700001", "MRI002", "user-uuid"))
+                .thenReturn(item);
+        DocumentRequestItemFileEntity file = new DocumentRequestItemFileEntity();
+        file.setId("file-id");
+        file.setStorageKey("documents/user/file-id");
+        file.setFileUploaded(1);
+        when(fileRepository.findFiles("user-uuid", "MRI002"))
+                .thenReturn(Collections.singletonList(file));
+        when(s3.generatePresignedUrl(eq("bucket"), eq("documents/user/file-id"), any(Date.class)))
+                .thenReturn(new URL("https://storage.example/profile-signed"));
+
+        DocumentRenewalDetailItemResponse response = service.previewItem("260700001", "mri002");
+
+        assertEquals("item-id", response.getItemId());
+        assertEquals("MRI002", response.getDocumentRequestItemCode());
+        assertEquals("PROFILE", response.getStorageScope());
+        assertEquals("รูปถ่าย", response.getDocumentName());
+        assertTrue(response.getFileUploaded());
+        assertEquals("fix", response.getCheckResult());
+        assertEquals("รูปไม่ชัด", response.getCheckNote());
+        assertEquals("https://storage.example/profile-signed",
+                response.getFiles().get(0).getFileUrl());
+        verifyNoInteractions(requestItemFileRepository);
+    }
+
+    @Test
+    void previewsOneRequestScopedItemFromRequestItemFiles() throws Exception {
+        RenewalRequestItemEntity item = new RenewalRequestItemEntity();
+        item.setId("request-item-id");
+        item.setDocumentMasterRequestItemCode("MRI003");
+        item.setStorageScope("REQUEST");
+        item.setDocumentNameTh("เอกสารใบเก่า");
+        when(foundationRepository.findOwnedRequestItem("260700001", "MRI003", "user-uuid"))
+                .thenReturn(item);
+        DocumentRequestItemFileEntity file = new DocumentRequestItemFileEntity();
+        file.setId("request-file-id");
+        file.setStorageKey("documents/request/file-id");
+        file.setFileUploaded(1);
+        when(requestItemFileRepository.findFiles("request-item-id"))
+                .thenReturn(Collections.singletonList(file));
+        when(s3.generatePresignedUrl(eq("bucket"), eq("documents/request/file-id"), any(Date.class)))
+                .thenReturn(new URL("https://storage.example/request-signed"));
+
+        DocumentRenewalDetailItemResponse response = service.previewItem("260700001", "MRI003");
+
+        assertEquals("REQUEST", response.getStorageScope());
+        assertEquals("request-file-id", response.getFiles().get(0).getFileId());
+        assertEquals("https://storage.example/request-signed",
+                response.getFiles().get(0).getFileUrl());
+        verifyNoInteractions(fileRepository);
+    }
+
+    @Test
+    void rejectsInvalidPreviewItemCodeBeforeReadingData() {
+        assertThrows(BusinessException.class,
+                () -> service.previewItem("260700001", "invalid-item-code-too-long"));
+        verifyNoInteractions(foundationRepository, detailRepository, fileRepository, s3);
     }
 
     @Test

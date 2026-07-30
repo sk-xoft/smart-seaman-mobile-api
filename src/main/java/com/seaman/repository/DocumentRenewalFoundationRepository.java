@@ -123,8 +123,20 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
 
     public RenewalRequestItemEntity lockOwnedRequestItem(
             String requestNo, String documentRequestItemCode, String mobileUserUuid) {
+        return findOwnedRequestItem(requestNo, documentRequestItemCode, mobileUserUuid, true);
+    }
+
+    public RenewalRequestItemEntity findOwnedRequestItem(
+            String requestNo, String documentRequestItemCode, String mobileUserUuid) {
+        return findOwnedRequestItem(requestNo, documentRequestItemCode, mobileUserUuid, false);
+    }
+
+    private RenewalRequestItemEntity findOwnedRequestItem(
+            String requestNo, String documentRequestItemCode, String mobileUserUuid, boolean lock) {
         List<RenewalRequestItemEntity> rows = template.query(
-                "SELECT i.*, s.name_en AS status_name_en, m.storage_scope "
+                "SELECT i.*, s.name_en AS status_name_en, m.storage_scope, "
+                        + "m.document_master_items_name AS document_name_th, "
+                        + "m.document_master_items_name AS document_name_en, m.sort_order "
                         + "FROM m_document_request_items i "
                         + "INNER JOIN m_document_request r ON r.id = i.request_id "
                         + "INNER JOIN m_document_status s ON s.id = r.document_status_id "
@@ -132,7 +144,8 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
                         + "ON m.document_master_items_code = i.document_master_request_item_code "
                         + "WHERE r.request_no = :requestNo "
                         + "AND i.document_master_request_item_code = :documentRequestItemCode "
-                        + "AND r.mobile_user_uuid = :mobileUserUuid AND r.is_active = 'YES' FOR UPDATE",
+                        + "AND r.mobile_user_uuid = :mobileUserUuid AND r.is_active = 'YES'"
+                        + (lock ? " FOR UPDATE" : ""),
                 new MapSqlParameterSource().addValue("requestNo", requestNo)
                         .addValue("documentRequestItemCode", documentRequestItemCode)
                         .addValue("mobileUserUuid", mobileUserUuid),

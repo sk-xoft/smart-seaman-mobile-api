@@ -11,6 +11,7 @@ import com.seaman.model.response.DocumentRenewalResubmitResponse;
 import com.seaman.model.response.PageDocumentRenewalResponse;
 import com.seaman.model.response.DocumentRenewalTimelineResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
+import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
@@ -124,6 +125,26 @@ public class DocumentRenewalController extends BaseController {
     public ResponseEntity<SuccessResponse<DocumentRenewalDetailResponse>> detail(
             HttpServletRequest request, @PathVariable String requestNo) {
         return ok(success(request, detailService.detail(requestNo)));
+    }
+
+    @Operation(summary = "Preview one renewal supporting document item")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_ITEM_PREVIEW)
+    public ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> previewItem(
+            HttpServletRequest request,
+            @PathVariable String requestNo,
+            @PathVariable String documentRequestItemCode) {
+        return ok(success(request, detailService.previewItem(
+                requestNo, documentRequestItemCode)));
+    }
+
+    @Operation(summary = "Preview one renewal supporting document item by request parameters")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_ITEM_PREVIEW_BY_QUERY)
+    public ResponseEntity<SuccessResponse<DocumentRenewalDetailItemResponse>> previewItemByQuery(
+            HttpServletRequest request,
+            @RequestParam("request_no") String requestNo,
+            @RequestParam("request_master_items_code") String documentRequestItemCode) {
+        return ok(success(request, detailService.previewItem(
+                requestNo, documentRequestItemCode)));
     }
 
     @Operation(summary = "Get active renewal statuses")

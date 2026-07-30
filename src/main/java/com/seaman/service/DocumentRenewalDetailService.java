@@ -89,36 +89,50 @@ public class DocumentRenewalDetailService {
         return response;
     }
 
+    public DocumentRenewalDetailItemResponse previewItem(
+            String requestNoInput, String documentRequestItemCodeInput) {
+        String requestNo = normalizeRequestNo(requestNoInput);
+        String documentRequestItemCode = normalizeItemCode(documentRequestItemCodeInput);
+        String userUuid = currentUserUuid();
+        RenewalRequestItemEntity item = foundationRepository.findOwnedRequestItem(
+                requestNo, documentRequestItemCode, userUuid);
+        return item(item, userUuid);
+    }
+
     private List<DocumentRenewalDetailItemResponse> items(String requestId, String userUuid) {
         List<RenewalRequestItemEntity> rows =
                 foundationRepository.findOwnedRequestItems(requestId, userUuid);
         List<DocumentRenewalDetailItemResponse> result = new ArrayList<>();
         for (RenewalRequestItemEntity row : rows) {
-            List<DocumentRequestItemFileEntity> files = "REQUEST".equals(row.getStorageScope())
-                    ? requestItemFileRepository.findFiles(row.getId())
-                    : fileRepository.findFiles(userUuid, row.getDocumentMasterRequestItemCode());
-            List<DocumentRenewalDetailFileResponse> mappedFiles = new ArrayList<>();
-            boolean updated = false;
-            boolean fileUploaded = false;
-            for (DocumentRequestItemFileEntity file : files) {
-                mappedFiles.add(file(file));
-                updated = updated || Boolean.TRUE.equals(file.getIsUpdated());
-                fileUploaded = fileUploaded || Integer.valueOf(1).equals(file.getFileUploaded());
-            }
-            DocumentRenewalDetailItemResponse item = new DocumentRenewalDetailItemResponse();
-            item.setItemId(row.getId());
-            item.setDocumentRequestItemCode(row.getDocumentMasterRequestItemCode());
-            item.setStorageScope(row.getStorageScope());
-            item.setDocumentName(itemName(row));
-            item.setSortOrder(row.getSortOrder());
-            item.setFileUploaded(fileUploaded);
-            item.setCheckResult(checkResult(row.getApproveStatus()));
-            if ("FIX".equals(row.getApproveStatus())) item.setCheckNote(row.getNote());
-            item.setIsUpdated(updated);
-            item.setFiles(mappedFiles);
-            result.add(item);
+            result.add(item(row, userUuid));
         }
         return result;
+    }
+
+    private DocumentRenewalDetailItemResponse item(RenewalRequestItemEntity row, String userUuid) {
+        List<DocumentRequestItemFileEntity> files = "REQUEST".equals(row.getStorageScope())
+                ? requestItemFileRepository.findFiles(row.getId())
+                : fileRepository.findFiles(userUuid, row.getDocumentMasterRequestItemCode());
+        List<DocumentRenewalDetailFileResponse> mappedFiles = new ArrayList<>();
+        boolean updated = false;
+        boolean fileUploaded = false;
+        for (DocumentRequestItemFileEntity file : files) {
+            mappedFiles.add(file(file));
+            updated = updated || Boolean.TRUE.equals(file.getIsUpdated());
+            fileUploaded = fileUploaded || Integer.valueOf(1).equals(file.getFileUploaded());
+        }
+        DocumentRenewalDetailItemResponse item = new DocumentRenewalDetailItemResponse();
+        item.setItemId(row.getId());
+        item.setDocumentRequestItemCode(row.getDocumentMasterRequestItemCode());
+        item.setStorageScope(row.getStorageScope());
+        item.setDocumentName(itemName(row));
+        item.setSortOrder(row.getSortOrder());
+        item.setFileUploaded(fileUploaded);
+        item.setCheckResult(checkResult(row.getApproveStatus()));
+        if ("FIX".equals(row.getApproveStatus())) item.setCheckNote(row.getNote());
+        item.setIsUpdated(updated);
+        item.setFiles(mappedFiles);
+        return item;
     }
 
     private DocumentRenewalDetailFileResponse file(DocumentRequestItemFileEntity row) {
@@ -247,6 +261,14 @@ public class DocumentRenewalDetailService {
         if (value == null || value.trim().isEmpty() || value.trim().length() > 20
                 || !value.trim().matches("[A-Za-z0-9_-]+")) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "requestNo");
+        }
+        return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeItemCode(String value) {
+        if (value == null || value.trim().isEmpty() || value.trim().length() > 10
+                || !value.trim().matches("[A-Za-z0-9_]+")) {
+            throw new BusinessException(AppStatus.INVALID_FORMAT, "documentRequestItemCode");
         }
         return value.trim().toUpperCase(Locale.ROOT);
     }
