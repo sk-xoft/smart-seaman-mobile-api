@@ -29,7 +29,9 @@ public class ObjectStorageConfig {
         BasicAWSCredentials creds = new BasicAWSCredentials(s3key, s3Secrets);
         return AmazonS3ClientBuilder.standard()
                 .withEndpointConfiguration(new EndpointConfiguration(s3endpoint, s3region))
-                .withCredentials(new AWSStaticCredentialsProvider(creds)).build();
+                .withCredentials(new AWSStaticCredentialsProvider(creds))
+                .withPathStyleAccessEnabled(true)
+                .build();
     }
 
 }
