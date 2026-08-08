@@ -17,9 +17,12 @@ import com.seaman.model.request.DocumentRenewalCreateRequest;
 import com.seaman.model.request.DocumentRenewalMobileRequest;
 import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
+import com.seaman.model.response.DocumentRenewalDeleteResponse;
 import com.seaman.model.response.DocumentRenewalMobileResponse;
 import com.seaman.model.response.DocumentRenewalPaymentResponse;
 import com.seaman.service.DocumentRenewalCreateService;
+import com.seaman.service.DocumentRenewalDeleteService;
+import com.seaman.service.DocumentRenewalHardDeleteService;
 import com.seaman.service.DocumentRenewalItemFileService;
 import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalListService;
@@ -34,6 +37,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -65,6 +69,8 @@ public class DocumentRenewalController extends BaseController {
     private final DocumentRenewalDetailService detailService;
     private final DocumentRenewalPaymentService paymentService;
     private final DocumentRenewalMobileService mobileService;
+    private final DocumentRenewalDeleteService deleteService;
+    private final DocumentRenewalHardDeleteService hardDeleteService;
 
     @Operation(summary = "Create unpaid document renewal draft")
     @PostMapping(Routes.DOCUMENT_RENEWALS)
@@ -101,6 +107,20 @@ public class DocumentRenewalController extends BaseController {
             @PathVariable String requestNo,
             @Valid @RequestBody DocumentRenewalMobileRequest input) {
         return ok(success(request, mobileService.update(requestNo, input)));
+    }
+
+    @Operation(summary = "Delete an unpaid document renewal request")
+    @DeleteMapping(Routes.DOCUMENT_RENEWAL_REQUEST_DELETE)
+    public ResponseEntity<SuccessResponse<DocumentRenewalDeleteResponse>> delete(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, deleteService.delete(requestNo)));
+    }
+
+    @Operation(summary = "Permanently delete a renewal request and its related records")
+    @DeleteMapping(Routes.DOCUMENT_RENEWAL_REQUEST_HARD_DELETE)
+    public ResponseEntity<SuccessResponse<DocumentRenewalDeleteResponse>> hardDelete(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, hardDeleteService.hardDelete(requestNo)));
     }
 
     @Operation(summary = "Create an Omise payment attempt for a renewal request")

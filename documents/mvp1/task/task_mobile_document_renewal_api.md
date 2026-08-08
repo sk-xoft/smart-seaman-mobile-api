@@ -5,10 +5,10 @@
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
 - DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`
 
-อัปเดตล่าสุด: 2026-07-30
+อัปเดตล่าสุด: 2026-08-08
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 20/20 tasks
+Progress: 22/22 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -54,6 +54,8 @@ Progress: 20/20 tasks
 | 20 | [x] | Idempotency for validate-and-create draft creation | Backend/DBA | `idempotency_key`, `90_15_migrate_document_request_idempotency_key.sql`, `DocumentServiceValidateRequestTest` | - |
 | 21 | [x] | Close-to-expiration certification list renewal indicators | Backend | `GET /v1/documents/certification/to-expiration?offSet=0`, `DocumentControllerTest` | - |
 | 22 | [x] | Create delivery address snapshot by renewal request | Backend | `POST /v1/delivery-addresses/{requestNoOrId}`, `DeliveryAddressServiceTest` | - |
+| 23 | [x] | Delete unpaid renewal request | Backend | `DELETE /v1/documents-renewals/requests/{requestNo}`, `DocumentRenewalDeleteServiceTest`, `DocumentRenewalControllerTest` | - |
+| 24 | [x] | Hard delete renewal request and related records | Backend | `DELETE /v1/documents-renewals/requests/{requestNo}/hard`, `DocumentRenewalHardDeleteServiceTest`, `DocumentRenewalControllerTest` | - |
 
 ## Supporting Status
 
@@ -1544,6 +1546,152 @@ curl --request PUT \
   }'
 ```
 
+### MR-MOB-23: Delete Renewal Request
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: Medium
+
+Goal:
+- mobile user ลบ (ยกเลิก) renewal request ของตัวเองที่ยังไม่ได้จ่ายเงินได้
+
+Scope:
+- API `DELETE /v1/documents-renewals/requests/{requestNo}`
+- lock owned request row, guard เฉพาะสถานะ `Payment Pending`, soft delete (`is_active = 'NO'`) และ append `CANCEL` transaction ใน `m_document_transaction`
+
+Out of scope:
+- ลบ request ที่จ่ายเงินแล้วหรืออยู่ระหว่างดำเนินการ (ต้องใช้ admin cancel flow แยกในอนาคตถ้าต้องการ)
+- hard delete ข้อมูลจริงหรือ cascade ลบ child tables (`m_payment_transaction`, `m_document_request_items`, ฯลฯ)
+- ส่ง notification event หลังลบ
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Business logic:
+- normalize/validate `requestNo` เหมือน endpoint อื่น (`[A-Za-z0-9_-]+`, สูงสุด 20 ตัวอักษร, uppercase)
+- resolve owner จาก `userObject` และ lock request ผ่าน `lockOwnedRequestByNo(requestNo, mobileUserUuid)` (คืน `DATA_NOT_FOUND` ถ้าไม่พบหรือไม่ใช่เจ้าของ)
+- อนุญาตเฉพาะ request ที่สถานะเป็น `Payment Pending` เท่านั้น มิฉะนั้น throw `INVALID_FORMAT`
+- soft delete โดย set `is_active = 'NO'` บน `m_document_request`
+- append transaction log `action = CANCEL`, `from_status = PAYMENT_PENDING`, `to_status = CANCELLED`
+- ทั้งหมดอยู่ใน `@Transactional` เดียว
+
+Acceptance criteria:
+- ลบ request ของตัวเองที่สถานะ `Payment Pending` สำเร็จ และ `is_active` เปลี่ยนเป็น `NO`
+- ลบ request ของ user อื่นไม่ได้ (`DATA_NOT_FOUND`)
+- ลบ request ที่ไม่อยู่ในสถานะ `Payment Pending` ไม่ได้ (`INVALID_FORMAT`)
+- มี audit record ใน `m_document_transaction` หลังลบสำเร็จ
+
+Evidence when done:
+- API example: `DELETE /v1/documents-renewals/requests/{requestNo}`
+- Test classes: `DocumentRenewalDeleteServiceTest`, `DocumentRenewalControllerTest`
+- Test command/result: `./mvnw test -Dtest=DocumentRenewalDeleteServiceTest,DocumentRenewalControllerTest` → `Tests run: 18, Failures: 0, Errors: 0, Skipped: 0`; full suite `./mvnw test` → `Tests run: 201, Failures: 0, Errors: 0, Skipped: 0`
+- Files changed: `Routes`, `DocumentRenewalController`, `DocumentRenewalDeleteService`, `DocumentRenewalFoundationRepository`, `DocumentRenewalDeleteResponse`
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestNo": "260700001",
+    "fromStatus": "PAYMENT_PENDING",
+    "toStatus": "CANCELLED",
+    "action": "CANCEL"
+  }
+}
+```
+
+```bash
+curl --request DELETE \
+  --url "${base_url}/v1/documents-renewals/requests/260700001" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+### MR-MOB-24: Hard Delete Renewal Request And Related Records
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: Medium
+
+Goal:
+- mobile user ลบ renewal request ของตัวเองแบบถาวร (hard delete) พร้อมข้อมูลที่เกี่ยวข้องทั้งหมด แยกเส้นทางจาก soft-delete (MR-MOB-23) ชัดเจน เพื่อไม่ให้ hard delete เกิดขึ้นโดยไม่ตั้งใจจาก client เดิม
+
+Scope:
+- API `DELETE /v1/documents-renewals/requests/{requestNo}/hard`
+- lock owned request row (ทุกสถานะที่ยัง `is_active = 'YES'`, ไม่จำกัดเฉพาะ `Payment Pending`)
+- hard delete แบบ cascade ตามลำดับ child → parent: `m_document_request_item_files` → `m_document_request_items` → `m_delivery` → `m_dept_submission` → `m_document_request_delivery_address` → `m_payment_transaction` → `m_document_transaction` → `m_document_request`
+
+Out of scope:
+- soft delete (ดู MR-MOB-23)
+- ลบ request ของ user อื่น หรือ request ที่ไม่ active อยู่แล้ว
+- notification event หลังลบ
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Request/response DTO (reuse `DocumentRenewalDeleteResponse`)
+- [x] Validation
+- [x] Error handling
+- [x] Transaction / concurrency handling
+- [x] Swagger / API doc
+- [x] Focused test
+- [x] cURL example
+
+Business logic:
+- normalize/validate `requestNo` เหมือน endpoint อื่น (`[A-Za-z0-9_-]+`, สูงสุด 20 ตัวอักษร, uppercase)
+- resolve owner จาก `userObject` และ lock request ผ่าน `lockOwnedRequestByNo(requestNo, mobileUserUuid)` (คืน `DATA_NOT_FOUND` ถ้าไม่พบหรือไม่ใช่เจ้าของ) — ไม่มี status guard เพิ่มเติม อนุญาตทุกสถานะที่ยัง active
+- ลบ child records ทั้งหมดที่อ้างอิง `request_id` (รวมถึง `m_document_request_item_files` ผ่าน join กับ `m_document_request_items`) ก่อนลบ `m_document_request` เอง เพื่อไม่ให้ FK constraint ติด
+- ทั้งหมดอยู่ใน `@Transactional` เดียว เพื่อ atomic cascade delete
+- ไม่บันทึก transaction/audit log เพราะ `m_document_transaction` ของ request นี้ถูกลบไปพร้อมกัน
+
+Acceptance criteria:
+- ลบ request ของตัวเองพร้อมข้อมูลที่เกี่ยวข้องทั้งหมดสำเร็จ ไม่ว่าสถานะปัจจุบันจะเป็นอะไร (ตราบใดที่ยัง active)
+- ลบ request ของ user อื่นไม่ได้ (`DATA_NOT_FOUND`)
+- หลังลบ ไม่มีแถวเหลือใน child tables ที่เกี่ยวข้องกับ `requestId` นั้น
+- endpoint นี้แยกเส้นทางจาก soft-delete เดิม ไม่กระทบ `DELETE /v1/documents-renewals/requests/{requestNo}`
+
+Evidence when done:
+- API example: `DELETE /v1/documents-renewals/requests/{requestNo}/hard`
+- Test classes: `DocumentRenewalHardDeleteServiceTest`, `DocumentRenewalControllerTest`
+- Test command/result: `./mvnw test -Dtest=DocumentRenewalHardDeleteServiceTest,DocumentRenewalControllerTest` และ full suite `./mvnw test` → `Tests run: 205, Failures: 0, Errors: 0, Skipped: 0`
+- Files changed: `Routes`, `DocumentRenewalAction`, `DocumentRenewalController`, `DocumentRenewalHardDeleteService`, `DocumentRenewalFoundationRepository`
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestNo": "260700001",
+    "fromStatus": "PENDING_DOCUMENT_REVIEW",
+    "toStatus": "DELETED",
+    "action": "HARD_DELETE"
+  }
+}
+```
+
+```bash
+curl --request DELETE \
+  --url "${base_url}/v1/documents-renewals/requests/260700001/hard" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
 ## Remaining Work
 
 | Priority | Task | Why it remains | Next action | Blocker |
@@ -1613,6 +1761,12 @@ Operational งานที่อยู่นอก implementation scope เช�
 - `src/main/java/com/seaman/service/DocumentRenewalMobileService.java`
 - `src/main/java/com/seaman/repository/DocumentRenewalFoundationRepository.java`
 - `documents/non_prod_db_schema.md`
+- `src/main/java/com/seaman/service/DocumentRenewalDeleteService.java`
+- `src/main/java/com/seaman/model/response/DocumentRenewalDeleteResponse.java`
+- `src/test/java/com/seaman/service/DocumentRenewalDeleteServiceTest.java`
+- `src/main/java/com/seaman/service/DocumentRenewalHardDeleteService.java`
+- `src/test/java/com/seaman/service/DocumentRenewalHardDeleteServiceTest.java`
+- `documents/mvp1/script/99_delete_document_renewal_request_data.sql`
 
 ## Assumptions
 

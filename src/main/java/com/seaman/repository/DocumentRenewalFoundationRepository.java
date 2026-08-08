@@ -275,6 +275,46 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         }
     }
 
+    public void softDeleteRequest(String requestId) {
+        int updated = template.update(
+                "UPDATE m_document_request SET is_active = 'NO', updated_at = NOW() "
+                        + "WHERE id = :requestId AND is_active = 'YES'",
+                new MapSqlParameterSource("requestId", requestId));
+        if (updated != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE,
+                    "documentRenewalRequest");
+        }
+    }
+
+    public void hardDeleteRequest(String requestId) {
+        MapSqlParameterSource requestIdParam = new MapSqlParameterSource("requestId", requestId);
+        template.update(
+                "DELETE f FROM m_document_request_item_files f "
+                        + "INNER JOIN m_document_request_items i ON i.id = f.request_item_id "
+                        + "WHERE i.request_id = :requestId", requestIdParam);
+        template.update(
+                "DELETE FROM m_document_request_items WHERE request_id = :requestId",
+                requestIdParam);
+        template.update(
+                "DELETE FROM m_delivery WHERE request_id = :requestId", requestIdParam);
+        template.update(
+                "DELETE FROM m_dept_submission WHERE request_id = :requestId", requestIdParam);
+        template.update(
+                "DELETE FROM m_document_request_delivery_address WHERE request_id = :requestId",
+                requestIdParam);
+        template.update(
+                "DELETE FROM m_payment_transaction WHERE request_id = :requestId",
+                requestIdParam);
+        template.update(
+                "DELETE FROM m_document_transaction WHERE request_id = :requestId",
+                requestIdParam);
+        int deleted = template.update(
+                "DELETE FROM m_document_request WHERE id = :requestId", requestIdParam);
+        if (deleted != 1) {
+            throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "documentRenewalRequest");
+        }
+    }
+
     public void updateRequestMobileNumber(String requestId, String mobileNumber) {
         int updated = template.update(
                 "UPDATE m_document_request SET mobile_number = :mobileNumber, updated_at = NOW() "
