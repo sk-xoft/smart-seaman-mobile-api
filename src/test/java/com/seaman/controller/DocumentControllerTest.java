@@ -6,6 +6,7 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
+import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentUpdateResponse;
 import com.seaman.model.response.PageDocumentResponse;
 import com.seaman.service.DocumentRequestItemFileService;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -27,6 +29,7 @@ class DocumentControllerTest {
 
     private HttpServletRequest request;
     private DocumentService documents;
+    private DocumentRequestItemFileService itemFileService;
     private DocumentController controller;
 
     @BeforeEach
@@ -34,9 +37,10 @@ class DocumentControllerTest {
         request = mock(HttpServletRequest.class);
         MessageCodeService messages = mock(MessageCodeService.class);
         documents = mock(DocumentService.class);
+        itemFileService = mock(DocumentRequestItemFileService.class);
         when(request.getAttribute(AppSys.LANGUAGE)).thenReturn("TH");
         when(messages.getMessageDescription(AppStatus.SUCCESS_CODE, "TH")).thenReturn("success");
-        controller = new DocumentController(messages, documents, mock(DocumentRequestItemFileService.class));
+        controller = new DocumentController(messages, documents, itemFileService);
     }
 
     @Test
@@ -87,6 +91,17 @@ class DocumentControllerTest {
         assertEquals(MediaType.IMAGE_PNG, image.getHeaders().getContentType());
         assertTrue(image.getBody().length > 0);
         verify(documents).viewCert("CERT001");
+    }
+
+    @Test
+    void uploadRequestItemFileDelegatesToItemFileService() {
+        DocumentRequestItemUploadResponse data = new DocumentRequestItemUploadResponse();
+        MockMultipartFile file = new MockMultipartFile("file", "id-card.png", "image/png", new byte[]{1, 2, 3});
+        when(itemFileService.upload("ITEM001", "ID_CARD", "SLOT001", file)).thenReturn(data);
+
+        assertSame(data, controller.uploadRequestItemFile(request, "ITEM001", "ID_CARD", "SLOT001", file)
+                .getBody().getData());
+        verify(itemFileService).upload("ITEM001", "ID_CARD", "SLOT001", file);
     }
 
     private <T> void assertSuccess(SuccessResponse<T> body, T data) {
