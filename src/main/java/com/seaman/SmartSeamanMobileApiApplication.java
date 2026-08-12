@@ -29,7 +29,7 @@ public class SmartSeamanMobileApiApplication {
 
 	private final Logger logger = LoggerFactory.getLogger(SmartSeamanMobileApiApplication.class);
 
-	@Value("${spring.profiles.active}")
+	@Value("${spring.profiles.active:prod}")
 	private String activeProfile;
 
 	public static void main(String[] args) {

@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class AppActivateController {
 
-    @Value("${spring.profiles.active}")
+    @Value("${spring.profiles.active:prod}")
     private String activeProfile;
 
     @Operation(summary = "Android Asset Links", description = "ไฟล์ assetlinks.json สำหรับ Android App Links verification")
