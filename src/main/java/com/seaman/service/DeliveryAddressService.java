@@ -87,8 +87,10 @@ public class DeliveryAddressService {
             deliveryAddressRepository.insert(entity);
         }
 
-        documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+        String snapshotAddressId = documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
                 renewalRequest.getId(), entity, user.getMobileNumber());
+        entity.setId(snapshotAddressId);
+        entity.setMobileNumber(user.getMobileNumber());
         return toResponse(entity);
     }
 
@@ -101,17 +103,16 @@ public class DeliveryAddressService {
         deliveryAddressRepository.lockActiveAddresses(mobileUserUuid);
 
         DeliveryAddressEntity current = deliveryAddressRepository.findActiveOwned(addressId, mobileUserUuid);
-        if (current == null) {
-            DeliveryAddressEntity snapshot = documentRenewalCreateRepository
-                    .findDeliveryAddressSnapshotById(addressId, mobileUserUuid);
-            if (snapshot == null) {
-                throw new BusinessException(AppStatus.DATA_NOT_FOUND, "deliveryAddress");
-            }
-            DeliveryAddressEntity entity = toEntity(addressId, mobileUserUuid, request);
-            entity.setMobileNumber(snapshot.getMobileNumber());
-            documentRenewalCreateRepository.updateDeliveryAddressSnapshot(entity);
-            return toResponse(entity);
+        if (current != null) {
+            return updateActiveOwnedAddress(addressId, mobileUserUuid, request, current);
         }
+
+        return updateOwnedRenewalSnapshot(addressId, mobileUserUuid, request);
+    }
+
+    private DeliveryAddressResponse updateActiveOwnedAddress(
+            String addressId, String mobileUserUuid, DeliveryAddressRequest request,
+            DeliveryAddressEntity current) {
         if (Boolean.TRUE.equals(current.getIsDefault()) && !Boolean.TRUE.equals(request.getIsDefault())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "isDefault");
         }
@@ -121,6 +122,20 @@ public class DeliveryAddressService {
 
         DeliveryAddressEntity entity = toEntity(addressId, mobileUserUuid, request);
         deliveryAddressRepository.update(entity);
+        return toResponse(entity);
+    }
+
+    private DeliveryAddressResponse updateOwnedRenewalSnapshot(
+            String addressId, String mobileUserUuid, DeliveryAddressRequest request) {
+        DeliveryAddressEntity snapshot = documentRenewalCreateRepository
+                .findDeliveryAddressSnapshotById(addressId, mobileUserUuid);
+        if (snapshot == null) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "deliveryAddress");
+        }
+
+        DeliveryAddressEntity entity = toEntity(addressId, mobileUserUuid, request);
+        entity.setMobileNumber(snapshot.getMobileNumber());
+        documentRenewalCreateRepository.updateDeliveryAddressSnapshot(entity);
         return toResponse(entity);
     }
 

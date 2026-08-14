@@ -17,8 +17,10 @@ public class CacheConfig {
         CaffeineCache masterMessageCode = buildCaffeineCache(BusinessConstant.MASTER_MESSAGE_CODE, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
         CaffeineCache masterProvinces = buildCaffeineCache(BusinessConstant.MASTER_PROVINCES, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
         CaffeineCache masterDocument = buildCaffeineCache(BusinessConstant.MASTER_DOCUMENT, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
+        CaffeineCache masterDocumentRenewalStatus = buildCaffeineCache(BusinessConstant.MASTER_DOCUMENT_RENEWAL_STATUS, BusinessConstant.CACHE_GENERAL_EXPIRE_HOURS);
         SimpleCacheManager simpleCacheManager = new SimpleCacheManager();
-        simpleCacheManager.setCaches(Arrays.asList(masterMessageCode, masterProvinces, masterDocument));
+        simpleCacheManager.setCaches(Arrays.asList(masterMessageCode, masterProvinces,
+                masterDocument, masterDocumentRenewalStatus));
         simpleCacheManager.initializeCaches();
 
         return simpleCacheManager;

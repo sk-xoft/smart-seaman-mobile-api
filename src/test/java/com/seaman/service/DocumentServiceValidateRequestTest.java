@@ -106,8 +106,6 @@ class DocumentServiceValidateRequestTest {
 
     @Test
     void createsPaymentPendingRequestAndReturnsProfileItemStatusFromValidation() {
-        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
-                .thenReturn(Collections.singletonList(item("PROFILE", "MISSING")));
         stubRequestCreation(1, Collections.singletonList(item("PROFILE", "MISSING")));
 
         DocumentRequestValidateResponse response = service.validateAndCreateDocumentRenewalsItems(request);
@@ -124,7 +122,7 @@ class DocumentServiceValidateRequestTest {
         assertEquals("0812345678", response.getMobileNumber());
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
-        assertEquals("default-address-id", response.getAddress().get(0).getId());
+        assertEquals("snapshot-address-id", response.getAddress().get(0).getId());
         assertEquals("Somchai", response.getAddress().get(0).getFirstName());
         assertEquals("0812345678", response.getAddress().get(0).getMobileNumber());
         assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
@@ -144,8 +142,6 @@ class DocumentServiceValidateRequestTest {
     @Test
     void createsPaymentPendingRequestWithIdempotencyKeyInResponse() {
         request.setIdempotencyKey("renewal-doc001-attempt-1");
-        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
-                .thenReturn(Collections.singletonList(item("PROFILE", "MISSING")));
         stubRequestCreation(1, Collections.singletonList(item("PROFILE", "MISSING")));
 
         DocumentRequestValidateResponse response = service.validateAndCreateDocumentRenewalsItems(request);
@@ -161,9 +157,6 @@ class DocumentServiceValidateRequestTest {
 
     @Test
     void createsPaymentPendingRequestWhenProfileDocumentsAreComplete() {
-        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
-                .thenReturn(Arrays.asList(item("MRI002", "PROFILE", "COMPLETE"),
-                        item("MRI004", "REQUEST", "MISSING")));
         stubRequestCreation(2, Arrays.asList(item("MRI002", "PROFILE", "COMPLETE"),
                 item("MRI004", "REQUEST", "MISSING")));
 
@@ -176,7 +169,7 @@ class DocumentServiceValidateRequestTest {
         assertEquals("0812345678", response.getMobileNumber());
         assertEquals("crew@example.com", response.getEmail());
         assertEquals(1, response.getAddress().size());
-        assertEquals("default-address-id", response.getAddress().get(0).getId());
+        assertEquals("snapshot-address-id", response.getAddress().get(0).getId());
         assertEquals("1 Ocean Road ตำบลSi Lom อำเภอBang Rak จังหวัดBangkok 10500",
                 response.getAddress().get(0).getDescription());
         assertEquals(2, response.getItems().size());
@@ -236,6 +229,7 @@ class DocumentServiceValidateRequestTest {
                 response.getAddress().get(0).getDescription());
         assertEquals("MISSING", response.getItems().get(0).getDocumentStatus());
         verify(documentRepository, never()).findMissingItemsByUserAndDocumentCode(anyString(), anyString());
+        verify(createRepository, never()).countActiveRequiredItems(anyString());
         verify(renewalService, never()).price(anyString());
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any());
@@ -271,6 +265,7 @@ class DocumentServiceValidateRequestTest {
         assertEquals("COMPLETE", response.getItems().get(0).getDocumentStatus());
         verify(createRepository, never()).findLatestActiveRequestNotDelivered(anyString(), anyString());
         verify(documentRepository, never()).findMissingItemsByUserAndDocumentCode(anyString(), anyString());
+        verify(createRepository, never()).countActiveRequiredItems(anyString());
         verify(renewalService, never()).price(anyString());
         verify(createRepository, never()).insertRequest(anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any());
@@ -278,11 +273,10 @@ class DocumentServiceValidateRequestTest {
 
     @Test
     void createsPaymentPendingRequestWithoutSnapshotWhenDefaultDeliveryAddressDoesNotExist() {
-        when(documentRepository.findMissingItemsByUserAndDocumentCode("mobile-user-uuid", "DOC001"))
-                .thenReturn(Collections.singletonList(item("PROFILE", "MISSING")));
         DocumentRenewalPriceResponse price = new DocumentRenewalPriceResponse();
         price.setPriceSettingId("price-setting-id");
         price.setTotal(new BigDecimal("1500.00"));
+        when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(1);
         when(renewalService.price("DOC001")).thenReturn(price);
         when(deliveryAddressRepository.findActiveDefaults("mobile-user-uuid"))
                 .thenReturn(Collections.<DeliveryAddressEntity>emptyList());
@@ -312,6 +306,7 @@ class DocumentServiceValidateRequestTest {
         DocumentRenewalPriceResponse price = new DocumentRenewalPriceResponse();
         price.setPriceSettingId("price-setting-id");
         price.setTotal(new BigDecimal("1500.00"));
+        when(createRepository.countActiveRequiredItems("DOC001")).thenReturn(itemCount);
         when(renewalService.price("DOC001")).thenReturn(price);
         when(frameworkUtils.generateUUID()).thenReturn("request-id");
         when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
@@ -319,6 +314,8 @@ class DocumentServiceValidateRequestTest {
                 .thenReturn("payment-status-id");
         when(deliveryAddressRepository.findActiveDefaults("mobile-user-uuid"))
                 .thenReturn(Collections.singletonList(defaultAddress));
+        when(createRepository.insertDeliveryAddressSnapshot("request-id", defaultAddress, "0812345678"))
+                .thenReturn("snapshot-address-id");
         when(createRepository.insertRequestItems("request-id", "DOC001")).thenReturn(itemCount);
         when(createRepository.findRequestItemsForValidate("request-id", "mobile-user-uuid"))
                 .thenReturn(createdItems);

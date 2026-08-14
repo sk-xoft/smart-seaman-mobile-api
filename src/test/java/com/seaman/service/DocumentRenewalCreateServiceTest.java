@@ -79,6 +79,8 @@ class DocumentRenewalCreateServiceTest {
         when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
         when(foundationRepository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING))
                 .thenReturn("payment-status-id");
+        when(createRepository.insertDeliveryAddressSnapshot(anyString(), eq(address), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
         when(createRepository.insertRequestItems(anyString(), eq("DOC001"))).thenReturn(4);
 
         DocumentRenewalCreateResponse response = service.create(input);
@@ -87,6 +89,7 @@ class DocumentRenewalCreateServiceTest {
         assertEquals("DOC001", response.getDocumentCode());
         assertEquals("PAYMENT_PENDING", response.getStatus());
         assertEquals(new BigDecimal("1500.00"), response.getAmount());
+        assertEquals("snapshot-address-id", response.getDeliveryAddressId());
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
                 eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
                 eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
@@ -110,11 +113,14 @@ class DocumentRenewalCreateServiceTest {
         when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
         when(foundationRepository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING))
                 .thenReturn("payment-status-id");
+        when(createRepository.insertDeliveryAddressSnapshot(anyString(), eq(address), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
         when(createRepository.insertRequestItems(anyString(), eq("DOC001"))).thenReturn(2);
 
         DocumentRenewalCreateResponse response = service.create(input);
 
         assertEquals("260700001", response.getRequestNo());
+        assertEquals("snapshot-address-id", response.getDeliveryAddressId());
         verify(createRepository).insertRequest(anyString(), eq("260700001"),
                 eq("mobile-user-uuid"), eq("0812345678"), eq("crew@example.com"),
                 eq("DOC001"), eq("payment-status-id"), eq("price-setting-id"), eq(input.getDeliveryAddressId()),
@@ -136,11 +142,14 @@ class DocumentRenewalCreateServiceTest {
         when(createRepository.nextRequestNo(anyString())).thenReturn("260700001");
         when(foundationRepository.findActiveStatusId(DocumentRenewalStatus.PAYMENT_PENDING))
                 .thenReturn("payment-status-id");
+        when(createRepository.insertDeliveryAddressSnapshot(anyString(), eq(address), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
         when(createRepository.insertRequestItems(anyString(), eq("DOC001"))).thenReturn(2);
 
         DocumentRenewalCreateResponse response = service.create(input);
 
         assertEquals("260700001", response.getRequestNo());
+        assertEquals("snapshot-address-id", response.getDeliveryAddressId());
         verify(createRepository).insertRequestItems(anyString(), eq("DOC001"));
     }
 

@@ -110,10 +110,12 @@ CREATE TABLE m_document_request (
     mobile_number       VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
     email               VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
     document_code       VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+    idempotency_key     VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
     document_status_id  CHAR(36)        NOT NULL,
     price_setting_id    CHAR(36)        NULL,
     delivery_address_id CHAR(36)        NULL,
     is_resubmit         TINYINT(1)      NOT NULL DEFAULT 0,     -- 1 = ผู้ยื่น resubmit หลังแก้ไข
+    is_active           VARCHAR(3)      NOT NULL DEFAULT 'YES', -- YES = active, NO = soft deleted
     amount              DECIMAL(10, 2)  NOT NULL DEFAULT 0.00,  -- ยอดชำระ (บาท)
     submitted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     submitted_by        CHAR(36)        NULL,                   -- NULL = ลูกเรือยื่นเอง
@@ -121,11 +123,15 @@ CREATE TABLE m_document_request (
     updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_docreq_request_no (request_no),
+    UNIQUE KEY uq_docreq_user_idempotency_key (mobile_user_uuid, idempotency_key),
     KEY idx_docreq_mobile_user (mobile_user_uuid),
     KEY idx_docreq_document_code (document_code),
     KEY idx_docreq_price_setting (price_setting_id),
     KEY idx_docreq_delivery_address (delivery_address_id),
+    KEY idx_docreq_active_user (is_active, mobile_user_uuid),
     KEY idx_docreq_status_submitted (document_status_id, submitted_at),
+    KEY idx_docreq_validate_user_doc_active_submitted_id
+        (mobile_user_uuid, document_code, is_active, submitted_at, id),
     CONSTRAINT chk_docreq_amount
         CHECK (amount >= 0),
     CONSTRAINT chk_docreq_resubmit
@@ -145,8 +151,10 @@ CREATE TABLE m_document_request (
 - ยังไม่ใส่ FK ตรงไปยัง `m_mobile_users` และ `m_documents` ใน script นี้ เพราะต้องยืนยัน DDL/type ของ table เดิมก่อน หาก type/index ตรงกันให้เพิ่ม FK ใน migration เฉพาะ environment ได้
 - `request_no` สร้างจาก sequence ที่ฝั่ง application (format: `YYMM` + running 5 digits เช่น `250500001`) เพื่อรองรับมากกว่า 999 requests ต่อเดือน
 - `is_resubmit = 1` จะเซ็ตเมื่อลูกเรือแก้ไขเอกสารแล้วส่งกลับมาใหม่ UI จะแสดง badge "ผู้ยื่น resubmit"
+- `is_active = 'NO'` ใช้กับ soft delete และต้องอยู่ใน owner-scoped lookup ทุกครั้ง
 - `price_setting_id` อ้าง `m_document_prices_setting.id`; `amount` เป็นยอดรวมที่ตรึงไว้ตอนสร้าง request
 - `delivery_address_id` อ้าง `m_delivery_address.id` เป็น source reference; ข้อมูลที่อยู่ ณ เวลาสร้าง request จะถูก copy ไปที่ `m_document_request_delivery_address`
+- `idx_docreq_validate_user_doc_active_submitted_id` รองรับ lookup active non-delivered renewal request ของ validate-and-create
 
 ---
 ## M_DOCUMENT_PRICES_SETTING
@@ -423,6 +431,9 @@ CREATE TABLE m_document_profile_request_item (
     KEY idx_profile_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
     KEY idx_profile_reqitem_master_code (document_master_request_item_code),
     KEY idx_profile_reqitem_check_result (check_result),
+    KEY idx_profile_reqitem_validate_state
+        (mobile_user_uuid, document_master_request_item_code,
+         document_type, slot_code, file_uploaded, check_result),
     UNIQUE KEY uq_profile_reqitem_mobile_master_slot
         (mobile_user_uuid, document_master_request_item_code, document_type, slot_code),
     CONSTRAINT chk_profile_reqitem_file_uploaded
@@ -447,6 +458,7 @@ CREATE TABLE m_document_profile_request_item (
 - `document_type`/`slot_code` ใช้รองรับ `ID_CARD/FRONT+BACK`, `PASSPORT/MAIN` และ `GENERAL/MAIN`
 - `check_result` มีค่า `'pass'`, `'fix'` หรือ `NULL`; เมื่อเป็น `'fix'` ต้องมี `check_note`
 - `is_updated = 1` ใช้แสดงว่าไฟล์ถูกส่งมาแก้ไขใหม่
+- `idx_profile_reqitem_validate_state` รองรับ hot query ของ validate-and-create ที่ aggregate profile file state ต่อ user/item
 
 ---
 
@@ -480,6 +492,8 @@ CREATE TABLE m_document_request_item_files (
     KEY idx_doc_reqitem_files_request_item (request_item_id, sort_order),
     KEY idx_doc_reqitem_files_master_code (document_master_request_item_code),
     KEY idx_doc_reqitem_files_check_result (check_result),
+    KEY idx_doc_reqitem_files_validate_state
+        (request_item_id, document_type, slot_code, file_uploaded, check_result),
     UNIQUE KEY uq_doc_reqitem_files_slot
         (request_item_id, document_type, slot_code),
     CONSTRAINT chk_doc_reqitem_files_file_uploaded
@@ -500,6 +514,7 @@ CREATE TABLE m_document_request_item_files (
 **หมายเหตุ:**
 - ใช้สำหรับ upload files เฉพาะ request เช่น `MRI004` ที่ seed เป็น `storage_scope = 'REQUEST'`
 - Unique key ป้องกัน slot ซ้ำใน request item เดียวกัน
+- `idx_doc_reqitem_files_validate_state` รองรับ hot query ของ validate-and-create ที่ aggregate request-scoped file state ต่อ request item
 
 ---
 

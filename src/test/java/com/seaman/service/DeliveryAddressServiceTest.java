@@ -211,9 +211,14 @@ class DeliveryAddressServiceTest {
         when(documentRenewalCreateRepository.countDeliveryAddressSnapshot("request-id", "user-uuid"))
                 .thenReturn(0);
         when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(0);
+        when(documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+                eq("request-id"), any(DeliveryAddressEntity.class), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
 
         DeliveryAddressResponse response = service.createForRenewal("REQ001", request);
 
+        assertEquals("snapshot-address-id", response.getId());
+        assertEquals("0812345678", response.getMobileNumber());
         assertTrue(response.getIsDefault());
         verify(deliveryAddressRepository).insert(any(DeliveryAddressEntity.class));
         verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(
@@ -230,9 +235,14 @@ class DeliveryAddressServiceTest {
         when(documentRenewalCreateRepository.countDeliveryAddressSnapshot("request-id", "user-uuid"))
                 .thenReturn(0);
         when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(1);
+        when(documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+                eq("request-id"), any(DeliveryAddressEntity.class), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
 
-        service.createForRenewal("REQ001", request);
+        DeliveryAddressResponse response = service.createForRenewal("REQ001", request);
 
+        assertEquals("snapshot-address-id", response.getId());
+        assertEquals("0812345678", response.getMobileNumber());
         verify(deliveryAddressRepository, never()).insert(any(DeliveryAddressEntity.class));
         verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(
                 eq("request-id"), any(DeliveryAddressEntity.class), eq("0812345678"));
@@ -250,9 +260,13 @@ class DeliveryAddressServiceTest {
         when(documentRenewalCreateRepository.countDeliveryAddressSnapshot(requestId, "user-uuid"))
                 .thenReturn(0);
         when(deliveryAddressRepository.countActive("user-uuid")).thenReturn(1);
+        when(documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+                eq(requestId), any(DeliveryAddressEntity.class), eq("0812345678")))
+                .thenReturn("snapshot-address-id");
 
-        service.createForRenewal(requestId, request);
+        DeliveryAddressResponse response = service.createForRenewal(requestId, request);
 
+        assertEquals("snapshot-address-id", response.getId());
         verify(documentRenewalFoundationRepository).lockOwnedRequest(requestId, "user-uuid");
         verify(documentRenewalFoundationRepository, never()).lockOwnedRequestByNo(any(), any());
         verify(documentRenewalCreateRepository).insertDeliveryAddressSnapshot(

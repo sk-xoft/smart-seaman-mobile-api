@@ -73,7 +73,8 @@ public class DocumentRenewalCreateService {
         createRepository.insertRequest(requestId, requestNo, user.getMobileUuid(),
                 user.getMobileNumber(), user.getEmail(), documentCode, statusId,
                 price.getPriceSettingId(), address.getId(), price.getTotal(), null);
-        createRepository.insertDeliveryAddressSnapshot(requestId, address, user.getMobileNumber());
+        String snapshotAddressId = createRepository.insertDeliveryAddressSnapshot(
+                requestId, address, user.getMobileNumber());
         int itemCount = createRepository.insertRequestItems(requestId, documentCode);
         if (itemCount != requiredCount) {
             throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "documentRenewalRequestItems");
@@ -87,7 +88,7 @@ public class DocumentRenewalCreateService {
         response.setDocumentCode(documentCode);
         response.setStatus(DocumentRenewalStatus.PAYMENT_PENDING.name());
         response.setAmount(price.getTotal());
-        response.setDeliveryAddressId(address.getId());
+        response.setDeliveryAddressId(snapshotAddressId);
         return response;
     }
 

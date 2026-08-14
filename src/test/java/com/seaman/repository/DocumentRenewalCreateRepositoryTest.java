@@ -14,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -74,7 +75,12 @@ class DocumentRenewalCreateRepositoryTest {
         assertTrue(sql.getValue().contains("THEN 'INCOMPLETE'"));
         assertTrue(sql.getValue().indexOf("WHEN m.storage_scope = 'PROFILE'")
                 < sql.getValue().indexOf("WHEN i.approve_status = 'PASS'"));
-        assertTrue(sql.getValue().contains("m_document_profile_request_item pf"));
+        assertTrue(sql.getValue().contains("AS valid_id_front_back_slots"));
+        assertTrue(sql.getValue().contains("AS valid_general_main"));
+        assertTrue(sql.getValue().contains("GROUP BY mobile_user_uuid, document_master_request_item_code"));
+        assertTrue(sql.getValue().contains("GROUP BY request_item_id"));
+        assertFalse(sql.getValue().contains("CAST("));
+        assertFalse(sql.getValue().contains("COLLATE"));
         assertTrue(sql.getValue().contains("ELSE 'MISSING'"));
     }
 
@@ -136,14 +142,16 @@ class DocumentRenewalCreateRepositoryTest {
         address.setSubDistrict("Si Lom");
         address.setPostalCode("10500");
 
-        repository.insertDeliveryAddressSnapshot("request-id", address, "0812345678");
+        String snapshotId = repository.insertDeliveryAddressSnapshot("request-id", address, "0812345678");
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> parameters =
                 ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(template).update(sql.capture(), parameters.capture());
         assertTrue(sql.getValue().contains("INSERT INTO m_document_request_delivery_address"));
+        assertTrue(sql.getValue().contains("(id, request_id"));
         assertTrue(sql.getValue().contains("source_delivery_address_id"));
+        assertEquals(snapshotId, parameters.getValue().getValue("id"));
         assertEquals("request-id", parameters.getValue().getValue("requestId"));
         assertEquals("address-id", parameters.getValue().getValue("sourceDeliveryAddressId"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
@@ -193,7 +201,8 @@ class DocumentRenewalCreateRepositoryTest {
         assertTrue(sql.getValue().contains("FROM m_document_request_delivery_address"));
         assertTrue(sql.getValue().contains("request_id = :requestId"));
         assertTrue(sql.getValue().contains("mobile_user_uuid = :mobileUserUuid"));
-        assertTrue(sql.getValue().contains("COALESCE(a.source_delivery_address_id, a.id) AS id"));
+        assertTrue(sql.getValue().contains("SELECT a.id, a.mobile_user_uuid"));
+        assertFalse(sql.getValue().contains("COALESCE(a.source_delivery_address_id, a.id) AS id"));
         assertTrue(sql.getValue().contains("AS description"));
         assertTrue(sql.getValue().contains("LEFT JOIN provinces p"));
         assertTrue(sql.getValue().contains("LEFT JOIN districts d"));

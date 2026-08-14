@@ -46,6 +46,8 @@ CREATE TABLE m_document_request (
     KEY idx_docreq_delivery_address (delivery_address_id),
     KEY idx_docreq_active_user (is_active, mobile_user_uuid),
     KEY idx_docreq_status_submitted (document_status_id, submitted_at),
+    KEY idx_docreq_validate_user_doc_active_submitted_id
+        (mobile_user_uuid, document_code, is_active, submitted_at, id),
     CONSTRAINT chk_docreq_amount
         CHECK (amount >= 0),
     CONSTRAINT chk_docreq_resubmit
@@ -262,6 +264,9 @@ CREATE TABLE m_document_profile_request_item (
     KEY idx_profile_reqitem_mobile_user_sort (mobile_user_uuid, sort_order),
     KEY idx_profile_reqitem_master_code (document_master_request_item_code),
     KEY idx_profile_reqitem_check_result (check_result),
+    KEY idx_profile_reqitem_validate_state
+        (mobile_user_uuid, document_master_request_item_code,
+         document_type, slot_code, file_uploaded, check_result),
     UNIQUE KEY uq_profile_reqitem_mobile_master_slot
         (mobile_user_uuid, document_master_request_item_code, document_type, slot_code),
     CONSTRAINT chk_profile_reqitem_file_uploaded
@@ -303,6 +308,8 @@ CREATE TABLE m_document_request_item_files (
     KEY idx_doc_reqitem_files_request_item (request_item_id, sort_order),
     KEY idx_doc_reqitem_files_master_code (document_master_request_item_code),
     KEY idx_doc_reqitem_files_check_result (check_result),
+    KEY idx_doc_reqitem_files_validate_state
+        (request_item_id, document_type, slot_code, file_uploaded, check_result),
     UNIQUE KEY uq_doc_reqitem_files_slot
         (request_item_id, document_type, slot_code),
     CONSTRAINT chk_doc_reqitem_files_file_uploaded

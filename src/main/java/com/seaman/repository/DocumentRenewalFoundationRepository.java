@@ -1,6 +1,7 @@
 package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.constant.BusinessConstant;
 import com.seaman.constant.DocumentRenewalAction;
 import com.seaman.constant.DocumentRenewalStatus;
 import com.seaman.entity.DocumentRenewalRequestEntity;
@@ -10,6 +11,7 @@ import com.seaman.entity.RenewalRequestItemEntity;
 import com.seaman.entity.DeptSubmissionEntity;
 import com.seaman.entity.DeliveryEntity;
 import com.seaman.exception.BusinessException;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Repository;
@@ -92,6 +94,7 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
         return rows.get(0);
     }
 
+    @Cacheable(cacheNames = BusinessConstant.MASTER_DOCUMENT_RENEWAL_STATUS, key = "#status.name()", sync = true)
     public String findActiveStatusId(DocumentRenewalStatus status) {
         List<String> ids = template.query(
                 "SELECT id FROM m_document_status WHERE document_status_code = :statusCode "

@@ -6,8 +6,11 @@ import com.seaman.service.DeliveryAddressService;
 import com.seaman.service.MessageCodeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 import javax.servlet.http.HttpServletRequest;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,5 +59,16 @@ class DeliveryAddressControllerTest {
         verify(service).create(input);
         verify(service).createForRenewal("REQ001", input);
         verify(service).update("address-id", input);
+    }
+
+    @Test
+    void updateMappingUsesAddressIdPathVariable() throws Exception {
+        Method update = DeliveryAddressController.class.getMethod(
+                "update", HttpServletRequest.class, String.class, DeliveryAddressRequest.class);
+        Method createForRenewal = DeliveryAddressController.class.getMethod(
+                "createForRenewal", HttpServletRequest.class, String.class, DeliveryAddressRequest.class);
+
+        assertEquals("/delivery-addresses/{addressId}", update.getAnnotation(PutMapping.class).value()[0]);
+        assertEquals("/delivery-addresses/{requestNo}", createForRenewal.getAnnotation(PostMapping.class).value()[0]);
     }
 }

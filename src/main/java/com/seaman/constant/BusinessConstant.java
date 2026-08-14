@@ -8,6 +8,7 @@ public class BusinessConstant {
     public static final String MASTER_MESSAGE_CODE =  "masterMessageCode";
     public static final String MASTER_PROVINCES = "masterProvinces";
     public static final String MASTER_DOCUMENT = "masterDocument";
+    public static final String MASTER_DOCUMENT_RENEWAL_STATUS = "masterDocumentRenewalStatus";
 
     public static final int CACHE_GENERAL_EXPIRE_HOURS = 24;
 

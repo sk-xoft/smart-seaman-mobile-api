@@ -3,7 +3,7 @@
 อ้างอิง:
 - Requirement: `documents/mvp1/document_renewal_figma_spec.md`
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
-- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`
+- DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`, `documents/mvp1/script/90_16_migrate_validate_create_covering_indexes.sql`
 
 อัปเดตล่าสุด: 2026-08-08
 ผู้รับผิดชอบ: Backend
@@ -222,16 +222,16 @@ Business logic:
   - คืน `requestId`, `requestNo`, `documentCode`, `items`
   - ไม่เรียก price service, ไม่ insert request ใหม่ และไม่ append timeline ซ้ำ
 - ถ้าไม่พบ active request เดิม:
-  - query required/profile items ของ user/document
+  - count required items ของ document ด้วย query เบา; ถ้า count เป็น 0 ให้คืน `DOCUMENT_SETTING_NOT_FOUND`
   - ถ้าไม่พบ document setting หรือ request items ให้คืน business error `DOCUMENT_SETTING_NOT_FOUND`
   - ดึงราคา renewal จาก active/effective price config
   - ดึง default active delivery address ของ user ถ้ามี
   - สร้าง request ใหม่เป็น unpaid draft status `PAYMENT_PENDING`
   - snapshot delivery address ลง `m_document_request_delivery_address` ใน transaction เดียวกับ request เฉพาะกรณีมี default address
   - สร้าง request items ตาม required setting
-  - ถ้าจำนวน request items ที่ insert ไม่เท่ากับจำนวน items ที่ validate ได้ ให้ rollback ด้วย database error
+  - ถ้าจำนวน request items ที่ insert ไม่เท่ากับจำนวน required items ให้ rollback ด้วย database error
   - append `m_document_transaction` action `CREATE` พร้อม note `Unpaid draft created`
-  - fetch request items ที่เพิ่ง insert แล้วคืน response โดยใช้ rule แยกตาม `storageScope`
+  - fetch request items ที่เพิ่ง insert แล้วคืน response โดยใช้ aggregate file state แยกตาม `storageScope`
   - first create response ของ `storageScope = PROFILE` ต้องแสดง `documentStatus` จาก profile validation จริง ไม่ใช่ force เป็น `COMPLETE`
   - item ที่เป็น `storageScope = PROFILE` ต้องดึง `fileUploaded` และ file metadata จาก `m_document_profile_request_item`
   - item ที่เป็น `storageScope = PROFILE` ต้องไม่ใช้ `m_document_request_items.approve_status = PASS` มา override เป็น `COMPLETE` ถ้า profile ไม่มีไฟล์จริง
@@ -255,7 +255,7 @@ Acceptance criteria:
 - first create response ต้องคืน `requestId`, `requestNo`, `documentCode`, `documentName` และ `items`
 - response ต้องคืน `idempotencyKey` เมื่อ request ถูกสร้างหรือ reused จาก key นั้น
 - response ต้องคืน `mobileNumber` และ `email` จาก snapshot/authenticated user
-- response ต้องคืน `address` เป็น array ของ delivery address snapshot; ถ้าไม่มี address ให้คืน `[]`
+- response ต้องคืน `address` เป็น array ของ delivery address snapshot; `address[].id` ต้องเป็น `m_document_request_delivery_address.id` ของ request นั้น; ถ้าไม่มี address ให้คืน `[]`
 - item ที่เป็น `storageScope = PROFILE` ต้องคืน `documentStatus` ตามไฟล์ profile จริง เช่น `COMPLETE`, `MISSING`, `NOT_UPLOADED`, `NEED_FIX` หรือ `INCOMPLETE`
 - item ที่เป็น `storageScope = PROFILE` ต้องคืน `fileUploaded` จาก profile document ของ user
 - item ที่เป็น `storageScope = PROFILE` และไม่มีข้อมูลใน `m_document_profile_request_item` ต้องไม่คืน `documentStatus = COMPLETE`
@@ -266,8 +266,9 @@ Acceptance criteria:
 Evidence when done:
 - API example: `POST /v1/documents-renewals/requests/validate-and-create`
 - Test class: `DocumentServiceValidateRequestTest`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 37, Failures: 0, Errors: 0, Skipped: 0`
 - Files changed: `Routes`, `DocumentController`, `DocumentService`, `DocumentRepository`, `DocumentRenewalCreateRepository`, `DocumentRequestValidateRequest`, `DocumentRequestValidateResponse`, `DocumentRequestItemResponse`
-- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `90_15_migrate_document_request_idempotency_key.sql`, unique key `(mobile_user_uuid, idempotency_key)`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`
+- SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `90_15_migrate_document_request_idempotency_key.sql`, `90_16_migrate_validate_create_covering_indexes.sql`, unique key `(mobile_user_uuid, idempotency_key)`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`, covering indexes `idx_profile_reqitem_validate_state` และ `idx_doc_reqitem_files_validate_state`
 
 Request body:
 
@@ -531,12 +532,14 @@ Implementation checklist:
 Acceptance criteria:
 - ไม่เชื่อถือ `mobileUserUuid`, ราคา หรือ status จาก request body
 - delivery address ต้องเป็น active address ของ authenticated user และถูก snapshot ต่อ request
+- response `deliveryAddressId` ต้องเป็น `m_document_request_delivery_address.id` ของ request นั้น ไม่ใช่ master `m_delivery_address.id`
 - `request_no` unique แม้สร้างพร้อมกัน
 - ไม่เข้า `รอตรวจเอกสาร` ก่อน payment success
 - rollback ทั้ง request/items/transaction เมื่อขั้นตอนใดล้มเหลว
 
 Evidence when done:
 - Test class: `DocumentRenewalCreateServiceTest`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 37, Failures: 0, Errors: 0, Skipped: 0`
 - DB script: `90_04_migrate_renewal_request_draft.sql`
 - DB script: `90_13_migrate_document_request_delivery_address_snapshot.sql`
 - API example: `POST /v1/document-renewals`
@@ -588,6 +591,7 @@ Acceptance criteria:
 
 Evidence when done:
 - DB script: `90_13_migrate_document_request_delivery_address_snapshot.sql`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 37, Failures: 0, Errors: 0, Skipped: 0`
 - Test classes: `DocumentServiceValidateRequestTest`, `DocumentRenewalCreateServiceTest`, `DocumentRenewalCreateRepositoryTest`
 - Files changed: `DocumentService`, `DocumentRenewalCreateService`, `DocumentRenewalCreateRepository`, `01_create_mvp1_tables.sql`
 
@@ -1259,10 +1263,12 @@ Acceptance criteria:
 - ถ้า user ไม่มี active row ใน `m_delivery_address` ต้อง insert address ใหม่ด้วย `mobile_user_uuid` ของ authenticated user
 - ถ้า user มี active row ใน `m_delivery_address` อยู่แล้ว ต้องไม่สร้าง duplicate address จาก endpoint นี้
 - ต้อง insert `m_document_request_delivery_address` ด้วย `request_id` ของ `requestNo` ที่ส่งมา
+- response `id` ต้องเป็น `m_document_request_delivery_address.id` ของ request นั้น
 - request เดิมที่มี snapshot แล้วต้องถูก reject เพื่อไม่ชน unique key `uq_docreq_delivery_address_request`
 
 Evidence when done:
 - Test classes: `DeliveryAddressControllerTest`, `DeliveryAddressServiceTest`, `DocumentRenewalCreateRepositoryTest`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 37, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `POST /v1/delivery-addresses/{requestNoOrId}`
 
 ```bash

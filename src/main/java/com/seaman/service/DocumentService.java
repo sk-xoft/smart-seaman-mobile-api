@@ -580,12 +580,10 @@ public class DocumentService {
             }
 
             segmentStartedAt = System.nanoTime();
-            List<DocumentRequestItemEntity> items =
-                    documentRepository.findMissingItemsByUserAndDocumentCode(
-                            usersEntity.getMobileUuid(), documentCode);
+            int requiredItemCount = documentRenewalCreateRepository.countActiveRequiredItems(documentCode);
             validateItemsMs = elapsedMs(segmentStartedAt);
 
-            if (items == null || items.isEmpty()) {
+            if (requiredItemCount <= 0) {
                 throw new MissingParameterException(AppStatus.DOCUMENT_SETTING_NOT_FOUND, "");
             }
 
@@ -628,17 +626,22 @@ public class DocumentService {
                 return response;
             }
             createRequestMs = elapsedMs(segmentStartedAt);
+
             // ตรวจสอบที่อยู่ ณ ปัจจุบันเป็นข้อมูล address ที่อยู่ปัจจุบันของผู้ใช้งาน
             if (address != null) {
-                documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
+                String snapshotAddressId = documentRenewalCreateRepository.insertDeliveryAddressSnapshot(
                         requestId, address, usersEntity.getMobileNumber());
-                response.setAddress(Collections.singletonList(mapDeliveryAddress(address, usersEntity.getMobileNumber())));
+
+                DeliveryAddressResponse deliveryAddress =
+                        mapDeliveryAddress(address, usersEntity.getMobileNumber());
+                deliveryAddress.setId(snapshotAddressId);
+                response.setAddress(Collections.singletonList(deliveryAddress));
             }
 
             // เพิ่มเอกสารที่ต้องมีในการ renewals
             segmentStartedAt = System.nanoTime();
             int itemCount = documentRenewalCreateRepository.insertRequestItems(requestId, documentCode);
-            if (itemCount != items.size()) {
+            if (itemCount != requiredItemCount) {
                 throw new BusinessException(AppStatus.EXCEPTION_DATABASE, "documentRenewalRequestItems");
             }
             documentRenewalFoundationRepository.appendTransaction(requestId, DocumentRenewalAction.CREATE,

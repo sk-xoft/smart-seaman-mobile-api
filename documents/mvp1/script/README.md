@@ -43,6 +43,7 @@
 | 13 | `90_13_migrate_document_request_delivery_address_snapshot.sql` | เพิ่ม snapshot delivery address ต่อ renewal request และ backfill จาก `delivery_address_id` เท่าที่มีข้อมูล |
 | 14 | `90_14_migrate_validate_create_performance_indexes.sql` | เพิ่ม indexes สำหรับ hot path ของ validate-and-create |
 | 15 | `90_15_migrate_document_request_idempotency_key.sql` | เพิ่ม `idempotency_key` สำหรับกันการสร้าง renewal request draft ซ้ำ |
+| 16 | `90_16_migrate_validate_create_covering_indexes.sql` | เพิ่ม covering indexes สำหรับ query validate-and-create ที่ aggregate file state |
 
 หลัง migration:
 
