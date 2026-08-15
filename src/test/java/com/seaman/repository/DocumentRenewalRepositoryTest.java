@@ -39,6 +39,9 @@ class DocumentRenewalRepositoryTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(template).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertTrue(sql.getValue().contains("document_status_code"));
+        assertTrue(sql.getValue().contains("document_mobile_status_code"));
+        assertTrue(sql.getValue().contains("document_mobile_status_name_th"));
+        assertTrue(sql.getValue().contains("document_mobile_status_name_en"));
         assertTrue(sql.getValue().contains("is_mobile_visible = 'YES'"));
         assertTrue(sql.getValue().contains("ORDER BY CASE document_status_code"));
     }

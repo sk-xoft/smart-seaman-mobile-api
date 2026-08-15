@@ -16,7 +16,6 @@ import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.repository.DocumentRenewalDetailRepository;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRenewalRequestItemFileRepository;
-import com.seaman.repository.DocumentRequestItemFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +38,6 @@ import static org.mockito.Mockito.*;
 class DocumentRenewalDetailServiceTest {
     @Mock DocumentRenewalFoundationRepository foundationRepository;
     @Mock DocumentRenewalDetailRepository detailRepository;
-    @Mock DocumentRequestItemFileRepository fileRepository;
     @Mock DocumentRenewalRequestItemFileRepository requestItemFileRepository;
     @Mock AmazonS3 s3;
     @Mock HttpServletRequest request;
@@ -50,8 +48,7 @@ class DocumentRenewalDetailServiceTest {
     @BeforeEach
     void setUp() {
         service = new DocumentRenewalDetailService(
-                foundationRepository, detailRepository, fileRepository,
-                requestItemFileRepository, s3, request);
+                foundationRepository, detailRepository, requestItemFileRepository, s3, request);
         ReflectionTestUtils.setField(service, "bucketName", "bucket");
         UsersEntity user = new UsersEntity();
         user.setMobileUuid("user-uuid");
@@ -69,6 +66,9 @@ class DocumentRenewalDetailServiceTest {
         owned.setStatusNameEn(
                 DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn());
         owned.setStatusCssColor("#ff914d");
+        owned.setDocumentMobileStatusCode("DOCUMENT_REVIEW");
+        owned.setDocumentMobileStatusNameTh("ตรวจเอกสาร");
+        owned.setDocumentMobileStatusNameEn("Document Review");
         owned.setAmount(new BigDecimal("1500.00"));
     }
 
@@ -94,7 +94,7 @@ class DocumentRenewalDetailServiceTest {
         file.setStorageKey("documents/user/file-id");
         file.setFileUploaded(1);
         file.setIsUpdated(true);
-        when(fileRepository.findFiles("user-uuid", "MRI002"))
+        when(requestItemFileRepository.findFiles("item-id"))
                 .thenReturn(Collections.singletonList(file));
         when(s3.generatePresignedUrl(eq("bucket"), eq("documents/user/file-id"), any(Date.class)))
                 .thenReturn(new URL("https://storage.example/signed"));
@@ -104,6 +104,9 @@ class DocumentRenewalDetailServiceTest {
         assertEquals("ประกาศนียบัตร", response.getDocumentName());
         assertEquals("PENDING_APPLICANT_CORRECTION",
                 response.getStatus().getDocumentStatusCode());
+        assertEquals(1, response.getStatus().getStep());
+        assertEquals("DOCUMENT_REVIEW",
+                response.getStatus().getMobileStatus().getDocumentMobileStatusCode());
         assertEquals("fix", response.getItems().get(0).getCheckResult());
         assertEquals("รูปไม่ชัด", response.getItems().get(0).getCheckNote());
         assertTrue(response.getItems().get(0).getIsUpdated());
@@ -143,11 +146,10 @@ class DocumentRenewalDetailServiceTest {
         assertEquals("request-file-id", response.getItems().get(0).getFiles().get(0).getFileId());
         assertEquals("https://storage.example/request-signed",
                 response.getItems().get(0).getFiles().get(0).getFileUrl());
-        verifyNoInteractions(fileRepository);
     }
 
     @Test
-    void previewsOneProfileScopedItemByRequestNumberAndMasterItemCode() throws Exception {
+    void previewsOneProfileScopedItemFromRequestItemFiles() throws Exception {
         RenewalRequestItemEntity item = new RenewalRequestItemEntity();
         item.setId("item-id");
         item.setDocumentMasterRequestItemCode("MRI002");
@@ -162,7 +164,7 @@ class DocumentRenewalDetailServiceTest {
         file.setId("file-id");
         file.setStorageKey("documents/user/file-id");
         file.setFileUploaded(1);
-        when(fileRepository.findFiles("user-uuid", "MRI002"))
+        when(requestItemFileRepository.findFiles("item-id"))
                 .thenReturn(Collections.singletonList(file));
         when(s3.generatePresignedUrl(eq("bucket"), eq("documents/user/file-id"), any(Date.class)))
                 .thenReturn(new URL("https://storage.example/profile-signed"));
@@ -178,7 +180,6 @@ class DocumentRenewalDetailServiceTest {
         assertEquals("รูปไม่ชัด", response.getCheckNote());
         assertEquals("https://storage.example/profile-signed",
                 response.getFiles().get(0).getFileUrl());
-        verifyNoInteractions(requestItemFileRepository);
     }
 
     @Test
@@ -205,14 +206,13 @@ class DocumentRenewalDetailServiceTest {
         assertEquals("request-file-id", response.getFiles().get(0).getFileId());
         assertEquals("https://storage.example/request-signed",
                 response.getFiles().get(0).getFileUrl());
-        verifyNoInteractions(fileRepository);
     }
 
     @Test
     void rejectsInvalidPreviewItemCodeBeforeReadingData() {
         assertThrows(BusinessException.class,
                 () -> service.previewItem("260700001", "invalid-item-code-too-long"));
-        verifyNoInteractions(foundationRepository, detailRepository, fileRepository, s3);
+        verifyNoInteractions(foundationRepository, detailRepository, requestItemFileRepository, s3);
     }
 
     @Test
@@ -240,6 +240,6 @@ class DocumentRenewalDetailServiceTest {
     @Test
     void rejectsInvalidRequestNumberBeforeReadingData() {
         assertThrows(BusinessException.class, () -> service.detail("invalid request"));
-        verifyNoInteractions(foundationRepository, detailRepository, fileRepository, s3);
+        verifyNoInteractions(foundationRepository, detailRepository, requestItemFileRepository, s3);
     }
 }

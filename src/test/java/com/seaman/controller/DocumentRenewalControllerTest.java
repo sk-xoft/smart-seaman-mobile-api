@@ -8,6 +8,7 @@ import com.seaman.model.request.DocumentRenewalPaymentRequest;
 import com.seaman.model.response.DocumentRenewalCreateResponse;
 import com.seaman.model.response.DocumentRenewalDeleteResponse;
 import com.seaman.model.response.DocumentRenewalMobileResponse;
+import com.seaman.model.response.DocumentRenewalMobileStatusResponse;
 import com.seaman.model.response.DocumentRenewalPriceResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRenewalResubmitResponse;
@@ -57,6 +58,13 @@ class DocumentRenewalControllerTest {
         HttpServletRequest request = mock(HttpServletRequest.class);
         DocumentRenewalStatusResponse status = new DocumentRenewalStatusResponse();
         status.setNameEn("Pending Document Review");
+        DocumentRenewalMobileStatusResponse mobileStatus =
+                new DocumentRenewalMobileStatusResponse();
+        mobileStatus.setDocumentMobileStatusCode("DOCUMENT_REVIEW");
+        mobileStatus.setNameTh("ตรวจเอกสาร");
+        mobileStatus.setNameEn("Document Review");
+        mobileStatus.setStep(1);
+        status.setMobileStatus(mobileStatus);
         when(renewal.statuses()).thenReturn(List.of(status));
         when(messages.getMessageDescription(eq(AppStatus.SUCCESS_CODE), any())).thenReturn("Success");
         DocumentRenewalController controller = new DocumentRenewalController(
@@ -66,6 +74,9 @@ class DocumentRenewalControllerTest {
                 controller.statuses(request);
 
         assertEquals("Pending Document Review", response.getBody().getData().get(0).getNameEn());
+        assertEquals("DOCUMENT_REVIEW",
+                response.getBody().getData().get(0).getMobileStatus()
+                        .getDocumentMobileStatusCode());
         verify(renewal).statuses();
     }
 

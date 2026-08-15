@@ -95,7 +95,7 @@ class DocumentRenewalFoundationRepositoryTest {
     }
 
     @Test
-    void correctionCompletenessRequiresUpdatedValidProfileFiles() {
+    void correctionCompletenessRequiresUpdatedValidRequestScopedFilesRegardlessOfStorageScope() {
         when(template.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
                 .thenReturn(0);
 
@@ -104,13 +104,15 @@ class DocumentRenewalFoundationRepositoryTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(template).queryForObject(sql.capture(), any(MapSqlParameterSource.class), eq(Integer.class));
         assertTrue(sql.getValue().contains("i.approve_status = 'FIX'"));
-        assertTrue(sql.getValue().contains("p.is_updated = 1"));
-        assertTrue(sql.getValue().contains("p.check_result <> 'fix'"));
-        assertTrue(sql.getValue().contains("p.slot_code IN ('FRONT','BACK')"));
-        assertTrue(sql.getValue().contains("p.slot_code = 'MAIN'"));
-        assertTrue(sql.getValue().contains("p.document_type = 'PASSPORT'"));
-        assertTrue(sql.getValue().contains("m.storage_scope = 'REQUEST'"));
+        assertTrue(sql.getValue().contains("f.is_updated = 1"));
+        assertTrue(sql.getValue().contains("f.check_result <> 'fix'"));
+        assertTrue(sql.getValue().contains("f.slot_code IN ('FRONT','BACK')"));
+        assertTrue(sql.getValue().contains("f.slot_code = 'MAIN'"));
+        assertTrue(sql.getValue().contains("f.document_type = 'PASSPORT'"));
+        assertTrue(sql.getValue().contains("f.request_item_id = i.id"));
         assertTrue(sql.getValue().contains("m_document_request_item_files f"));
+        assertTrue(!sql.getValue().contains("m_document_profile_request_item"));
+        assertTrue(!sql.getValue().contains("m.storage_scope"));
     }
 
     @Test
@@ -182,6 +184,10 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getAllValues().get(0).contains("r.request_no = :requestNo"));
         assertTrue(sql.getAllValues().get(0).contains("r.is_active = 'YES'"));
         assertTrue(!sql.getAllValues().get(0).contains("FOR UPDATE"));
+        assertTrue(sql.getAllValues().get(1).contains("fs.document_mobile_status_code"));
+        assertTrue(sql.getAllValues().get(1).contains("ts.document_mobile_status_code"));
+        assertTrue(sql.getAllValues().get(1).contains("LEFT JOIN m_document_status fs"));
+        assertTrue(sql.getAllValues().get(1).contains("LEFT JOIN m_document_status ts"));
         assertTrue(sql.getAllValues().get(1).contains("ORDER BY t.actioned_at, t.id"));
     }
 }

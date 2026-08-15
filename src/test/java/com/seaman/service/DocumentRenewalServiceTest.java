@@ -39,9 +39,27 @@ class DocumentRenewalServiceTest {
 
         assertEquals("PENDING_APPLICANT_CORRECTION", result.get(0).getDocumentStatusCode());
         assertEquals(1, result.get(0).getProgressStep());
+        assertEquals("DOCUMENT_REVIEW",
+                result.get(0).getMobileStatus().getDocumentMobileStatusCode());
+        assertEquals("ตรวจเอกสาร", result.get(0).getMobileStatus().getNameTh());
         assertTrue(result.get(0).isCorrection());
         assertNull(result.get(1).getProgressStep());
+        assertNull(result.get(1).getMobileStatus());
         assertTrue(result.get(1).isTerminal());
+    }
+
+    @Test
+    void mapsPaymentPendingToDocumentReviewProgress() {
+        DocumentRenewalStatusEntity paymentPending = status("Payment Pending");
+        paymentPending.setDocumentStatusCode("PAYMENT_PENDING");
+        when(repository.findActiveStatuses()).thenReturn(Collections.singletonList(paymentPending));
+
+        java.util.List<DocumentRenewalStatusResponse> result = service.statuses();
+
+        assertEquals("PAYMENT_PENDING", result.get(0).getDocumentStatusCode());
+        assertEquals(1, result.get(0).getProgressStep());
+        assertEquals("DOCUMENT_REVIEW",
+                result.get(0).getMobileStatus().getDocumentMobileStatusCode());
     }
 
     @Test
@@ -113,6 +131,11 @@ class DocumentRenewalServiceTest {
     private DocumentRenewalStatusEntity status(String nameEn) {
         DocumentRenewalStatusEntity entity = new DocumentRenewalStatusEntity();
         entity.setNameEn(nameEn);
+        if (!"Cancelled".equals(nameEn)) {
+            entity.setDocumentMobileStatusCode("DOCUMENT_REVIEW");
+            entity.setDocumentMobileStatusNameTh("ตรวจเอกสาร");
+            entity.setDocumentMobileStatusNameEn("Document Review");
+        }
         return entity;
     }
 }

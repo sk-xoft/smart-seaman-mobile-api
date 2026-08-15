@@ -84,6 +84,32 @@ class DocumentRenewalCreateRepositoryTest {
         assertTrue(sql.getValue().contains("ELSE 'MISSING'"));
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void existingRequestItemsQueryPrefersRequestScopedFilesOverProfileRegardlessOfStorageScope() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.<DocumentRequestItemEntity>emptyList());
+
+        repository.findRequestItemsForValidate("request-id", "user-uuid");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        String value = sql.getValue();
+        assertTrue(value.contains("AS request_item_file_uploaded"));
+        assertTrue(value.contains("LEFT JOIN m_document_request_item_files rf"));
+        assertTrue(value.contains("rfmin.request_item_id = i.id"));
+        assertTrue(value.contains("AS fix_count"));
+        // request-scoped completeness/fix/uploaded checks must be evaluated before any storage_scope branch,
+        // so a PROFILE-scope item (e.g. MRI001) with a file already in m_document_request_item_files
+        // is resolved from there instead of the stale m_document_profile_request_item row
+        int firstRequestScopeCheck = value.indexOf("COALESCE(rs.valid_id_front_back_slots, 0) = 2");
+        int firstStorageScopeBranch = value.indexOf("WHEN m.storage_scope = 'PROFILE'");
+        assertTrue(firstRequestScopeCheck >= 0 && firstStorageScopeBranch >= 0);
+        assertTrue(firstRequestScopeCheck < firstStorageScopeBranch);
+        assertTrue(value.indexOf("CASE WHEN COALESCE(rs.uploaded_count, 0) > 0 THEN 1")
+                < value.indexOf("WHEN m.storage_scope = 'PROFILE' AND COALESCE(ps.uploaded_count, 0) > 0 THEN 1"));
+    }
+
     @Test
     void insertRequestSnapshotsUserContactFields() {
         when(template.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);

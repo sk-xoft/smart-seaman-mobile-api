@@ -45,8 +45,8 @@ class DocumentRenewalTimelineServiceTest {
         when(repository.findOwnedRequestByNo("260700001", "user-uuid")).thenReturn(owned);
         DocumentRenewalTransactionEntity transaction = new DocumentRenewalTransactionEntity();
         transaction.setAction("SEND_BACK");
-        transaction.setFromStatus("PENDING_DOCUMENT_REVIEW");
-        transaction.setToStatus("PENDING_APPLICANT_CORRECTION");
+        transaction.setFromStatus("DOCUMENT_REVIEW");
+        transaction.setToStatus("DOCUMENT_REVIEW");
         transaction.setNote("internal admin note");
         transaction.setActionedBy("admin-id");
         transaction.setActionedAt(Date.from(LocalDateTime.of(2026, 7, 9, 15, 45)
@@ -57,6 +57,8 @@ class DocumentRenewalTimelineServiceTest {
         DocumentRenewalTimelineResponse response = service.timeline("260700001");
 
         assertEquals("260700001", response.getRequestNo());
+        assertEquals("DOCUMENT_REVIEW", response.getItems().get(0).getFromStatus());
+        assertEquals("DOCUMENT_REVIEW", response.getItems().get(0).getToStatus());
         assertEquals("09/07/2026 15:45", response.getItems().get(0).getActionedAt());
         assertEquals("ส่งเอกสารกลับเพื่อแก้ไข", response.getItems().get(0).getDetail());
         assertFalse(response.getItems().get(0).getDetail().contains("internal"));

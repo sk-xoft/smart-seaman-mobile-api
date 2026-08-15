@@ -166,7 +166,7 @@ public class DocumentController extends BaseController {
     }
 
     @Operation(summary = "ตรวจสอบเอกสารที่ขาด", description = "ตรวจสอบรายการเอกสารที่ยังไม่ครบหรือถูก reject สำหรับ document code ที่ระบุ")
-    @PostMapping({Routes.VALIDATE_AND_CREATE_DOCUMENT_RENEWALS_REQUEST})
+    @PostMapping({Routes.DOCUMENT_RENEWALS_REQUEST_VALIDATE_AND_CREATE})
     public ResponseEntity<SuccessResponse<DocumentRequestValidateResponse>> validateDocumentItems(
             HttpServletRequest httpServletRequest,
             @Valid @RequestBody DocumentRequestValidateRequest request) {

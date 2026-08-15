@@ -51,6 +51,9 @@ class DocumentRenewalListServiceTest {
         row.setStatusNameTh("รอตรวจเอกสาร");
         row.setStatusNameEn("Pending Document Review");
         row.setStatusCssColor("#ff0000");
+        row.setDocumentMobileStatusCode("DOCUMENT_REVIEW");
+        row.setDocumentMobileStatusNameTh("ตรวจเอกสาร");
+        row.setDocumentMobileStatusNameEn("Document Review");
         row.setSubmittedAt(Date.from(LocalDateTime.of(2026, 7, 9, 14, 30)
                 .atZone(ZoneId.of("Asia/Bangkok")).toInstant()));
         row.setAmount(new BigDecimal("1500.00"));
@@ -64,9 +67,15 @@ class DocumentRenewalListServiceTest {
         assertTrue(response.isLast());
         assertEquals("09/07/2026 14:30", response.getItems().get(0).getSubmittedAt());
         assertEquals("ประกาศนียบัตร", response.getItems().get(0).getDocumentName());
+        assertEquals("Certificate", response.getItems().get(0).getDocumentNameEn());
         assertEquals("PENDING_DOCUMENT_REVIEW",
                 response.getItems().get(0).getStatus().getDocumentStatusCode());
         assertEquals(1, response.getItems().get(0).getStatus().getStep());
+        assertEquals("DOCUMENT_REVIEW",
+                response.getItems().get(0).getStatus().getMobileStatus()
+                        .getDocumentMobileStatusCode());
+        assertEquals("ตรวจเอกสาร",
+                response.getItems().get(0).getStatus().getMobileStatus().getNameTh());
         assertTrue(response.getItems().get(0).getIsResubmit());
         verify(repository).findByUser("user-uuid", 10);
     }

@@ -12,7 +12,11 @@ import java.util.List;
 public class DocumentRenewalRepository extends CommonRepository {
 
     public List<DocumentRenewalStatusEntity> findActiveStatuses() {
-        String sql = "SELECT id, document_status_code, name_th, name_en, css_color "
+        String sql = "SELECT id, document_status_code, "
+                + "document_mobile_status_code, "
+                + "document_mobile_status_name_th, "
+                + "document_mobile_status_name_en, "
+                + "name_th, name_en, css_color "
                 + "FROM m_document_status "
                 + "WHERE is_active = 'YES' AND is_mobile_visible = 'YES' "
                 + "ORDER BY CASE document_status_code "

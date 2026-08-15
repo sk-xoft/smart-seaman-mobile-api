@@ -231,12 +231,12 @@ Business logic:
   - สร้าง request items ตาม required setting
   - ถ้าจำนวน request items ที่ insert ไม่เท่ากับจำนวน required items ให้ rollback ด้วย database error
   - append `m_document_transaction` action `CREATE` พร้อม note `Unpaid draft created`
-  - fetch request items ที่เพิ่ง insert แล้วคืน response โดยใช้ aggregate file state แยกตาม `storageScope`
-  - first create response ของ `storageScope = PROFILE` ต้องแสดง `documentStatus` จาก profile validation จริง ไม่ใช่ force เป็น `COMPLETE`
-  - item ที่เป็น `storageScope = PROFILE` ต้องดึง `fileUploaded` และ file metadata จาก `m_document_profile_request_item`
+  - fetch request items ที่เพิ่ง insert แล้วคืน response โดยใช้ aggregate file state ที่ให้ความสำคัญกับข้อมูลที่แยกตาม renewal (`m_document_request_item_files`) ก่อนเสมอ แล้วจึง fallback ไปที่ profile กลางเฉพาะ item ที่เป็น `storageScope = PROFILE` และยังไม่เคยมีไฟล์ถูก upload ผ่าน renewal นี้
+  - first create response ของ `storageScope = PROFILE` ต้องแสดง `documentStatus` จาก profile validation จริง (ยังไม่มีไฟล์ใน `m_document_request_item_files` ของ renewal ที่เพิ่งสร้าง) ไม่ใช่ force เป็น `COMPLETE`
+  - item ที่เป็น `storageScope = PROFILE` และยังไม่เคย upload ผ่าน renewal item-file endpoint ต้องดึง `fileUploaded` และ file metadata จาก `m_document_profile_request_item` (prefill ครั้งแรก)
   - item ที่เป็น `storageScope = PROFILE` ต้องไม่ใช้ `m_document_request_items.approve_status = PASS` มา override เป็น `COMPLETE` ถ้า profile ไม่มีไฟล์จริง
   - first create response ของ `storageScope = REQUEST` ต้องคง `documentStatus = MISSING` จนกว่า user จะ upload file สำหรับ renewal request นั้น เพราะเป็นเอกสารที่ต้องส่งใหม่ทุก request
-  - existing active request response ของ `storageScope = REQUEST` ที่ upload แล้วต้องคืน `files[]` จาก `m_document_request_item_files`
+  - **existing/idempotent active request response ต้องอ่าน `documentStatus`, `fileUploaded` และ `files[]` จาก `m_document_request_item_files` (ตาม `request_item_id`) เป็นลำดับแรกเสมอ ไม่ว่า item จะเป็น `storageScope` ใด** — เพราะ endpoint `POST /v1/document-renewals/{requestNo}/items/{itemCode}/file` เขียนไฟล์ของทุก item ลงตารางนี้เท่านั้น (ดู [MR-MOB-08](#mr-mob-08-upload-or-replace-renewal-supporting-file)); ใช้ profile กลางเป็น fallback เฉพาะตอนยังไม่มีแถวใน `m_document_request_item_files` สำหรับ item นั้นของ renewal นี้
 - method เป็น `@Transactional` ดังนั้น request header, request items และ transaction timeline ต้อง commit/rollback พร้อมกัน
 
 Acceptance criteria:
@@ -256,17 +256,18 @@ Acceptance criteria:
 - response ต้องคืน `idempotencyKey` เมื่อ request ถูกสร้างหรือ reused จาก key นั้น
 - response ต้องคืน `mobileNumber` และ `email` จาก snapshot/authenticated user
 - response ต้องคืน `address` เป็น array ของ delivery address snapshot; `address[].id` ต้องเป็น `m_document_request_delivery_address.id` ของ request นั้น; ถ้าไม่มี address ให้คืน `[]`
-- item ที่เป็น `storageScope = PROFILE` ต้องคืน `documentStatus` ตามไฟล์ profile จริง เช่น `COMPLETE`, `MISSING`, `NOT_UPLOADED`, `NEED_FIX` หรือ `INCOMPLETE`
-- item ที่เป็น `storageScope = PROFILE` ต้องคืน `fileUploaded` จาก profile document ของ user
+- item ที่เป็น `storageScope = PROFILE` และยังไม่เคย upload ผ่าน renewal item-file endpoint ต้องคืน `documentStatus` ตามไฟล์ profile จริง เช่น `COMPLETE`, `MISSING`, `NOT_UPLOADED`, `NEED_FIX` หรือ `INCOMPLETE`
+- item ที่เป็น `storageScope = PROFILE` และยังไม่เคย upload ผ่าน renewal item-file endpoint ต้องคืน `fileUploaded` จาก profile document ของ user
 - item ที่เป็น `storageScope = PROFILE` และไม่มีข้อมูลใน `m_document_profile_request_item` ต้องไม่คืน `documentStatus = COMPLETE`
 - item ที่เป็น `storageScope = REQUEST` เช่น `MRI004` ต้องคืน `documentStatus = MISSING` หลังสร้าง request ครั้งแรก
-- item ที่เป็น `storageScope = REQUEST` และ `fileUploaded = 1` ต้องมี `files[]` พร้อม `filePath`, `originalFileName`, `mimeType`, `fileSize`, `fileUploadedAt`
-- existing active request response ต้องคืน status จริงจาก request items เดิม
+- item ใดก็ตาม (ไม่ว่า `storageScope` เดิมจะเป็นอะไร) ที่มีไฟล์ถูก upload ผ่าน `POST /v1/document-renewals/{requestNo}/items/{itemCode}/file` แล้ว ต้องคืน `documentStatus`/`fileUploaded`/`files[]` จาก `m_document_request_item_files` ของ renewal นั้นเสมอ แทนที่ผล profile เดิม
+- item ที่มี `files[]` ต้องมี `filePath`, `originalFileName`, `mimeType`, `fileSize`, `fileUploadedAt`
+- existing active request response ต้องคืน status จริงจาก request items เดิม รวมถึงไฟล์ล่าสุดที่เคย upload ผ่าน renewal item-file endpoint
 
 Evidence when done:
 - API example: `POST /v1/documents-renewals/requests/validate-and-create`
 - Test class: `DocumentServiceValidateRequestTest`
-- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 37, Failures: 0, Errors: 0, Skipped: 0`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentServiceValidateRequestTest,DocumentRenewalCreateRepositoryTest,DeliveryAddressServiceTest,DocumentRenewalCreateServiceTest` passed, `Tests run: 39, Failures: 0, Errors: 0, Skipped: 0`
 - Files changed: `Routes`, `DocumentController`, `DocumentService`, `DocumentRepository`, `DocumentRenewalCreateRepository`, `DocumentRequestValidateRequest`, `DocumentRequestValidateResponse`, `DocumentRequestItemResponse`
 - SQL/index evidence: `03_create_core_indexes.sql`, `90_04_migrate_renewal_request_draft.sql`, `90_13_migrate_document_request_delivery_address_snapshot.sql`, `90_15_migrate_document_request_idempotency_key.sql`, `90_16_migrate_validate_create_covering_indexes.sql`, unique key `(mobile_user_uuid, idempotency_key)`, unique key `(mobile_user_uuid, document_master_request_item_code, document_type, slot_code)`, covering indexes `idx_profile_reqitem_validate_state` และ `idx_doc_reqitem_files_validate_state`
 
@@ -434,9 +435,13 @@ Acceptance criteria:
 - response ครบ 7 visible statuses เมื่อ master data ครบ
 - `รอผู้ยื่นแก้ไข` map เป็น step 1
 - `ยกเลิก` ไม่เป็น normal progress step
+- `status.mobileStatus` เป็น nested mobile-facing status; `PAYMENT_PENDING` map เป็น `DOCUMENT_REVIEW` และ `CANCELLED` เป็น `null`
 
 Evidence when done:
 - Test class: `DocumentRenewalControllerTest`
+- Test class: `DocumentRenewalServiceTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalControllerTest,DocumentRenewalServiceTest,DocumentRenewalListServiceTest,DocumentRenewalDetailServiceTest,DocumentRenewalRepositoryTest` passed, `Tests run: 34, Failures: 0, Errors: 0, Skipped: 0`
+- DB script: `90_17_migrate_document_mobile_status.sql`
 - API example: `GET /v1/document-renewals/statuses`
 
 ```bash
@@ -444,6 +449,24 @@ curl --request GET \
   --url "${base_url}/v1/document-renewals/statuses" \
   --header "Authorization: Bearer ${access_token}" \
   --header "Accept-Language: TH"
+```
+
+Status response shape includes the existing backend status fields plus nested mobile progress:
+
+```json
+{
+  "documentStatusCode": "PENDING_DOCUMENT_REVIEW",
+  "nameTh": "รอตรวจเอกสาร",
+  "nameEn": "Pending Document Review",
+  "cssColor": "#ff0000",
+  "progressStep": 1,
+  "mobileStatus": {
+    "documentMobileStatusCode": "DOCUMENT_REVIEW",
+    "nameTh": "ตรวจเอกสาร",
+    "nameEn": "Document Review",
+    "step": 1
+  }
+}
 ```
 
 ### MR-MOB-03: Get Renewal Price
@@ -608,7 +631,7 @@ Goal:
 Scope:
 - `GET /v1/document-renewals/my?offSet={n}`
 - owner-scoped query จาก JWT
-- page size 10, sort ล่าสุดก่อน, map `itemTotal`, `isLast`, amount, status และ `isResubmit`
+- page size 10, sort ล่าสุดก่อน, map `itemTotal`, `isLast`, amount, status, `documentNameEn` และ `isResubmit`
 
 Out of scope:
 - admin search/filter
@@ -624,11 +647,14 @@ Implementation checklist:
 
 Acceptance criteria:
 - response มี `itemTotal`, `isLast` และ items
+- item ใน response มี `documentName` ตาม `Accept-Language` และ `documentNameEn` เป็นชื่อเอกสารภาษาอังกฤษเสมอ
+- `status.mobileStatus` มี `documentMobileStatusCode`, `nameTh`, `nameEn`, `step` เมื่อ request อยู่ใน normal mobile progress
 - วันที่แสดงเป็น `DD/MM/YYYY HH:mm` ใน timezone `Asia/Bangkok`
 - ไม่คืน request ของ user อื่น
 
 Evidence when done:
 - Test class: `DocumentRenewalListServiceTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalControllerTest,DocumentRenewalServiceTest,DocumentRenewalListServiceTest,DocumentRenewalDetailServiceTest,DocumentRenewalRepositoryTest` passed, `Tests run: 34, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `GET /v1/document-renewals/my`
 
 ```bash
@@ -669,12 +695,14 @@ Implementation checklist:
 
 Acceptance criteria:
 - mobile เห็นเฉพาะรายละเอียดของ current status
+- `status.mobileStatus` เป็น nested mobile-facing status เหมือน list API
 - rejected item แสดง `checkNote` ชัดเจน
 - delivery data แสดงเฉพาะ status ที่เกี่ยวกับการจัดส่ง
 - ไม่คืน object-storage key ถาวร
 
 Evidence when done:
 - Test class: `DocumentRenewalDetailServiceTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalControllerTest,DocumentRenewalServiceTest,DocumentRenewalListServiceTest,DocumentRenewalDetailServiceTest,DocumentRenewalRepositoryTest` passed, `Tests run: 34, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `GET /v1/document-renewals/{requestNo}`
 
 ```bash
@@ -698,9 +726,7 @@ Scope:
 - `GET /v1/document-renewals/items/preview?request_no={requestNo}&request_master_items_code={itemCode}`
 - optional path-style endpoint `GET /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/preview`
 - owner-scoped lookup จาก `m_document_request` และ `m_document_request_items`
-- คืน metadata ของ item และไฟล์ preview จาก source table ที่ถูกต้องตาม `storageScope`
-- ถ้า `storageScope = PROFILE` ให้ดึงไฟล์จาก `m_document_profile_request_item`
-- ถ้า `storageScope = REQUEST` ให้ดึงไฟล์จาก `m_document_request_item_files`
+- คืน metadata ของ item และไฟล์ preview จาก `m_document_request_item_files` เสมอ (แยกตาม renewal ด้วย `request_item_id`) ไม่ว่า item จะตั้ง `storageScope` เป็น `PROFILE` หรือ `REQUEST`
 - ไฟล์ที่ upload แล้วคืน short-lived S3 presigned URL สำหรับ preview
 
 Out of scope:
@@ -732,8 +758,7 @@ Acceptance criteria:
 - user preview ได้เฉพาะ item ใน renewal request ของตัวเอง
 - ระบุ item ด้วย `request_master_items_code` ที่ map กับ `m_document_request_items.document_master_request_item_code`
 - response ต้องมี `itemId`, `documentRequestItemCode`, `storageScope`, `documentName`, `sortOrder`, `fileUploaded`, `checkResult`, `checkNote`, `isUpdated`, `files`
-- `storageScope = PROFILE` ต้องอ่านไฟล์จาก `m_document_profile_request_item`
-- `storageScope = REQUEST` ต้องอ่านไฟล์จาก `m_document_request_item_files`
+- ทุก item (ไม่ว่า `storageScope` จะเป็น `PROFILE` หรือ `REQUEST`) ต้องอ่านไฟล์จาก `m_document_request_item_files` โดยยึด `request_item_id` ของ renewal นั้นเสมอ — `storageScope` เป็นค่าข้อมูลอ้างอิงจาก master item เท่านั้น ไม่ได้กำหนด source table ของไฟล์อีกต่อไป
 - `files[]` ต้องมี `fileId`, `documentType`, `slotCode`, `originalFileName`, `mimeType`, `fileSize`, `fileUploadedAt`, `fileUrl`, `isUpdated`
 - `fileUrl` แสดงเฉพาะไฟล์ที่ `file_uploaded = 1` และมี storage key
 - invalid `request_no` หรือ `request_master_items_code` ต้อง reject ก่อน query database
@@ -812,7 +837,7 @@ Goal:
 Scope:
 - `GET /v1/document-renewals/{requestNo}/timeline`
 - read `m_document_transaction`
-- map action/from/to status, timestamp และ controlled display detail
+- map action/from/to mobile status, timestamp และ controlled display detail
 
 Out of scope:
 - internal/admin note exposure
@@ -826,12 +851,15 @@ Implementation checklist:
 - [x] cURL example
 
 Acceptance criteria:
+- `fromStatus` และ `toStatus` ใน response ต้องใช้ `m_document_status.document_mobile_status_code` จาก backend status ใน transaction log; ถ้าไม่มี mobile mapping ให้ fallback เป็น backend status code
 - เรียง `actioned_at ASC, id ASC` อย่าง deterministic
 - วันที่แสดงเป็น `DD/MM/YYYY HH:mm`
 - ไม่ expose `note` หรือ `actionedBy` ที่เป็น internal/admin detail
 
 Evidence when done:
 - Test class: `DocumentRenewalTimelineServiceTest`
+- Test class: `DocumentRenewalFoundationRepositoryTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalTimelineServiceTest,DocumentRenewalFoundationRepositoryTest` passed, `Tests run: 11, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `GET /v1/document-renewals/{requestNo}/timeline`
 
 ```bash
@@ -856,13 +884,11 @@ Scope:
 - multipart fields `documentType`, `slotCode`, `file`
 - อนุญาต request status `Payment Pending` สำหรับ unpaid draft upload
 - อนุญาต request status `Pending Applicant Correction` เฉพาะ item status `FIX`
-- lookup `storage_scope` จาก `m_document_master_request_item`
-- ถ้า `storage_scope = REQUEST` ให้ insert/update `m_document_request_item_files`
-- ถ้า `storage_scope = PROFILE` ให้ insert/update `m_document_profile_request_item`
+- insert/update `m_document_request_item_files` เสมอ โดยยึด `request_item_id` ของ renewal นั้น (ไม่ lookup/แยกตาม `storage_scope` ของ `m_document_master_request_item` อีกต่อไป) — ไฟล์ของแต่ละ item ในแต่ละ renewal ถูกเก็บแยกกันเสมอ ไม่ทับ record ของ renewal อื่นของ user เดียวกัน
 - reuse MIME/size validation, UUID storage key และ transaction-aware object cleanup
 
 Out of scope:
-- storage scope อื่นนอกเหนือจาก `REQUEST` และ `PROFILE`
+- การเขียน/อัปเดต `m_document_profile_request_item` จาก endpoint นี้ (ตารางนี้ยังถูกใช้เฉพาะโดย flow อัปโหลดเอกสารก่อนสร้าง renewal ที่ `POST /v1/documents/request-items/{itemCode}/files`)
 
 Implementation checklist:
 - [x] Controller / endpoint
@@ -877,16 +903,17 @@ Implementation checklist:
 Acceptance criteria:
 - user upload file ได้เฉพาะ state ที่อนุญาต
 - response ต้องคืน `requestId` และ `requestNo` ของ renewal request ที่ upload
-- `PAYMENT_PENDING` ต้อง upload ได้ทั้ง `REQUEST` และ `PROFILE` ตาม `storage_scope`
+- `PAYMENT_PENDING` ต้อง upload ได้ทุก item ของ renewal นั้น ไม่ว่า master item จะตั้ง `storage_scope` เป็นค่าใด
 - `PENDING_APPLICANT_CORRECTION` ต้อง upload ได้เฉพาะ item ที่ `approve_status = FIX`
-- item `storage_scope = REQUEST` เช่น `MRI004` ต้องบันทึกไฟล์ลง `m_document_request_item_files`
-- item `storage_scope = PROFILE` เช่น `MRI001` ต้องบันทึกไฟล์ลง `m_document_profile_request_item`
+- item ทุกตัว (รวมถึง `storage_scope = PROFILE` เช่น `MRI001`) ต้องบันทึกไฟล์ลง `m_document_request_item_files` โดยผูกกับ `request_item_id` ของ renewal นั้นเสมอ ห้ามเขียนลง `m_document_profile_request_item` จาก endpoint นี้
+- การอัปเดตไฟล์ของ item ใน renewal คำขอหนึ่ง ต้องไม่กระทบไฟล์/สถานะของ item เดียวกันใน renewal คำขออื่นของ user คนเดียวกัน
 - DB ไม่ชี้ไฟล์ใหม่หาก upload ล้มเหลว
 - DB rollback หลัง upload ต้อง cleanup orphan object
 - ไม่ใช้ชื่อไฟล์จาก client เป็น storage key โดยตรง
 
 Evidence when done:
 - Test class: `DocumentRenewalItemFileServiceTest`
+- Latest recorded focused result: `./mvnw test -Dtest=DocumentRenewalItemFileServiceTest,DocumentRenewalDetailServiceTest,DocumentRenewalFoundationRepositoryTest,DocumentRenewalResubmitServiceTest,DocumentRenewalControllerTest` passed, `Tests run: 41, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `POST /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/file`
 
 ```bash

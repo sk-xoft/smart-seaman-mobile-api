@@ -12,6 +12,7 @@ public class DocumentRenewalSummaryResponse {
     private String requestNo;
     private String documentCode;
     private String documentName;
+    private String documentNameEn;
     private DocumentRenewalSummaryStatusResponse status;
     private String submittedAt;
     private BigDecimal amount;

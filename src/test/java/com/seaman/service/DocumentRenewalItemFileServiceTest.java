@@ -21,7 +21,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class DocumentRenewalItemFileServiceTest {
     @Mock DocumentRenewalFoundationRepository repository;
-    @Mock DocumentRequestItemFileService fileService;
     @Mock DocumentRenewalRequestItemFileService requestItemFileService;
     @Mock HttpServletRequest request;
     @Mock MultipartFile file;
@@ -32,8 +31,7 @@ class DocumentRenewalItemFileServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DocumentRenewalItemFileService(
-                repository, fileService, requestItemFileService, request);
+        service = new DocumentRenewalItemFileService(repository, requestItemFileService, request);
         requestNo = "260700001";
         documentRequestItemCode = "MRI001";
         UsersEntity user = new UsersEntity();
@@ -47,13 +45,15 @@ class DocumentRenewalItemFileServiceTest {
         when(repository.lockOwnedRequestItem(
                 requestNo, documentRequestItemCode, "user-uuid")).thenReturn(item);
         DocumentRequestItemUploadResponse expected = new DocumentRequestItemUploadResponse();
-        when(fileService.upload("MRI001", "ID_CARD", "FRONT", file)).thenReturn(expected);
+        when(requestItemFileService.upload("request-item-id", "MRI001", "ID_CARD", "FRONT", file))
+                .thenReturn(expected);
 
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
         assertEquals("request-id", expected.getRequestId());
         assertEquals("260700001", expected.getRequestNo());
-        verify(fileService).upload("MRI001", "ID_CARD", "FRONT", file);
+        verify(requestItemFileService).upload(
+                "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
     }
 
     @Test
@@ -73,7 +73,6 @@ class DocumentRenewalItemFileServiceTest {
         assertEquals("260700001", expected.getRequestNo());
         verify(requestItemFileService).upload(
                 "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
-        verifyNoInteractions(fileService);
     }
 
     @Test
@@ -94,25 +93,25 @@ class DocumentRenewalItemFileServiceTest {
         assertEquals("260700001", expected.getRequestNo());
         verify(requestItemFileService).upload(
                 "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
-        verifyNoInteractions(fileService);
     }
 
     @Test
-    void storesProfileScopedFileOnUnpaidDraftBeforePayment() {
+    void storesProfileScopedItemOnRequestScopedTableOnUnpaidDraftBeforePayment() {
         RenewalRequestItemEntity item = correctionItem("PENDING");
         item.setStorageScope("PROFILE");
         item.setStatusNameEn(DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn());
         when(repository.lockOwnedRequestItem(
                 requestNo, documentRequestItemCode, "user-uuid")).thenReturn(item);
         DocumentRequestItemUploadResponse expected = new DocumentRequestItemUploadResponse();
-        when(fileService.upload("MRI001", "ID_CARD", "FRONT", file)).thenReturn(expected);
+        when(requestItemFileService.upload("request-item-id", "MRI001", "ID_CARD", "FRONT", file))
+                .thenReturn(expected);
 
         assertEquals(expected, service.upload(
                 requestNo, documentRequestItemCode, "ID_CARD", "FRONT", file));
         assertEquals("request-id", expected.getRequestId());
         assertEquals("260700001", expected.getRequestNo());
-        verify(fileService).upload("MRI001", "ID_CARD", "FRONT", file);
-        verifyNoInteractions(requestItemFileService);
+        verify(requestItemFileService).upload(
+                "request-item-id", "MRI001", "ID_CARD", "FRONT", file);
     }
 
     @Test
@@ -124,7 +123,7 @@ class DocumentRenewalItemFileServiceTest {
 
         assertThrows(BusinessException.class,
                 () -> service.upload(requestNo, documentRequestItemCode, "GENERAL", "MAIN", file));
-        verifyNoInteractions(fileService);
+        verifyNoInteractions(requestItemFileService);
     }
 
     @Test
@@ -134,19 +133,7 @@ class DocumentRenewalItemFileServiceTest {
 
         assertThrows(BusinessException.class,
                 () -> service.upload(requestNo, documentRequestItemCode, "GENERAL", "MAIN", file));
-        verifyNoInteractions(fileService);
-    }
-
-    @Test
-    void rejectsUnknownStorageScope() {
-        RenewalRequestItemEntity item = correctionItem("FIX");
-        item.setStorageScope("ARCHIVE");
-        when(repository.lockOwnedRequestItem(requestNo, documentRequestItemCode, "user-uuid"))
-                .thenReturn(item);
-
-        assertThrows(BusinessException.class,
-                () -> service.upload(requestNo, documentRequestItemCode, "GENERAL", "MAIN", file));
-        verifyNoInteractions(fileService, requestItemFileService);
+        verifyNoInteractions(requestItemFileService);
     }
 
     @Test
@@ -154,7 +141,7 @@ class DocumentRenewalItemFileServiceTest {
         assertThrows(BusinessException.class,
                 () -> service.upload("invalid request", documentRequestItemCode,
                         "GENERAL", "MAIN", file));
-        verifyNoInteractions(repository, fileService);
+        verifyNoInteractions(repository, requestItemFileService);
     }
 
     private RenewalRequestItemEntity correctionItem(String approveStatus) {

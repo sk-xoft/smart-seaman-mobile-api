@@ -1,6 +1,9 @@
 CREATE TABLE m_document_status (
     id              CHAR(36)        NOT NULL DEFAULT (UUID()),
     document_status_code VARCHAR(50) NOT NULL,
+    document_mobile_status_code VARCHAR(50) NULL,
+    document_mobile_status_name_th VARCHAR(255) NULL,
+    document_mobile_status_name_en VARCHAR(255) NULL,
     name_th         VARCHAR(255)    NOT NULL,
     name_en         VARCHAR(255)    NOT NULL,
     css_color       VARCHAR(100)    NOT NULL,

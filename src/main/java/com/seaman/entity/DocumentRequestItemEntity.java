@@ -18,6 +18,7 @@ public class DocumentRequestItemEntity {
     private String documentStatus;
     private Integer sortOrder;
     private Integer fileUploaded;
+    private Integer requestItemFileUploaded;
     private String filePath;
     private Date fileUploadedAt;
     private String checkResult;

@@ -5,6 +5,7 @@ import com.seaman.constant.AppSys;
 import com.seaman.entity.DocumentRenewalSummaryEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
+import com.seaman.model.response.DocumentRenewalMobileStatusResponse;
 import com.seaman.model.response.DocumentRenewalSummaryResponse;
 import com.seaman.model.response.DocumentRenewalSummaryStatusResponse;
 import com.seaman.model.response.PageDocumentRenewalResponse;
@@ -56,13 +57,19 @@ public class DocumentRenewalListService {
         status.setNameTh(row.getStatusNameTh());
         status.setNameEn(row.getStatusNameEn());
         status.setCssColor(row.getStatusCssColor());
-        status.setStep(progressStep(row.getStatusNameEn()));
+        status.setMobileStatus(mobileStatus(
+                row.getDocumentMobileStatusCode(),
+                row.getDocumentMobileStatusNameTh(),
+                row.getDocumentMobileStatusNameEn()));
+        status.setStep(status.getMobileStatus() == null
+                ? null : status.getMobileStatus().getStep());
 
         DocumentRenewalSummaryResponse response = new DocumentRenewalSummaryResponse();
         response.setRequestId(row.getRequestId());
         response.setRequestNo(row.getRequestNo());
         response.setDocumentCode(row.getDocumentCode());
         response.setDocumentName(documentName(row));
+        response.setDocumentNameEn(row.getDocumentNameEn());
         response.setStatus(status);
         if (row.getSubmittedAt() != null) {
             response.setSubmittedAt(row.getSubmittedAt().toInstant()
@@ -89,13 +96,25 @@ public class DocumentRenewalListService {
         return value != null && !value.trim().isEmpty();
     }
 
-    private Integer progressStep(String nameEn) {
-        if ("Pending Document Review".equals(nameEn)
-                || "Pending Applicant Correction".equals(nameEn)) return 1;
-        if ("Pending Marine Department Result".equals(nameEn)) return 2;
-        if ("Pending Department Document Pickup".equals(nameEn)) return 3;
-        if ("Delivering".equals(nameEn)) return 4;
-        if ("Delivered".equals(nameEn)) return 5;
+    private DocumentRenewalMobileStatusResponse mobileStatus(
+            String code, String nameTh, String nameEn) {
+        Integer step = progressStep(code);
+        if (step == null) return null;
+        DocumentRenewalMobileStatusResponse response =
+                new DocumentRenewalMobileStatusResponse();
+        response.setDocumentMobileStatusCode(code);
+        response.setNameTh(nameTh);
+        response.setNameEn(nameEn);
+        response.setStep(step);
+        return response;
+    }
+
+    private Integer progressStep(String code) {
+        if ("DOCUMENT_REVIEW".equals(code)) return 1;
+        if ("MARINE_DEPARTMENT_RESULT".equals(code)) return 2;
+        if ("DEPARTMENT_DOCUMENT_PICKUP".equals(code)) return 3;
+        if ("DELIVERING".equals(code)) return 4;
+        if ("DELIVERED".equals(code)) return 5;
         return null;
     }
 

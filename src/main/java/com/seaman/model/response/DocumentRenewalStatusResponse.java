@@ -12,6 +12,7 @@ public class DocumentRenewalStatusResponse {
     private String nameEn;
     private String cssColor;
     private Integer progressStep;
+    private DocumentRenewalMobileStatusResponse mobileStatus;
     private boolean correction;
     private boolean terminal;
 }

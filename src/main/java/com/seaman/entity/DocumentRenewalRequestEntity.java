@@ -22,6 +22,9 @@ public class DocumentRenewalRequestEntity {
     private String statusNameEn;
     private String statusNameTh;
     private String statusCssColor;
+    private String documentMobileStatusCode;
+    private String documentMobileStatusNameTh;
+    private String documentMobileStatusNameEn;
     private Boolean isResubmit;
     private String isActive;
     private BigDecimal amount;

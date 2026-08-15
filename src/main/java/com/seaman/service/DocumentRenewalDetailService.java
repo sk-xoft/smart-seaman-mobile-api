@@ -17,11 +17,11 @@ import com.seaman.model.response.DocumentRenewalDeptSubmissionResponse;
 import com.seaman.model.response.DocumentRenewalDetailFileResponse;
 import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
+import com.seaman.model.response.DocumentRenewalMobileStatusResponse;
 import com.seaman.model.response.DocumentRenewalSummaryStatusResponse;
 import com.seaman.repository.DocumentRenewalDetailRepository;
 import com.seaman.repository.DocumentRenewalFoundationRepository;
 import com.seaman.repository.DocumentRenewalRequestItemFileRepository;
-import com.seaman.repository.DocumentRequestItemFileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,6 @@ public class DocumentRenewalDetailService {
 
     private final DocumentRenewalFoundationRepository foundationRepository;
     private final DocumentRenewalDetailRepository detailRepository;
-    private final DocumentRequestItemFileRepository fileRepository;
     private final DocumentRenewalRequestItemFileRepository requestItemFileRepository;
     private final AmazonS3 s3;
     private final HttpServletRequest httpServletRequest;
@@ -96,7 +95,7 @@ public class DocumentRenewalDetailService {
         String userUuid = currentUserUuid();
         RenewalRequestItemEntity item = foundationRepository.findOwnedRequestItem(
                 requestNo, documentRequestItemCode, userUuid);
-        return item(item, userUuid);
+        return item(item);
     }
 
     private List<DocumentRenewalDetailItemResponse> items(String requestId, String userUuid) {
@@ -104,15 +103,13 @@ public class DocumentRenewalDetailService {
                 foundationRepository.findOwnedRequestItems(requestId, userUuid);
         List<DocumentRenewalDetailItemResponse> result = new ArrayList<>();
         for (RenewalRequestItemEntity row : rows) {
-            result.add(item(row, userUuid));
+            result.add(item(row));
         }
         return result;
     }
 
-    private DocumentRenewalDetailItemResponse item(RenewalRequestItemEntity row, String userUuid) {
-        List<DocumentRequestItemFileEntity> files = "REQUEST".equals(row.getStorageScope())
-                ? requestItemFileRepository.findFiles(row.getId())
-                : fileRepository.findFiles(userUuid, row.getDocumentMasterRequestItemCode());
+    private DocumentRenewalDetailItemResponse item(RenewalRequestItemEntity row) {
+        List<DocumentRequestItemFileEntity> files = requestItemFileRepository.findFiles(row.getId());
         List<DocumentRenewalDetailFileResponse> mappedFiles = new ArrayList<>();
         boolean updated = false;
         boolean fileUploaded = false;
@@ -162,7 +159,12 @@ public class DocumentRenewalDetailService {
         status.setNameTh(request.getStatusNameTh());
         status.setNameEn(request.getStatusNameEn());
         status.setCssColor(request.getStatusCssColor());
-        status.setStep(progressStep(request.getStatusNameEn()));
+        status.setMobileStatus(mobileStatus(
+                request.getDocumentMobileStatusCode(),
+                request.getDocumentMobileStatusNameTh(),
+                request.getDocumentMobileStatusNameEn()));
+        status.setStep(status.getMobileStatus() == null
+                ? null : status.getMobileStatus().getStep());
         return status;
     }
 
@@ -221,13 +223,25 @@ public class DocumentRenewalDetailService {
         return notBlank(row.getDocumentNameEn()) ? row.getDocumentNameEn() : fallback;
     }
 
-    private Integer progressStep(String nameEn) {
-        if ("Pending Document Review".equals(nameEn)
-                || "Pending Applicant Correction".equals(nameEn)) return 1;
-        if ("Pending Marine Department Result".equals(nameEn)) return 2;
-        if ("Pending Department Document Pickup".equals(nameEn)) return 3;
-        if ("Delivering".equals(nameEn)) return 4;
-        if ("Delivered".equals(nameEn)) return 5;
+    private DocumentRenewalMobileStatusResponse mobileStatus(
+            String code, String nameTh, String nameEn) {
+        Integer step = progressStep(code);
+        if (step == null) return null;
+        DocumentRenewalMobileStatusResponse response =
+                new DocumentRenewalMobileStatusResponse();
+        response.setDocumentMobileStatusCode(code);
+        response.setNameTh(nameTh);
+        response.setNameEn(nameEn);
+        response.setStep(step);
+        return response;
+    }
+
+    private Integer progressStep(String code) {
+        if ("DOCUMENT_REVIEW".equals(code)) return 1;
+        if ("MARINE_DEPARTMENT_RESULT".equals(code)) return 2;
+        if ("DEPARTMENT_DOCUMENT_PICKUP".equals(code)) return 3;
+        if ("DELIVERING".equals(code)) return 4;
+        if ("DELIVERED".equals(code)) return 5;
         return null;
     }
 

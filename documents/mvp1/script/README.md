@@ -44,6 +44,7 @@
 | 14 | `90_14_migrate_validate_create_performance_indexes.sql` | เพิ่ม indexes สำหรับ hot path ของ validate-and-create |
 | 15 | `90_15_migrate_document_request_idempotency_key.sql` | เพิ่ม `idempotency_key` สำหรับกันการสร้าง renewal request draft ซ้ำ |
 | 16 | `90_16_migrate_validate_create_covering_indexes.sql` | เพิ่ม covering indexes สำหรับ query validate-and-create ที่ aggregate file state |
+| 17 | `90_17_migrate_document_mobile_status.sql` | เพิ่ม mobile-facing status code/name สำหรับ renewal progress display |
 
 หลัง migration:
 

@@ -810,7 +810,7 @@ public class DocumentService {
             dto.setFilePath(item.getFilePath());
             dto.setCheckResult(item.getCheckResult());
             dto.setCheckNote(item.getCheckNote());
-            if ("REQUEST".equals(item.getStorageScope())) {
+            if (Integer.valueOf(1).equals(item.getRequestItemFileUploaded())) {
                 dto.setFiles(documentRenewalRequestItemFileService.mapFiles(
                         requestFilesByItemId.getOrDefault(item.getId(), Collections.emptyList())));
             } else if (item.getProfileRequestItemId() != null) {
@@ -831,8 +831,7 @@ public class DocumentService {
     private Map<String, List<DocumentRequestItemFileEntity>> requestFilesByItemId(
             List<DocumentRequestItemEntity> items) {
         List<String> requestItemIds = items.stream()
-                .filter(item -> "REQUEST".equals(item.getStorageScope()))
-                .filter(item -> Integer.valueOf(1).equals(item.getFileUploaded()))
+                .filter(item -> Integer.valueOf(1).equals(item.getRequestItemFileUploaded()))
                 .map(DocumentRequestItemEntity::getId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -860,7 +859,7 @@ public class DocumentService {
             return Collections.emptyMap();
         }
         List<String> itemCodes = items.stream()
-                .filter(item -> !"REQUEST".equals(item.getStorageScope()))
+                .filter(item -> !Integer.valueOf(1).equals(item.getRequestItemFileUploaded()))
                 .filter(item -> item.getProfileRequestItemId() != null)
                 .filter(item -> Integer.valueOf(1).equals(item.getFileUploaded()))
                 .map(DocumentRequestItemEntity::getDocumentMasterRequestItemCode)

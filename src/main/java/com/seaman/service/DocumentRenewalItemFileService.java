@@ -19,7 +19,6 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class DocumentRenewalItemFileService {
     private final DocumentRenewalFoundationRepository repository;
-    private final DocumentRequestItemFileService fileService;
     private final DocumentRenewalRequestItemFileService requestItemFileService;
     private final HttpServletRequest httpServletRequest;
 
@@ -32,14 +31,12 @@ public class DocumentRenewalItemFileService {
                 documentRequestItemCodeInput, "documentRequestItemCode", 10);
         RenewalRequestItemEntity item = repository.lockOwnedRequestItem(
                 requestNo, documentRequestItemCode, currentUserUuid());
-        boolean requestScoped = "REQUEST".equals(item.getStorageScope());
         boolean paymentPending = DocumentRenewalStatus.PAYMENT_PENDING.getMasterNameEn()
                 .equals(item.getStatusNameEn());
         boolean applicantCorrection = DocumentRenewalStatus.PENDING_APPLICANT_CORRECTION.getMasterNameEn()
                 .equals(item.getStatusNameEn());
         if (paymentPending) {
-            return withRequestContext(item,
-                    uploadByStorageScope(item, requestScoped, documentType, slotCode, file));
+            return withRequestContext(item, uploadToRequestScope(item, documentType, slotCode, file));
         }
         if (!applicantCorrection) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentStatus");
@@ -47,21 +44,13 @@ public class DocumentRenewalItemFileService {
         if (!"FIX".equals(item.getApproveStatus())) {
             throw new BusinessException(AppStatus.INVALID_FORMAT, "documentRequestItemStatus");
         }
-        return withRequestContext(item,
-                uploadByStorageScope(item, requestScoped, documentType, slotCode, file));
+        return withRequestContext(item, uploadToRequestScope(item, documentType, slotCode, file));
     }
 
-    private DocumentRequestItemUploadResponse uploadByStorageScope(
-            RenewalRequestItemEntity item, boolean requestScoped, String documentType,
-            String slotCode, MultipartFile file) {
-        if (requestScoped) {
-            return requestItemFileService.upload(item.getId(),
-                    item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
-        }
-        if (!"PROFILE".equals(item.getStorageScope())) {
-            throw new BusinessException(AppStatus.INVALID_FORMAT, "storageScope");
-        }
-        return fileService.upload(item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
+    private DocumentRequestItemUploadResponse uploadToRequestScope(
+            RenewalRequestItemEntity item, String documentType, String slotCode, MultipartFile file) {
+        return requestItemFileService.upload(item.getId(),
+                item.getDocumentMasterRequestItemCode(), documentType, slotCode, file);
     }
 
     private DocumentRequestItemUploadResponse withRequestContext(

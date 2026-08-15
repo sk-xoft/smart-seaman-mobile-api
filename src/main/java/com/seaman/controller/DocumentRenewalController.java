@@ -47,11 +47,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import javax.validation.Valid;
-
 import static org.springframework.http.ResponseEntity.ok;
 
 @Tag(name = "Document Renewals", description = "Mobile document renewal APIs")
@@ -189,7 +187,7 @@ public class DocumentRenewalController extends BaseController {
     }
 
     @Operation(summary = "List documents available for renewal")
-    @GetMapping({Routes.DOCUMENTS_RENEWALS, Routes.DOCUMENT_RENEWALS})
+    @GetMapping({Routes.DOCUMENT_RENEWALS, Routes.DOCUMENT_RENEWALS})
     public ResponseEntity<SuccessResponse<List<DocumentResponse>>> documents(HttpServletRequest request) {
         return ok(success(request, service.documents()));
     }

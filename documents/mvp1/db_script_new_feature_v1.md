@@ -82,16 +82,24 @@ ALTER TABLE m_documents
 ```sql
 CREATE TABLE m_document_status (
     id              CHAR(36)        NOT NULL DEFAULT (UUID()),
+    document_status_code VARCHAR(50) NOT NULL,
+    document_mobile_status_code VARCHAR(50) NULL,
+    document_mobile_status_name_th VARCHAR(255) NULL,
+    document_mobile_status_name_en VARCHAR(255) NULL,
     name_th         VARCHAR(255)    NOT NULL,
     name_en         VARCHAR(255)    NOT NULL,
     css_color       VARCHAR(100)    NOT NULL,
     is_active       VARCHAR(3)      NOT NULL DEFAULT 'YES',
+    is_mobile_visible VARCHAR(3)    NOT NULL DEFAULT 'YES',
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_document_status_code (document_status_code),
     UNIQUE KEY uq_document_status_name_th (name_th),
     UNIQUE KEY uq_document_status_name_en (name_en),
     CONSTRAINT chk_document_status_active
-        CHECK (is_active IN ('YES', 'NO'))
+        CHECK (is_active IN ('YES', 'NO')),
+    CONSTRAINT chk_document_status_mobile_visible
+        CHECK (is_mobile_visible IN ('YES', 'NO'))
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
@@ -356,6 +364,8 @@ CREATE TABLE m_document_master_request_item (
 - `document_master_items_code` เป็น business key ที่ใช้เชื่อมกับ profile, request item และ document setting
 - `sort_order` เป็นลำดับเริ่มต้นของรายการ และ `is_active` ใช้ปิดรายการโดยไม่ลบ master
 - `storage_scope = 'PROFILE'` หมายถึงใช้ไฟล์จาก profile กลาง; `REQUEST` หมายถึงต้อง upload ไฟล์เฉพาะใน request นั้น
+- flag นี้ใช้ตัดสิน fallback ตอน `validate-and-create` อ่านสถานะ item (ทั้งตอนสร้างใหม่และตอน reuse active/idempotent request เดิม): ถ้า item ยังไม่เคยมีไฟล์ใน `m_document_request_item_files` ของ renewal นั้นเลย และเป็น `storage_scope = 'PROFILE'` จะ prefill `documentStatus`/`fileUploaded`/`files[]` จาก profile กลางแทน (ดู [M_DOCUMENT_PROFILE_REQUEST_ITEM](#m_document_profile_request_item)); ถ้ามีไฟล์ใน `m_document_request_item_files` แล้วไม่ว่า item จะเป็น scope ใดก็ตาม ต้องอ่านจากตารางนั้นก่อนเสมอ
+- หลังจากมี renewal request แล้ว การ upload/แก้ไฟล์ item ผ่าน `POST /v1/document-renewals/{requestNo}/items/{itemCode}/file` **ไม่ขึ้นกับ flag นี้อีกต่อไป** — ไฟล์ของทุก item ถูกเก็บแยกตาม renewal ใน `m_document_request_item_files` เสมอ (ดู [M_DOCUMENT_REQUEST_ITEM_FILES](#m_document_request_item_files))
 
 ---
 
@@ -403,7 +413,7 @@ CREATE TABLE m_document_request_items (
 
 ## M_DOCUMENT_PROFILE_REQUEST_ITEM
 
-**บทบาท:** เก็บไฟล์เอกสารประกอบและผลตรวจล่าสุดในระดับ profile ของผู้ใช้ เพื่อให้เอกสารเดิมนำไปตรวจความครบถ้วนกับ document หลายประเภทได้
+**บทบาท:** เก็บไฟล์เอกสารประกอบและผลตรวจล่าสุดในระดับ profile ของผู้ใช้ เพื่อให้เอกสารเดิมนำไปตรวจความครบถ้วนกับ document หลายประเภทได้ ใช้เฉพาะช่วงก่อนมี renewal request (validate-and-create ตรวจ/prefill required items) และ flow อัปโหลดเอกสารทั่วไปที่ `POST /v1/documents/request-items/{itemCode}/files` เท่านั้น — endpoint upload item file ของ renewal (`POST /v1/document-renewals/{requestNo}/items/{itemCode}/file`) **ไม่เขียนตารางนี้อีกต่อไป** ไฟล์ของ renewal ทุกตัวถูกแยกเก็บใน [M_DOCUMENT_REQUEST_ITEM_FILES](#m_document_request_item_files) ตาม `request_item_id`
 
 ```sql
 CREATE TABLE m_document_profile_request_item (
@@ -464,7 +474,7 @@ CREATE TABLE m_document_profile_request_item (
 
 ## M_DOCUMENT_REQUEST_ITEM_FILES
 
-**บทบาท:** เก็บไฟล์เอกสารประกอบในระดับ request สำหรับรายการที่ `storage_scope = 'REQUEST'`
+**บทบาท:** เก็บไฟล์เอกสารประกอบในระดับ request แยกตาม renewal (`request_item_id`) สำหรับ item upload ทั้งหมดผ่าน `POST /v1/document-renewals/{requestNo}/items/{itemCode}/file` — ไม่ว่า master item จะตั้ง `storage_scope` เป็น `PROFILE` หรือ `REQUEST` ก็ตาม (เดิมใช้เฉพาะรายการที่ `storage_scope = 'REQUEST'`)
 
 ```sql
 CREATE TABLE m_document_request_item_files (
@@ -512,7 +522,7 @@ CREATE TABLE m_document_request_item_files (
 ```
 
 **หมายเหตุ:**
-- ใช้สำหรับ upload files เฉพาะ request เช่น `MRI004` ที่ seed เป็น `storage_scope = 'REQUEST'`
+- ใช้สำหรับ upload files ของทุก item ผ่าน renewal item-file endpoint (รวมถึง item ที่ seed เป็น `storage_scope = 'PROFILE'` เช่น `MRI001`, ไม่ใช่แค่ `MRI004` ที่เป็น `storage_scope = 'REQUEST'`)
 - Unique key ป้องกัน slot ซ้ำใน request item เดียวกัน
 - `idx_doc_reqitem_files_validate_state` รองรับ hot query ของ validate-and-create ที่ aggregate request-scoped file state ต่อ request item
 

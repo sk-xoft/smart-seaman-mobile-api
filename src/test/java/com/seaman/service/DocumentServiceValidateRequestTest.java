@@ -272,6 +272,35 @@ class DocumentServiceValidateRequestTest {
     }
 
     @Test
+    void existingRequestReadsProfileScopedItemFilesFromRequestItemFilesWhenAlreadyUploadedThere() {
+        DocumentRenewalRequestEntity existing = new DocumentRenewalRequestEntity();
+        existing.setId("existing-request-id");
+        existing.setRequestNo("260700099");
+        existing.setStatusCode("PAYMENT_PENDING");
+        existing.setMobileNumber("0899999999");
+        existing.setEmail("snapshot@example.com");
+        when(createRepository.findLatestActiveRequestNotDelivered("mobile-user-uuid", "DOC001"))
+                .thenReturn(existing);
+        DocumentRequestItemEntity profileItem = item("MRI001", "PROFILE", "COMPLETE");
+        profileItem.setProfileRequestItemId("profile-item-id");
+        profileItem.setFileUploaded(1);
+        profileItem.setRequestItemFileUploaded(1);
+        when(createRepository.findRequestItemsForValidate("existing-request-id", "mobile-user-uuid"))
+                .thenReturn(Collections.singletonList(profileItem));
+        when(createRepository.findDeliveryAddressSnapshot("existing-request-id", "mobile-user-uuid"))
+                .thenReturn(Collections.emptyList());
+        when(renewalRequestItemFileRepository.findFilesByRequestItemIds(
+                Collections.singletonList("MRI001-request-item-id")))
+                .thenReturn(Collections.emptyList());
+
+        service.validateAndCreateDocumentRenewalsItems(request);
+
+        verify(renewalRequestItemFileRepository).findFilesByRequestItemIds(
+                Collections.singletonList("MRI001-request-item-id"));
+        verify(itemFileRepository, never()).findFilesByItemCodes(anyString(), anyList());
+    }
+
+    @Test
     void createsPaymentPendingRequestWithoutSnapshotWhenDefaultDeliveryAddressDoesNotExist() {
         DocumentRenewalPriceResponse price = new DocumentRenewalPriceResponse();
         price.setPriceSettingId("price-setting-id");
