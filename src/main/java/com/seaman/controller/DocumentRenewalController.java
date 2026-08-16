@@ -11,6 +11,7 @@ import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRenewalResubmitResponse;
 import com.seaman.model.response.PageDocumentRenewalResponse;
 import com.seaman.model.response.DocumentRenewalTimelineResponse;
+import com.seaman.model.response.DocumentRenewalStageResponse;
 import com.seaman.model.response.DocumentRenewalDetailResponse;
 import com.seaman.model.response.DocumentRenewalDetailItemResponse;
 import com.seaman.model.request.DocumentRenewalCreateRequest;
@@ -27,6 +28,7 @@ import com.seaman.service.DocumentRenewalItemFileService;
 import com.seaman.service.DocumentRenewalResubmitService;
 import com.seaman.service.DocumentRenewalListService;
 import com.seaman.service.DocumentRenewalTimelineService;
+import com.seaman.service.DocumentRenewalStageService;
 import com.seaman.service.DocumentRenewalDetailService;
 import com.seaman.service.DocumentRenewalMobileService;
 import com.seaman.service.DocumentRenewalPaymentService;
@@ -64,6 +66,7 @@ public class DocumentRenewalController extends BaseController {
     private final DocumentRenewalResubmitService resubmitService;
     private final DocumentRenewalListService listService;
     private final DocumentRenewalTimelineService timelineService;
+    private final DocumentRenewalStageService stageService;
     private final DocumentRenewalDetailService detailService;
     private final DocumentRenewalPaymentService paymentService;
     private final DocumentRenewalMobileService mobileService;
@@ -151,6 +154,13 @@ public class DocumentRenewalController extends BaseController {
     public ResponseEntity<SuccessResponse<DocumentRenewalTimelineResponse>> timeline(
             HttpServletRequest request, @PathVariable String requestNo) {
         return ok(success(request, timelineService.timeline(requestNo)));
+    }
+
+    @Operation(summary = "Get the current user's document renewal stage progress")
+    @GetMapping(Routes.DOCUMENT_RENEWAL_STAGE)
+    public ResponseEntity<SuccessResponse<DocumentRenewalStageResponse>> stage(
+            HttpServletRequest request, @PathVariable String requestNo) {
+        return ok(success(request, stageService.stage(requestNo)));
     }
 
     @Operation(summary = "Get the current user's document renewal request detail")

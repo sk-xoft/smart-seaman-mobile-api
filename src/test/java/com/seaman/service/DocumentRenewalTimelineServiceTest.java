@@ -45,8 +45,10 @@ class DocumentRenewalTimelineServiceTest {
         when(repository.findOwnedRequestByNo("260700001", "user-uuid")).thenReturn(owned);
         DocumentRenewalTransactionEntity transaction = new DocumentRenewalTransactionEntity();
         transaction.setAction("SEND_BACK");
-        transaction.setFromStatus("DOCUMENT_REVIEW");
-        transaction.setToStatus("DOCUMENT_REVIEW");
+        transaction.setFromStatusNameTh("รอตรวจเอกสาร");
+        transaction.setFromStatusNameEn("Document Review");
+        transaction.setToStatusNameTh("รอตรวจเอกสาร");
+        transaction.setToStatusNameEn("Document Review");
         transaction.setNote("internal admin note");
         transaction.setActionedBy("admin-id");
         transaction.setActionedAt(Date.from(LocalDateTime.of(2026, 7, 9, 15, 45)
@@ -57,26 +59,50 @@ class DocumentRenewalTimelineServiceTest {
         DocumentRenewalTimelineResponse response = service.timeline("260700001");
 
         assertEquals("260700001", response.getRequestNo());
-        assertEquals("DOCUMENT_REVIEW", response.getItems().get(0).getFromStatus());
-        assertEquals("DOCUMENT_REVIEW", response.getItems().get(0).getToStatus());
+        assertEquals("รอตรวจเอกสาร", response.getItems().get(0).getFromStatus());
+        assertEquals("รอตรวจเอกสาร", response.getItems().get(0).getToStatus());
         assertEquals("09/07/2026 15:45", response.getItems().get(0).getActionedAt());
         assertEquals("ส่งเอกสารกลับเพื่อแก้ไข", response.getItems().get(0).getDetail());
         assertFalse(response.getItems().get(0).getDetail().contains("internal"));
     }
 
     @Test
-    void mapsEnglishDisplayDetail() {
+    void mapsEnglishDisplayDetailAndStatusName() {
         when(request.getAttribute(AppSys.LANGUAGE)).thenReturn("EN");
         DocumentRenewalRequestEntity owned = new DocumentRenewalRequestEntity();
         owned.setId("request-id");
         when(repository.findOwnedRequestByNo("260700001", "user-uuid")).thenReturn(owned);
         DocumentRenewalTransactionEntity transaction = new DocumentRenewalTransactionEntity();
         transaction.setAction("RESUBMIT");
+        transaction.setFromStatusNameTh("รอตรวจเอกสาร");
+        transaction.setFromStatusNameEn("Document Review");
+        transaction.setToStatusNameTh("รอตรวจเอกสาร");
+        transaction.setToStatusNameEn("Document Review");
         when(repository.findOwnedTransactions("request-id", "user-uuid"))
                 .thenReturn(Collections.singletonList(transaction));
 
-        assertEquals("Corrected documents resubmitted",
-                service.timeline("260700001").getItems().get(0).getDetail());
+        DocumentRenewalTimelineResponse response = service.timeline("260700001");
+
+        assertEquals("Corrected documents resubmitted", response.getItems().get(0).getDetail());
+        assertEquals("Document Review", response.getItems().get(0).getFromStatus());
+        assertEquals("Document Review", response.getItems().get(0).getToStatus());
+    }
+
+    @Test
+    void returnsNullStatusNameWhenNoMobileStatusMappingInsteadOfFallingBackToCode() {
+        DocumentRenewalRequestEntity owned = new DocumentRenewalRequestEntity();
+        owned.setId("request-id");
+        when(repository.findOwnedRequestByNo("260700001", "user-uuid")).thenReturn(owned);
+        DocumentRenewalTransactionEntity transaction = new DocumentRenewalTransactionEntity();
+        transaction.setAction("CREATE");
+        // no fromStatusNameTh/En, toStatusNameTh/En set -> simulates a status with no mobile mapping
+        when(repository.findOwnedTransactions("request-id", "user-uuid"))
+                .thenReturn(Collections.singletonList(transaction));
+
+        DocumentRenewalTimelineResponse response = service.timeline("260700001");
+
+        assertNull(response.getItems().get(0).getFromStatus());
+        assertNull(response.getItems().get(0).getToStatus());
     }
 
     @Test

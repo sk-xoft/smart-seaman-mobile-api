@@ -10,8 +10,10 @@ public class DocumentRenewalTransactionEntity {
     private String id;
     private String requestId;
     private String action;
-    private String fromStatus;
-    private String toStatus;
+    private String fromStatusNameTh;
+    private String fromStatusNameEn;
+    private String toStatusNameTh;
+    private String toStatusNameEn;
     private String note;
     private Date actionedAt;
     private String actionedBy;

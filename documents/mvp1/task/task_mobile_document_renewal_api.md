@@ -837,7 +837,7 @@ Goal:
 Scope:
 - `GET /v1/document-renewals/{requestNo}/timeline`
 - read `m_document_transaction`
-- map action/from/to mobile status, timestamp และ controlled display detail
+- map action/from/to mobile status name, timestamp และ controlled display detail
 
 Out of scope:
 - internal/admin note exposure
@@ -851,7 +851,8 @@ Implementation checklist:
 - [x] cURL example
 
 Acceptance criteria:
-- `fromStatus` และ `toStatus` ใน response ต้องใช้ `m_document_status.document_mobile_status_code` จาก backend status ใน transaction log; ถ้าไม่มี mobile mapping ให้ fallback เป็น backend status code
+- **`fromStatus` และ `toStatus` ใน response คือชื่อ mobile status ที่อ่านได้ (`m_document_status.document_mobile_status_name_th`/`document_mobile_status_name_en` ตาม `Accept-Language` — pattern เดียวกับ field `detail`) ไม่ใช่ status code อีกต่อไป (breaking change จากพฤติกรรมเดิมที่คืน `document_mobile_status_code`)**
+- ถ้า backend status ของ transaction นั้นไม่มี mobile status mapping (ไม่มีชื่อ) ให้คืน `fromStatus`/`toStatus` เป็น `null` — ไม่ fallback ไปเป็น backend status code แล้ว
 - เรียง `actioned_at ASC, id ASC` อย่าง deterministic
 - วันที่แสดงเป็น `DD/MM/YYYY HH:mm`
 - ไม่ expose `note` หรือ `actionedBy` ที่เป็น internal/admin detail
@@ -859,7 +860,7 @@ Acceptance criteria:
 Evidence when done:
 - Test class: `DocumentRenewalTimelineServiceTest`
 - Test class: `DocumentRenewalFoundationRepositoryTest`
-- Latest focused result: `./mvnw test -Dtest=DocumentRenewalTimelineServiceTest,DocumentRenewalFoundationRepositoryTest` passed, `Tests run: 11, Failures: 0, Errors: 0, Skipped: 0`
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalTimelineServiceTest,DocumentRenewalFoundationRepositoryTest` passed, `Tests run: 12, Failures: 0, Errors: 0, Skipped: 0`
 - API example: `GET /v1/document-renewals/{requestNo}/timeline`
 
 ```bash
@@ -1725,6 +1726,90 @@ curl --request DELETE \
   --header "Accept-Language: TH"
 ```
 
+### MR-MOB-25: Get Renewal Stage Progress
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: Medium
+
+Goal:
+- mobile user เห็น stepper ว่า renewal request ของตัวเองอยู่ stage ไหนแล้ว จาก call เดียวจบ (current stage + ทุก stage ของ 5-step ladder พร้อม state done/current/pending) โดยไม่ต้อง derive เองจาก `detail` หรือ `statuses`
+
+Scope:
+- `GET /v1/document-renewals/{requestNo}/stage`
+- reuse `DocumentRenewalFoundationRepository.findOwnedRequestByNo` (ownership scope เดียวกับ `detail`/`timeline`, ไม่มี SQL ใหม่)
+- reuse `DocumentRenewalRepository.findActiveStatuses()` (query เดียวกับ `/document-renewals/statuses`) เพื่อสร้าง ladder 5 step (`DOCUMENT_REVIEW`, `MARINE_DEPARTMENT_RESULT`, `DEPARTMENT_DOCUMENT_PICKUP`, `DELIVERING`, `DELIVERED`)
+- คำนวณ `state` ของแต่ละ stage ในหน่วยความจำ (ไม่มี query ใหม่, ไม่มี schema เปลี่ยน)
+
+Out of scope:
+- extract shared `progressStep`/`mobileStatus` helper (duplicate เดิมใน `DocumentRenewalService`/`DocumentRenewalDetailService` — คงไว้ตาม convention เดิมของ codebase นี้)
+- แสดง stage สำหรับ request ที่ไม่ใช่เจ้าของ
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL (reuse เดิม ไม่มี SQL ใหม่)
+- [x] Response DTO
+- [x] Focused test
+- [x] cURL example
+
+Acceptance criteria:
+- `currentStatus` คือ current status ของ request (เหมือน `status` object ใน `detail` endpoint — `nameTh`/`nameEn`/`cssColor`/`step`/`mobileStatus`)
+- `stages` มีเสมอ 5 รายการ step 1-5 เรียงตามลำดับ ไม่ว่า current status จะอยู่ step ไหน
+- ถ้า current step อยู่ใน ladder: stage ที่ step น้อยกว่า current เป็น `DONE`, stage ที่ step เท่ากับ current เป็น `CURRENT`, ที่เหลือเป็น `PENDING`
+- ถ้า current status ไม่อยู่บน ladder (`PAYMENT_PENDING`, `PENDING_APPLICANT_CORRECTION`, `CANCELLED` — `currentStatus.step == null`): ทุก stage เป็น `PENDING` และไม่มี stage ไหนเป็น `CURRENT` — client ต้องดู `currentStatus` เพื่อแสดง banner สถานะจริงแทน
+- ownership scope เดียวกับ endpoint อื่น: request ของ user อื่นหรือไม่พบ ต้องได้ `DATA_NOT_FOUND` และไม่ query ladder
+- ถ้า master data (`m_document_status`) ไม่ครบ 5 mobile step ต้อง throw `EXCEPTION_DATABASE` (fail loudly แทนที่จะคืน stepper ที่มีช่องขาด)
+
+Evidence when done:
+- Test class: `DocumentRenewalStageServiceTest`
+- Test class: `DocumentRenewalControllerTest` (เพิ่ม `stageDelegatesByRequestNumber`)
+- Latest focused result: `./mvnw test -Dtest=DocumentRenewalStageServiceTest,DocumentRenewalControllerTest` passed, `Tests run: 23, Failures: 0, Errors: 0, Skipped: 0`
+- Full suite: `./mvnw test` passed, `Tests run: 368, Failures: 0, Errors: 0, Skipped: 0`
+- Files changed: `Routes`, `DocumentRenewalController`, `DocumentRenewalStageService`, `DocumentRenewalStageResponse`, `DocumentRenewalStageItemResponse`
+- API example: `GET /v1/document-renewals/{requestNo}/stage`
+
+Response fields:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": {
+    "requestNo": "260700001",
+    "currentStatus": {
+      "id": "status-uuid",
+      "documentStatusCode": "PENDING_MARINE_DEPARTMENT_RESULT",
+      "nameTh": "รอผลจากกรมเจ้าท่า",
+      "nameEn": "Pending Marine Department Result",
+      "cssColor": "#F5A623",
+      "step": 2,
+      "mobileStatus": {
+        "documentMobileStatusCode": "MARINE_DEPARTMENT_RESULT",
+        "nameTh": "รอผลจากกรมเจ้าท่า",
+        "nameEn": "Marine Department Result",
+        "step": 2
+      }
+    },
+    "stages": [
+      { "step": 1, "documentMobileStatusCode": "DOCUMENT_REVIEW", "nameTh": "ตรวจเอกสาร", "nameEn": "Document Review", "state": "DONE" },
+      { "step": 2, "documentMobileStatusCode": "MARINE_DEPARTMENT_RESULT", "nameTh": "รอผลจากกรมเจ้าท่า", "nameEn": "Marine Department Result", "state": "CURRENT" },
+      { "step": 3, "documentMobileStatusCode": "DEPARTMENT_DOCUMENT_PICKUP", "nameTh": "รับเอกสารจากกรมเจ้าท่า", "nameEn": "Department Document Pickup", "state": "PENDING" },
+      { "step": 4, "documentMobileStatusCode": "DELIVERING", "nameTh": "จัดส่ง", "nameEn": "Delivering", "state": "PENDING" },
+      { "step": 5, "documentMobileStatusCode": "DELIVERED", "nameTh": "จัดส่งสำเร็จ", "nameEn": "Delivered", "state": "PENDING" }
+    ]
+  }
+}
+```
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals/${request_no}/stage" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
 ## Remaining Work
 
 | Priority | Task | Why it remains | Next action | Blocker |
@@ -1760,7 +1845,7 @@ Operational งานที่อยู่นอก implementation scope เช�
 7. MR-MOB-14 create/update delivery address APIs และ MR-MOB-16 get default delivery address
 8. MR-MOB-04 create request
 9. MR-MOB-08 renewal item upload และ MR-MOB-09 resubmit โดย reuse file validation/storage component จาก MR-MOB-15
-10. MR-MOB-05 list, MR-MOB-06 detail, MR-MOB-19 preview item และ MR-MOB-07 timeline
+10. MR-MOB-05 list, MR-MOB-06 detail, MR-MOB-19 preview item, MR-MOB-07 timeline และ MR-MOB-25 stage progress
 11. MR-MOB-10 payment attempt, payment webhook และ MR-MOB-11 payment status
 12. MR-MOB-12 contract/integration/concurrency tests
 13. MR-MOB-17 atomic mobile-number update และ change history

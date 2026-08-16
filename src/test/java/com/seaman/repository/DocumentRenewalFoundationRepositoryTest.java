@@ -184,10 +184,14 @@ class DocumentRenewalFoundationRepositoryTest {
         assertTrue(sql.getAllValues().get(0).contains("r.request_no = :requestNo"));
         assertTrue(sql.getAllValues().get(0).contains("r.is_active = 'YES'"));
         assertTrue(!sql.getAllValues().get(0).contains("FOR UPDATE"));
-        assertTrue(sql.getAllValues().get(1).contains("fs.document_mobile_status_code"));
-        assertTrue(sql.getAllValues().get(1).contains("ts.document_mobile_status_code"));
+        assertTrue(sql.getAllValues().get(1).contains("fs.document_mobile_status_name_th"));
+        assertTrue(sql.getAllValues().get(1).contains("fs.document_mobile_status_name_en"));
+        assertTrue(sql.getAllValues().get(1).contains("ts.document_mobile_status_name_th"));
+        assertTrue(sql.getAllValues().get(1).contains("ts.document_mobile_status_name_en"));
         assertTrue(sql.getAllValues().get(1).contains("LEFT JOIN m_document_status fs"));
         assertTrue(sql.getAllValues().get(1).contains("LEFT JOIN m_document_status ts"));
         assertTrue(sql.getAllValues().get(1).contains("ORDER BY t.actioned_at, t.id"));
+        assertTrue(!sql.getAllValues().get(1).contains("document_mobile_status_code"));
+        assertTrue(!sql.getAllValues().get(1).contains("COALESCE"));
     }
 }

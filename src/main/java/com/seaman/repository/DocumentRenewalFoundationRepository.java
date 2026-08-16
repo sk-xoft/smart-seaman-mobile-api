@@ -330,8 +330,10 @@ public class DocumentRenewalFoundationRepository extends CommonRepository {
     public List<DocumentRenewalTransactionEntity> findOwnedTransactions(
             String requestId, String mobileUserUuid) {
         return template.query("SELECT t.id, t.request_id, t.action, "
-                        + "COALESCE(fs.document_mobile_status_code, t.from_status) AS from_status, "
-                        + "COALESCE(ts.document_mobile_status_code, t.to_status) AS to_status, "
+                        + "fs.document_mobile_status_name_th AS from_status_name_th, "
+                        + "fs.document_mobile_status_name_en AS from_status_name_en, "
+                        + "ts.document_mobile_status_name_th AS to_status_name_th, "
+                        + "ts.document_mobile_status_name_en AS to_status_name_en, "
                         + "t.note, t.actioned_at, t.actioned_by "
                         + "FROM m_document_transaction t "
                         + "INNER JOIN m_document_request r ON r.id = t.request_id "

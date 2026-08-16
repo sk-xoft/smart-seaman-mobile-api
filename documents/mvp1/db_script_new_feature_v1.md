@@ -105,6 +105,8 @@ CREATE TABLE m_document_status (
   COLLATE=utf8mb4_unicode_ci;
 ```
 
+**หมายเหตุ:**
+- `GET /v1/document-renewals/{requestNo}/timeline` (`DocumentRenewalFoundationRepository.findOwnedTransactions`) join ตารางนี้ด้วย `document_status_code` (เทียบกับ `m_document_transaction.from_status`/`to_status` ที่เก็บ backend code) แล้วส่งออก **`document_mobile_status_name_th`/`document_mobile_status_name_en`** เป็นค่า `fromStatus`/`toStatus` ใน response โดยตรง (ไม่ใช่ `document_mobile_status_code` อีกต่อไป) — ถ้า backend status ใดไม่ได้ seed ชื่อ mobile status ไว้ client จะได้ `null` สำหรับ status นั้น ไม่มี fallback เป็น code
 
 ## M_DOCUMENT_REQUEST
 

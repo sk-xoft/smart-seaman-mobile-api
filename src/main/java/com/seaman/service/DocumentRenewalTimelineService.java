@@ -49,15 +49,20 @@ public class DocumentRenewalTimelineService {
     private DocumentRenewalTimelineItemResponse map(DocumentRenewalTransactionEntity row) {
         DocumentRenewalTimelineItemResponse response =
                 new DocumentRenewalTimelineItemResponse();
+        boolean english = isEnglish();
         response.setAction(row.getAction());
-        response.setFromStatus(row.getFromStatus());
-        response.setToStatus(row.getToStatus());
+        response.setFromStatus(mobileStatusName(row.getFromStatusNameTh(), row.getFromStatusNameEn(), english));
+        response.setToStatus(mobileStatusName(row.getToStatusNameTh(), row.getToStatusNameEn(), english));
         if (row.getActionedAt() != null) {
             response.setActionedAt(row.getActionedAt().toInstant()
                     .atZone(BUSINESS_ZONE).format(DISPLAY_DATE));
         }
-        response.setDetail(displayDetail(row.getAction(), isEnglish()));
+        response.setDetail(displayDetail(row.getAction(), english));
         return response;
+    }
+
+    private String mobileStatusName(String nameTh, String nameEn, boolean english) {
+        return english ? nameEn : nameTh;
     }
 
     private String displayDetail(String action, boolean english) {
