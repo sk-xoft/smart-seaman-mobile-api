@@ -46,6 +46,8 @@ public class Routes {
     public static final String EDIT_CERT = "/documents/certification/edit";
     public static final String VIEW_CERT = "/documents/certification/view";
     public static final String DOCUMENT_REQUEST_ITEM_FILES = "/documents/request-items/{itemCode}/files";
+    public static final String DOCUMENT_PROFILE_ITEMS = "/documents/profile-items";
+    public static final String DOCUMENT_PROFILE_ITEM_PREVIEW = "/documents/profile-items/{itemCode}/preview";
 
     // === School Training ===
     public static final String SCHOOL_TRAINING_LIST = "/school-trainings";

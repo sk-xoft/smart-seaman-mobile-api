@@ -9,6 +9,8 @@ import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentRequestValidateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
+import com.seaman.model.response.DocumentRequestItemResponse;
+import com.seaman.model.response.DocumentRequestItemPreviewResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentRequestValidateResponse;
 import com.seaman.model.response.PageDocumentResponse;
@@ -28,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.util.Base64;
+import java.util.List;
 import static org.springframework.http.ResponseEntity.ok;
 
 @Tag(name = "Documents", description = "จัดการใบรับรอง (Certificate) และเอกสารของลูกเรือ")
@@ -197,6 +200,30 @@ public class DocumentController extends BaseController {
         return ok(SuccessResponse.<DocumentRequestItemUploadResponse>builder(
                 AppStatus.SUCCESS_CODE, description,
                 documentRequestItemFileService.upload(itemCode, documentType, slotCode, file)).build());
+    }
+
+    @Operation(summary = "รายการเอกสารใน document profile",
+            description = "ดึงรายการ master item ที่ต้องอัปโหลดในโปรไฟล์ พร้อมสถานะและไฟล์ที่อัปโหลดแล้วของผู้ใช้")
+    @GetMapping(Routes.DOCUMENT_PROFILE_ITEMS)
+    public ResponseEntity<SuccessResponse<List<DocumentRequestItemResponse>>> listProfileItems(
+            HttpServletRequest httpServletRequest) {
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+        return ok(SuccessResponse.<List<DocumentRequestItemResponse>>builder(
+                AppStatus.SUCCESS_CODE, description,
+                documentService.listProfileItems()).build());
+    }
+
+    @Operation(summary = "ดูตัวอย่างเอกสารใน document profile",
+            description = "คืน signed URL ของไฟล์ที่อัปโหลดไว้ในโปรไฟล์สำหรับ item ที่ระบุ")
+    @GetMapping(Routes.DOCUMENT_PROFILE_ITEM_PREVIEW)
+    public ResponseEntity<SuccessResponse<DocumentRequestItemPreviewResponse>> previewProfileItem(
+            HttpServletRequest httpServletRequest, @PathVariable String itemCode) {
+        String description = messageCodeService.getMessageDescription(
+                AppStatus.SUCCESS_CODE, (String) httpServletRequest.getAttribute(AppSys.LANGUAGE));
+        return ok(SuccessResponse.<DocumentRequestItemPreviewResponse>builder(
+                AppStatus.SUCCESS_CODE, description,
+                documentRequestItemFileService.preview(itemCode)).build());
     }
 
     @Operation(summary = "ดูไฟล์ใบรับรอง", description = "ดาวน์โหลดไฟล์ใบรับรอง (รองรับ PNG, JPEG, PDF)")

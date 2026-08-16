@@ -1810,6 +1810,62 @@ curl --request GET \
   --header "Accept-Language: TH"
 ```
 
+### MR-MOB-26: List Document Profile Items And Preview
+
+Status: [x] Done
+Owner: Backend
+Estimate: 1 MD
+Priority: Medium
+
+Goal:
+- mobile user เห็นรายการเอกสารทั้งหมดใน "document profile" ของตัวเอง (เอกสารที่อัปโหลดไว้ก่อนสร้าง renewal request ผ่าน `POST /v1/documents/request-items/{itemCode}/files`) พร้อมสถานะความครบถ้วน และดู preview ไฟล์ที่อัปโหลดไว้ในโปรไฟล์ได้ด้วย signed URL
+
+Scope:
+- `GET /v1/documents/profile-items` — list ทุก active `storage_scope='PROFILE'` master item (`m_document_master_request_item`) พร้อม `documentStatus` (`MISSING`/`NOT_UPLOADED`/`NEED_FIX`/`INCOMPLETE`/`COMPLETE`) และ `files[]` ของ item ที่อัปโหลดแล้ว scoped ด้วย `mobile_user_uuid` จาก JWT
+- `GET /v1/documents/profile-items/{itemCode}/preview` — คืน signed URL (10 นาที) ของไฟล์ที่อัปโหลดไว้ในโปรไฟล์สำหรับ item นั้น
+- reuse `DocumentRequestItemFileRepository.findFiles`/`isActiveItem` (preview) และ query ใหม่ (list) ที่ join `m_document_master_request_item` กับ aggregate ของ `m_document_profile_request_item` — ไม่มีตาราง/คอลัมน์ใหม่
+- reuse logic การ map เดิมของ `DocumentService.mapDocumentRequestItems` (ใช้ร่วมกับ flow `validateAndCreateDocumentRenewalsItems` อยู่แล้ว) สำหรับ list endpoint
+
+Out of scope:
+- แก้ไข/สร้างรายการ item ใหม่จาก endpoint นี้ (ยังคงอัปโหลดผ่าน `POST /v1/documents/request-items/{itemCode}/files` เท่านั้น)
+- preview ไฟล์ของ `storage_scope='REQUEST'` item (ยังใช้ `GET /v1/document-renewals/{requestNo}/items/{documentRequestItemCode}/preview` เดิม)
+
+Implementation checklist:
+- [x] Controller / endpoint
+- [x] Service logic
+- [x] Repository / SQL
+- [x] Response DTO (list: reuse `DocumentRequestItemResponse`; preview: new `DocumentRequestItemPreviewResponse`/`DocumentRequestItemPreviewFileResponse`)
+- [x] Focused test
+- [x] cURL example
+
+Acceptance criteria:
+- `GET /v1/documents/profile-items` คืนทุก active PROFILE-scope master item ของระบบ ไม่ว่า user จะอัปโหลดแล้วหรือไม่ พร้อม `documentStatus` ที่ถูกต้องตาม semantics เดียวกับ `validateAndCreateDocumentRenewalsItems`
+- item ที่ยังไม่มี profile row เลยต้องได้ `documentStatus = MISSING` และไม่มี `files`
+- `GET .../preview` คืน `fileUrl` เป็น presigned URL เท่านั้น **ไม่คืน raw storage key** และไม่มี `files` (list ว่าง) ถ้ายังไม่อัปโหลด
+- `itemCode` ที่ไม่ active/ไม่มีอยู่จริงต้องได้ `DATA_NOT_FOUND`
+- ทั้งสอง endpoint scoped ด้วย `mobile_user_uuid` ของ authenticated user เท่านั้น (ไม่รับ user id จาก client)
+
+Evidence when done:
+- Test classes: `DocumentServiceTest`, `DocumentRequestItemFileServiceTest`, `DocumentRequestItemFileRepositoryTest`, `DocumentControllerTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentServiceTest,DocumentRequestItemFileServiceTest,DocumentRequestItemFileRepositoryTest,DocumentControllerTest` passed
+- Full suite: `./mvnw test` passed, `Tests run: 376, Failures: 0, Errors: 0, Skipped: 0`
+- Files changed: `Routes`, `DocumentController`, `DocumentService`, `DocumentRequestItemFileService`, `DocumentRequestItemFileRepository`, `DocumentRequestItemPreviewResponse`, `DocumentRequestItemPreviewFileResponse`
+- API examples: `GET /v1/documents/profile-items`, `GET /v1/documents/profile-items/{itemCode}/preview`
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/documents/profile-items" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/documents/profile-items/MRI001/preview" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
 ## Remaining Work
 
 | Priority | Task | Why it remains | Next action | Blocker |

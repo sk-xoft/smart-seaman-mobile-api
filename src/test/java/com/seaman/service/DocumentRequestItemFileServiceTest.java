@@ -58,4 +58,41 @@ class DocumentRequestItemFileServiceTest {
     }
     @Test void rejectsInvalidCombination(){assertThrows(BusinessException.class,()->service.upload("MRI001","PASSPORT","FRONT",file));}
     @Test void rejectsOversize(){when(repository.isActiveItem("MRI001")).thenReturn(true);when(file.getSize()).thenReturn(10485761L);assertThrows(BusinessException.class,()->service.upload("MRI001","PASSPORT","MAIN",file));}
+
+    @Test void previewReturnsSignedUrlForUploadedFile() throws Exception {
+        when(repository.isActiveItem("MRI001")).thenReturn(true);
+        com.seaman.entity.DocumentRequestItemFileEntity uploaded = new com.seaman.entity.DocumentRequestItemFileEntity();
+        uploaded.setId("file-id");
+        uploaded.setDocumentType("ID_CARD");
+        uploaded.setSlotCode("MAIN");
+        uploaded.setStorageKey("documents/user-uuid/request-items/key.png");
+        uploaded.setFileUploaded(1);
+        when(repository.findFiles("user-uuid","MRI001")).thenReturn(Collections.singletonList(uploaded));
+        when(s3.generatePresignedUrl(eq("bucket"), eq("documents/user-uuid/request-items/key.png"), any()))
+                .thenReturn(new java.net.URL("https://example.com/signed"));
+
+        com.seaman.model.response.DocumentRequestItemPreviewResponse response = service.preview("MRI001");
+
+        assertEquals("MRI001", response.getDocumentMasterRequestItemCode());
+        assertEquals("ID_CARD", response.getDocumentType());
+        assertEquals(1, response.getFiles().size());
+        assertEquals("https://example.com/signed", response.getFiles().get(0).getFileUrl());
+    }
+
+    @Test void previewReturnsEmptyFilesWhenNothingUploaded(){
+        when(repository.isActiveItem("MRI001")).thenReturn(true);
+        when(repository.findFiles("user-uuid","MRI001")).thenReturn(Collections.emptyList());
+
+        com.seaman.model.response.DocumentRequestItemPreviewResponse response = service.preview("MRI001");
+
+        assertNull(response.getDocumentType());
+        assertTrue(response.getFiles().isEmpty());
+    }
+
+    @Test void previewRejectsInvalidItemCode(){assertThrows(BusinessException.class,()->service.preview("bad code!"));}
+
+    @Test void previewRejectsInactiveItem(){
+        when(repository.isActiveItem("MRI999")).thenReturn(false);
+        assertThrows(BusinessException.class,()->service.preview("MRI999"));
+    }
 }

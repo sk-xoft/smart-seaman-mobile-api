@@ -7,6 +7,8 @@ import com.seaman.entity.DocumentRequestItemFileEntity;
 import com.seaman.entity.UsersEntity;
 import com.seaman.exception.BusinessException;
 import com.seaman.model.response.DocumentRequestItemFileResponse;
+import com.seaman.model.response.DocumentRequestItemPreviewFileResponse;
+import com.seaman.model.response.DocumentRequestItemPreviewResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.repository.DocumentRequestItemFileRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -35,6 +38,7 @@ public class DocumentRequestItemFileService {
     private static final Set<String> ALLOWED_MIME =
             Set.of("image/jpeg", "image/png", "application/pdf");
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final long SIGNED_URL_TTL_MILLIS = 10L * 60 * 1000;
 
     private final DocumentRequestItemFileRepository repository;
     private final AmazonS3 s3;
@@ -75,6 +79,49 @@ public class DocumentRequestItemFileService {
         response.setDocumentType(documentType);
         response.setComplete(complete);
         response.setFiles(mapFiles(repository.findFiles(userUuid, itemCode)));
+        return response;
+    }
+
+    public DocumentRequestItemPreviewResponse preview(String itemCodeInput) {
+        String itemCode = normalize(itemCodeInput, "itemCode");
+        if (!repository.isActiveItem(itemCode)) {
+            throw new BusinessException(AppStatus.DATA_NOT_FOUND, "documentRequestItemSlot");
+        }
+        String userUuid = currentUserUuid();
+        List<DocumentRequestItemFileEntity> files = repository.findFiles(userUuid, itemCode);
+        DocumentRequestItemPreviewResponse response = new DocumentRequestItemPreviewResponse();
+        response.setDocumentMasterRequestItemCode(itemCode);
+        response.setDocumentType(files.isEmpty() ? null : files.get(0).getDocumentType());
+        response.setFiles(previewFiles(files));
+        return response;
+    }
+
+    private List<DocumentRequestItemPreviewFileResponse> previewFiles(List<DocumentRequestItemFileEntity> entities) {
+        List<DocumentRequestItemPreviewFileResponse> result = new ArrayList<>();
+        for (DocumentRequestItemFileEntity entity : entities) {
+            result.add(previewFile(entity));
+        }
+        return result;
+    }
+
+    private DocumentRequestItemPreviewFileResponse previewFile(DocumentRequestItemFileEntity entity) {
+        DocumentRequestItemPreviewFileResponse response = new DocumentRequestItemPreviewFileResponse();
+        response.setFileId(entity.getId());
+        response.setDocumentType(entity.getDocumentType());
+        response.setSlotCode(entity.getSlotCode());
+        response.setOriginalFileName(entity.getOriginalFileName());
+        response.setMimeType(entity.getMimeType());
+        response.setFileSize(entity.getFileSize());
+        if (entity.getFileUploadedAt() != null) response.setFileUploadedAt(
+                entity.getFileUploadedAt().toInstant().atZone(ZoneId.of("Asia/Bangkok")).format(DISPLAY_DATE));
+        if (notBlank(entity.getCheckResult())) response.setCheckResult(entity.getCheckResult());
+        if (notBlank(entity.getCheckNote())) response.setCheckNote(entity.getCheckNote());
+        if (Boolean.TRUE.equals(entity.getIsUpdated())) response.setIsUpdated(true);
+        if (Integer.valueOf(1).equals(entity.getFileUploaded())
+                && notBlank(entity.getStorageKey())) {
+            Date expiresAt = new Date(System.currentTimeMillis() + SIGNED_URL_TTL_MILLIS);
+            response.setFileUrl(s3.generatePresignedUrl(bucketName, entity.getStorageKey(), expiresAt).toString());
+        }
         return response;
     }
 

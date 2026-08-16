@@ -1,6 +1,7 @@
 package com.seaman.repository;
 
 import com.seaman.constant.AppStatus;
+import com.seaman.entity.DocumentRequestItemEntity;
 import com.seaman.entity.DocumentRequestItemFileEntity;
 import com.seaman.exception.BusinessException;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
@@ -46,6 +47,60 @@ public class DocumentRequestItemFileRepository extends CommonRepository {
                 new MapSqlParameterSource().addValue("mobileUserUuid", mobileUserUuid)
                         .addValue("itemCodes", itemCodes),
                 new BeanPropertyRowMapper<>(DocumentRequestItemFileEntity.class));
+    }
+
+    public List<DocumentRequestItemEntity> findProfileItems(String mobileUserUuid) {
+        String sql = "SELECT m.id, :mobileUserUuid AS mobile_user_uuid, "
+                + "m.document_master_items_code AS document_master_request_item_code, "
+                + "m.storage_scope, p.document_type, "
+                + "m.document_master_items_name AS document_name, "
+                + "CASE "
+                + "WHEN m.document_master_items_code = 'MRI001' "
+                + "AND (COALESCE(ps.valid_id_front_back_slots, 0) = 2 "
+                + "OR COALESCE(ps.valid_id_main, 0) > 0 "
+                + "OR COALESCE(ps.valid_passport_main, 0) > 0) THEN 'COMPLETE' "
+                + "WHEN m.document_master_items_code <> 'MRI001' "
+                + "AND COALESCE(ps.valid_general_main, 0) > 0 THEN 'COMPLETE' "
+                + "WHEN COALESCE(ps.fix_count, 0) > 0 THEN 'NEED_FIX' "
+                + "WHEN p.id IS NULL THEN 'MISSING' "
+                + "WHEN COALESCE(ps.uploaded_count, 0) = 0 THEN 'NOT_UPLOADED' "
+                + "ELSE 'INCOMPLETE' END AS document_status, "
+                + "m.sort_order, "
+                + "CASE WHEN COALESCE(ps.uploaded_count, 0) > 0 THEN 1 ELSE 0 END AS file_uploaded, "
+                + "0 AS request_item_file_uploaded, "
+                + "p.file_path, p.file_uploaded_at, p.check_result, p.check_note, "
+                + "p.id AS profile_request_item_id "
+                + "FROM m_document_master_request_item m "
+                + "LEFT JOIN (SELECT document_master_request_item_code, MIN(id) AS profile_item_id "
+                + "FROM m_document_profile_request_item "
+                + "WHERE mobile_user_uuid = :mobileUserUuid "
+                + "GROUP BY document_master_request_item_code) pmin "
+                + "ON pmin.document_master_request_item_code = m.document_master_items_code "
+                + "LEFT JOIN m_document_profile_request_item p ON p.id = pmin.profile_item_id "
+                + "LEFT JOIN (SELECT document_master_request_item_code, "
+                + "COUNT(DISTINCT CASE WHEN document_type = 'ID_CARD' "
+                + "AND slot_code IN ('FRONT','BACK') AND file_uploaded = 1 "
+                + "AND (check_result IS NULL OR check_result <> 'fix') THEN slot_code END) "
+                + "AS valid_id_front_back_slots, "
+                + "SUM(CASE WHEN document_type = 'ID_CARD' AND slot_code = 'MAIN' "
+                + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix') "
+                + "THEN 1 ELSE 0 END) AS valid_id_main, "
+                + "SUM(CASE WHEN document_type = 'PASSPORT' AND slot_code = 'MAIN' "
+                + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix') "
+                + "THEN 1 ELSE 0 END) AS valid_passport_main, "
+                + "SUM(CASE WHEN document_type = 'GENERAL' AND slot_code = 'MAIN' "
+                + "AND file_uploaded = 1 AND (check_result IS NULL OR check_result <> 'fix') "
+                + "THEN 1 ELSE 0 END) AS valid_general_main, "
+                + "SUM(CASE WHEN check_result = 'fix' THEN 1 ELSE 0 END) AS fix_count, "
+                + "SUM(CASE WHEN file_uploaded = 1 THEN 1 ELSE 0 END) AS uploaded_count "
+                + "FROM m_document_profile_request_item WHERE mobile_user_uuid = :mobileUserUuid "
+                + "GROUP BY document_master_request_item_code) ps "
+                + "ON ps.document_master_request_item_code = m.document_master_items_code "
+                + "WHERE m.is_active = 'YES' AND m.storage_scope = 'PROFILE' "
+                + "ORDER BY m.sort_order, m.document_master_items_code";
+        return template.query(sql,
+                new MapSqlParameterSource("mobileUserUuid", mobileUserUuid),
+                new BeanPropertyRowMapper<>(DocumentRequestItemEntity.class));
     }
 
     public void deleteOtherTypes(String mobileUserUuid, String itemCode, String documentType) {

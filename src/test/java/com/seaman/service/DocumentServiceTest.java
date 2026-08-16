@@ -337,6 +337,48 @@ class DocumentServiceTest {
         assertEquals(AppStatus.DATA_NOT_FOUND, exception.getCode());
     }
 
+    // ---------------------------------------------------------------- listProfileItems
+
+    @Test
+    void listProfileItemsAttachesFilesForUploadedProfileItemsOnly() {
+        com.seaman.entity.DocumentRequestItemEntity missing =
+                profileItem("MRI002", "MISSING", 0, null);
+        com.seaman.entity.DocumentRequestItemEntity complete =
+                profileItem("MRI001", "COMPLETE", 1, "profile-item-id");
+        when(itemFileRepository.findProfileItems("mobile-user-uuid"))
+                .thenReturn(List.of(missing, complete));
+        com.seaman.entity.DocumentRequestItemFileEntity file =
+                new com.seaman.entity.DocumentRequestItemFileEntity();
+        file.setDocumentMasterRequestItemCode("MRI001");
+        when(itemFileRepository.findFilesByItemCodes("mobile-user-uuid", List.of("MRI001")))
+                .thenReturn(Collections.singletonList(file));
+        when(itemFileService.mapFiles(Collections.singletonList(file)))
+                .thenReturn(Collections.singletonList(new com.seaman.model.response.DocumentRequestItemFileResponse()));
+
+        List<com.seaman.model.response.DocumentRequestItemResponse> response = service.listProfileItems();
+
+        assertEquals(2, response.size());
+        assertEquals("MISSING", response.get(0).getDocumentStatus());
+        assertEquals(null, response.get(0).getFiles());
+        assertEquals("COMPLETE", response.get(1).getDocumentStatus());
+        assertEquals(1, response.get(1).getFiles().size());
+        verify(itemFileRepository).findProfileItems("mobile-user-uuid");
+        verify(itemFileRepository, never()).findFilesByItemCodes("mobile-user-uuid", List.of("MRI002"));
+    }
+
+    private com.seaman.entity.DocumentRequestItemEntity profileItem(
+            String itemCode, String status, int fileUploaded, String profileRequestItemId) {
+        com.seaman.entity.DocumentRequestItemEntity item = new com.seaman.entity.DocumentRequestItemEntity();
+        item.setMobileUserUuid("mobile-user-uuid");
+        item.setDocumentMasterRequestItemCode(itemCode);
+        item.setStorageScope("PROFILE");
+        item.setDocumentStatus(status);
+        item.setFileUploaded(fileUploaded);
+        item.setRequestItemFileUploaded(0);
+        item.setProfileRequestItemId(profileRequestItemId);
+        return item;
+    }
+
     // ----------------------------------------------------------------------- helpers
 
     private DocumentEntity documentEntity() {

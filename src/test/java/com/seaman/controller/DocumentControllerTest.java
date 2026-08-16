@@ -6,6 +6,8 @@ import com.seaman.model.common.SuccessResponse;
 import com.seaman.model.request.DocumentCreateRequest;
 import com.seaman.model.request.DocumentUpdateRequest;
 import com.seaman.model.response.DocumentCreateResponse;
+import com.seaman.model.response.DocumentRequestItemPreviewResponse;
+import com.seaman.model.response.DocumentRequestItemResponse;
 import com.seaman.model.response.DocumentRequestItemUploadResponse;
 import com.seaman.model.response.DocumentUpdateResponse;
 import com.seaman.model.response.PageDocumentResponse;
@@ -102,6 +104,25 @@ class DocumentControllerTest {
         assertSame(data, controller.uploadRequestItemFile(request, "ITEM001", "ID_CARD", "SLOT001", file)
                 .getBody().getData());
         verify(itemFileService).upload("ITEM001", "ID_CARD", "SLOT001", file);
+    }
+
+    @Test
+    void listProfileItemsDelegatesToDocumentService() {
+        java.util.List<DocumentRequestItemResponse> data =
+                java.util.Collections.singletonList(new DocumentRequestItemResponse());
+        when(documents.listProfileItems()).thenReturn(data);
+
+        assertSame(data, controller.listProfileItems(request).getBody().getData());
+        verify(documents).listProfileItems();
+    }
+
+    @Test
+    void previewProfileItemDelegatesToItemFileService() {
+        DocumentRequestItemPreviewResponse data = new DocumentRequestItemPreviewResponse();
+        when(itemFileService.preview("MRI001")).thenReturn(data);
+
+        assertSame(data, controller.previewProfileItem(request, "MRI001").getBody().getData());
+        verify(itemFileService).preview("MRI001");
     }
 
     private <T> void assertSuccess(SuccessResponse<T> body, T data) {

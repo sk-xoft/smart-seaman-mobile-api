@@ -791,6 +791,13 @@ public class DocumentService {
         return response;
     }
 
+    public List<DocumentRequestItemResponse> listProfileItems() {
+        UsersEntity usersEntity = (UsersEntity) httpServletRequest.getAttribute("userObject");
+        List<DocumentRequestItemEntity> items =
+                documentRequestItemFileRepository.findProfileItems(usersEntity.getMobileUuid());
+        return mapDocumentRequestItems(items);
+    }
+
     private List<DocumentRequestItemResponse> mapDocumentRequestItems(List<DocumentRequestItemEntity> items) {
         Map<String, List<DocumentRequestItemFileEntity>> requestFilesByItemId = requestFilesByItemId(items);
         Map<String, List<DocumentRequestItemFileEntity>> profileFilesByItemCode = profileFilesByItemCode(items);

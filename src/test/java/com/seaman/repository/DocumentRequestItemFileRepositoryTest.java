@@ -36,4 +36,23 @@ class DocumentRequestItemFileRepositoryTest {
         assertTrue(sql.getValue().contains("slot_code = 'MAIN'"));
         assertTrue(sql.getValue().contains("check_result <> 'fix'"));
     }
+
+    @Test
+    void findProfileItemsQueriesActiveProfileScopeMasterItemsOrderedBySortOrder() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class),
+                any(org.springframework.jdbc.core.BeanPropertyRowMapper.class))).thenReturn(null);
+
+        repository.findProfileItems("user-id");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).query(sql.capture(), any(MapSqlParameterSource.class),
+                any(org.springframework.jdbc.core.BeanPropertyRowMapper.class));
+        assertTrue(sql.getValue().contains("FROM m_document_master_request_item m"));
+        assertTrue(sql.getValue().contains("m.is_active = 'YES' AND m.storage_scope = 'PROFILE'"));
+        assertTrue(sql.getValue().contains("ORDER BY m.sort_order, m.document_master_items_code"));
+        assertTrue(sql.getValue().contains("'MISSING'"));
+        assertTrue(sql.getValue().contains("'NOT_UPLOADED'"));
+        assertTrue(sql.getValue().contains("'NEED_FIX'"));
+        assertTrue(sql.getValue().contains("'COMPLETE'"));
+    }
 }
