@@ -86,11 +86,11 @@ public class Routes {
     public static final String POLICY = "/privacy_policy";
 
     // === Document Renewal ===
-    public static final String DOCUMENT_RENEWALS_REQUEST_VALIDATE_AND_CREATE = "/documents-renewals/requests/validate-and-create";
-    public static final String DOCUMENT_RENEWALS = "/documents-renewals";
-    public static final String DOCUMENT_RENEWAL_REQUEST_MOBILE = "/documents-renewals/requests/{requestNo}/mobile";
-    public static final String DOCUMENT_RENEWAL_REQUEST_DELETE = "/documents-renewals/requests/{requestNo}";
-    public static final String DOCUMENT_RENEWAL_REQUEST_HARD_DELETE = "/documents-renewals/requests/{requestNo}/hard";
+    public static final String DOCUMENT_RENEWALS_REQUEST_VALIDATE_AND_CREATE = "/document-renewals/requests/validate-and-create";
+    public static final String DOCUMENT_RENEWALS = "/document-renewals";
+    public static final String DOCUMENT_RENEWAL_REQUEST_MOBILE = "/document-renewals/requests/{requestNo}/mobile";
+    public static final String DOCUMENT_RENEWAL_REQUEST_DELETE = "/document-renewals/requests/{requestNo}";
+    public static final String DOCUMENT_RENEWAL_REQUEST_HARD_DELETE = "/document-renewals/requests/{requestNo}/hard";
     public static final String DOCUMENT_RENEWAL_STATUSES = "/document-renewals/statuses";
     public static final String DOCUMENT_RENEWAL_PRICES = "/document-renewals/prices";
     public static final String DOCUMENT_RENEWALS_MY = "/document-renewals/my";
