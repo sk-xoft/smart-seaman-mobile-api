@@ -1,5 +1,6 @@
 package com.seaman;
 
+import com.seaman.config.DatabaseStartupHealthCheckInitializer;
 import com.seaman.constant.AppSys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -41,7 +42,9 @@ public class SmartSeamanMobileApiApplication {
 		// logger.warn("A WARN Message");
 		// logger.error("An ERROR Message");
 
-		SpringApplication.run(SmartSeamanMobileApiApplication.class, args);
+		SpringApplication application = new SpringApplication(SmartSeamanMobileApiApplication.class);
+		application.addInitializers(new DatabaseStartupHealthCheckInitializer());
+		application.run(args);
 	}
 
 	@Bean
