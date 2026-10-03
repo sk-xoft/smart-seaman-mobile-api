@@ -38,4 +38,7 @@ public class DocumentEntity {
     private String documentCourseCode;
     private String documentRenewalRequestFlag;
     private String documentRenewalProcessingFlag;
+    private String documentMobileStatusCode;
+    private String documentRenewalStatusNameTh;
+    private String documentRenewalStatusNameEn;
 }

@@ -5,10 +5,10 @@
 - Design/API Spec: `documents/mvp1/document_service_flow.md`
 - DB Script: `documents/mvp1/script/01_create_mvp1_tables.sql`, `documents/mvp1/script/02_seed_mvp1_master_data.sql`, `documents/mvp1/script/90_03_migrate_document_renewal_price_effective_period.sql`, `documents/mvp1/script/90_04_migrate_renewal_request_draft.sql`, `documents/mvp1/script/90_06_migrate_identity_document_multi_file.sql`, `documents/mvp1/script/90_09_migrate_omise_payment_channels.sql`, `documents/mvp1/script/90_11_migrate_document_request_collation.sql`, `documents/mvp1/script/90_12_migrate_document_request_user_contact_snapshot.sql`, `documents/mvp1/script/90_13_migrate_document_request_delivery_address_snapshot.sql`, `documents/mvp1/script/90_14_migrate_validate_create_performance_indexes.sql`, `documents/mvp1/script/90_15_migrate_document_request_idempotency_key.sql`, `documents/mvp1/script/90_16_migrate_validate_create_covering_indexes.sql`
 
-อัปเดตล่าสุด: 2026-08-08
+อัปเดตล่าสุด: 2026-10-03
 ผู้รับผิดชอบ: Backend
 สถานะรวม: In Progress
-Progress: 22/22 tasks
+Progress: 27/27 tasks
 
 หมายเหตุ: implementation task ทั้งหมดในเอกสารนี้อยู่สถานะ `[x]` จากหลักฐาน source/test ที่บันทึกไว้ แต่ยังมี operational remaining work เรื่อง production master data, deploy status ของ SQL scripts และ optional MySQL integration harness
 
@@ -33,6 +33,7 @@ Progress: 22/22 tasks
 | 0 | [x] | Validate and create renewal request draft | Backend | `POST /v1/documents-renewals/requests/validate-and-create`, `DocumentServiceValidateRequestTest` | - |
 | 1 | [x] | Shared renewal foundation | Backend | `DocumentRenewalFoundationRepositoryTest`, `m_document_transaction` transition contract | - |
 | 2 | [x] | Get renewal status master | Backend | `GET /v1/document-renewals/statuses`, `DocumentRenewalControllerTest` | - |
+| 2A | [x] | Get renewal document master list | Backend | `GET /v1/document-renewals`, `DocumentRepositoryTest` | - |
 | 3 | [x] | Get renewal price | Backend | `GET /v1/document-renewals/prices`, `DocumentRenewalServiceTest` | - |
 | 4 | [x] | Create renewal request | Backend | `POST /v1/document-renewals`, `DocumentRenewalCreateServiceTest` | - |
 | 5 | [x] | List my renewal requests | Backend | `GET /v1/document-renewals/my`, `DocumentRenewalListServiceTest` | - |
@@ -466,6 +467,68 @@ Status response shape includes the existing backend status fields plus nested mo
     "nameEn": "Document Review",
     "step": 1
   }
+}
+```
+
+### MR-MOB-02A: Get Renewal Document Master List
+
+Status: [x] Done
+Owner: Backend
+Estimate: 0.25 MD
+Priority: High
+
+Goal:
+- ให้ mobile ดึงรายการเอกสารที่เปิดให้ต่ออายุได้ พร้อมตัดสถานะคำขอที่จบแล้วออกจาก join ประกอบรายการ
+
+Scope:
+- `GET /v1/document-renewals`
+- อ่าน `m_documents` ที่ `DOCUMENT_STATUS = 'A'` และ `DOCUMENT_RENEWAL_FLAG in ('Y', 'YES')`
+- `LEFT JOIN m_document_request` ด้วย `document_code`
+- `LEFT JOIN m_document_status` ด้วย `document_status_id` และกรอง `document_status_code not in ('DELIVERED', 'CANCELLED')` ใน join condition
+- คืน `documentCode`, `documentName`, `documentNameTh`, `documentMobileStatusCode`, `documentRenewalStatusNameTh`, `documentRenewalStatusNameEn` โดยเลือก `documentName` ตาม `Accept-Language`
+
+Out of scope:
+- เปลี่ยน response shape เพื่อแสดง renewal request status ใน endpoint นี้
+- เพิ่ม schema/index/migration ใหม่
+
+Implementation checklist:
+- [x] Repository / SQL
+- [x] Focused repository test
+- [x] cURL example
+
+Acceptance criteria:
+- endpoint คืนเฉพาะ active document master ที่เปิด renewal
+- document ที่มี request สถานะ `DELIVERED` หรือ `CANCELLED` ยังอยู่ในผลลัพธ์ได้ เพราะ filter อยู่ใน `LEFT JOIN m_document_status`
+- เรียงผลลัพธ์ด้วย `DOCUMENT_SEQ`
+
+Evidence when done:
+- Test class: `DocumentRepositoryTest`
+- Latest focused result: `./mvnw test -Dtest=DocumentRepositoryTest,DocumentRenewalServiceTest` passed, `Tests run: 10, Failures: 0, Errors: 0, Skipped: 0`
+- API example: `GET /v1/document-renewals`
+
+```bash
+curl --request GET \
+  --url "${base_url}/v1/document-renewals" \
+  --header "Authorization: Bearer ${access_token}" \
+  --header "Accept-Language: TH"
+```
+
+Response shape:
+
+```json
+{
+  "code": "MA00000",
+  "description": "Success",
+  "data": [
+    {
+      "documentCode": "DOC001",
+      "documentName": "ประกาศนียบัตรลูกเรือ",
+      "documentNameTh": "ประกาศนียบัตรลูกเรือ",
+      "documentMobileStatusCode": "DOCUMENT_REVIEW",
+      "documentRenewalStatusNameTh": "รอตรวจเอกสาร",
+      "documentRenewalStatusNameEn": "Pending Document Review"
+    }
+  ]
 }
 ```
 

@@ -9,4 +9,7 @@ public class DocumentResponse {
     private String documentCode;
     private String documentName;
     private String documentNameTh;
+    private String documentMobileStatusCode;
+    private String documentRenewalStatusNameTh;
+    private String documentRenewalStatusNameEn;
 }

@@ -131,6 +131,9 @@ public class DocumentRenewalService {
                 ? entity.getDocumentNameEn()
                 : entity.getDocumentNameTh());
         response.setDocumentNameTh(entity.getDocumentNameTh());
+        response.setDocumentMobileStatusCode(entity.getDocumentMobileStatusCode());
+        response.setDocumentRenewalStatusNameTh(entity.getDocumentRenewalStatusNameTh());
+        response.setDocumentRenewalStatusNameEn(entity.getDocumentRenewalStatusNameEn());
         return response;
     }
 }

@@ -57,7 +57,6 @@ public class DocumentService {
 
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Bangkok");
-
     private final HttpServletRequest httpServletRequest;
     private final DocumentRepository documentRepository;
     private final DocumentRenewalCreateRepository documentRenewalCreateRepository;
@@ -73,7 +72,6 @@ public class DocumentService {
     private final AmazonS3 getS3;
     private final FrameworkUtils frameworkUtils;
     private final Base64FileValidator base64FileValidator;
-
     private final TransactionLogsService transactionLogsService;
 
     @Value("${object.store.bucket}")

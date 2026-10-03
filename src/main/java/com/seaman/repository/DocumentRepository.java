@@ -56,7 +56,14 @@ public class DocumentRepository extends CommonRepository {
     public List<DocumentEntity> findRenewalDocuments() {
         List<DocumentEntity> listAll = null;
         StringBuilder sql = new StringBuilder();
-        sql.append(" select * from m_documents ");
+        sql.append(" select d.document_code, d.DOCUMENT_NAME_TH, d.DOCUMENT_NAME_EN, ");
+        sql.append(" ds.document_mobile_status_code, ");
+        sql.append(" ds.name_th as document_renewal_status_name_th, ");
+        sql.append(" ds.name_en as document_renewal_status_name_en ");
+        sql.append(" from m_documents d ");
+        sql.append(" left join m_document_request dr on dr.document_code = d.DOCUMENT_CODE ");
+        sql.append(" left join m_document_status ds on dr.document_status_id = ds.id ");
+        sql.append(" and ds.document_status_code not in ('DELIVERED', 'CANCELLED') ");
         sql.append(" where DOCUMENT_STATUS = 'A' ");
         sql.append(" and DOCUMENT_RENEWAL_FLAG in ('Y', 'YES') ");
         sql.append(" order by DOCUMENT_SEQ ");

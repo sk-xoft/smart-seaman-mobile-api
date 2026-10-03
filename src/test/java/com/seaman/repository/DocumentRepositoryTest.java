@@ -1,6 +1,7 @@
 package com.seaman.repository;
 
 import com.seaman.entity.DocumentRequestItemEntity;
+import com.seaman.entity.DocumentEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -53,5 +54,26 @@ class DocumentRepositoryTest {
         assertFalse(sql.getValue().contains("COLLATE"));
         assertEquals("user-uuid", parameters.getValue().getValue("mobileUserUuid"));
         assertEquals("DOC001", parameters.getValue().getValue("documentCode"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void renewalDocumentsQueryJoinsActiveNonTerminalRequests() {
+        when(template.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.<DocumentEntity>emptyList());
+
+        repository.findRenewalDocuments();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(template).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertTrue(sql.getValue().contains("select d.document_code, d.DOCUMENT_NAME_TH, d.DOCUMENT_NAME_EN"));
+        assertTrue(sql.getValue().contains("ds.name_th as document_renewal_status_name_th"));
+        assertTrue(sql.getValue().contains("ds.name_en as document_renewal_status_name_en"));
+        assertTrue(sql.getValue().contains("left join m_document_request dr on dr.document_code = d.DOCUMENT_CODE"));
+        assertTrue(sql.getValue().contains("left join m_document_status ds on dr.document_status_id = ds.id"));
+        assertTrue(sql.getValue().contains("and ds.document_status_code not in ('DELIVERED', 'CANCELLED')"));
+        assertTrue(sql.getValue().contains("where DOCUMENT_STATUS = 'A'"));
+        assertTrue(sql.getValue().contains("and DOCUMENT_RENEWAL_FLAG in ('Y', 'YES')"));
+        assertTrue(sql.getValue().contains("order by DOCUMENT_SEQ"));
     }
 }

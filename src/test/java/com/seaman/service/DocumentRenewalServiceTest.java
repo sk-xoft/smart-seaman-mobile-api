@@ -118,6 +118,9 @@ class DocumentRenewalServiceTest {
         entity.setDocumentCode("DOC001");
         entity.setDocumentNameEn("Passport");
         entity.setDocumentNameTh("Passport TH");
+        entity.setDocumentMobileStatusCode("DOCUMENT_REVIEW");
+        entity.setDocumentRenewalStatusNameTh("รอตรวจเอกสาร");
+        entity.setDocumentRenewalStatusNameEn("Pending Document Review");
         when(httpServletRequest.getHeader(AppSys.HEADER_ACCEPT_LANGUAGE)).thenReturn(AppSys.LANG_EN);
         when(documentRepository.findRenewalDocuments()).thenReturn(Collections.singletonList(entity));
 
@@ -126,6 +129,9 @@ class DocumentRenewalServiceTest {
         assertEquals("DOC001", result.get(0).getDocumentCode());
         assertEquals("Passport", result.get(0).getDocumentName());
         assertEquals("Passport TH", result.get(0).getDocumentNameTh());
+        assertEquals("DOCUMENT_REVIEW", result.get(0).getDocumentMobileStatusCode());
+        assertEquals("รอตรวจเอกสาร", result.get(0).getDocumentRenewalStatusNameTh());
+        assertEquals("Pending Document Review", result.get(0).getDocumentRenewalStatusNameEn());
     }
 
     private DocumentRenewalStatusEntity status(String nameEn) {
